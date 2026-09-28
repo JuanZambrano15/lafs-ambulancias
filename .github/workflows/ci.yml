@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    name: API (lint + tests)
+    runs-on: ubuntu-latest
+    # Se activa cuando exista código en /api — mientras tanto, este job
+    # documenta el pipeline que vas a tener desde el primer PR con código real.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: api
+        run: |
+          pip install --break-system-packages -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        working-directory: api
+        run: ruff check .
+
+      - name: Type check (mypy)
+        working-directory: api
+        run: mypy app
+
+      - name: Tests (pytest, con cobertura)
+        working-directory: api
+        run: pytest --cov=app --cov-report=term-missing
+
+  # frontend:
+  #   name: App (lint + tests)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: "20"
+  #     - run: npm ci
+  #       working-directory: app
+  #     - run: npm run lint
+  #       working-directory: app
+  #     - run: npm test -- --run
+  #       working-directory: app
