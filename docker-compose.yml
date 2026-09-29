@@ -26,14 +26,30 @@ services:
         condition: service_healthy
     volumes:
       - files_data:/data/archivos
-    ports:
-      - "8001:8000"  # en producción, esto se retira y solo Caddy expone puertos
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
       retries: 5
+    # Sin "ports": no se expone directo al host. Solo Caddy es la
+    # puerta de entrada, incluso en desarrollo local, para que el
+    # comportamiento sea el mismo que en producción.
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
 
 volumes:
   pg_data:
   files_data:
+  caddy_data:
+  caddy_config:
