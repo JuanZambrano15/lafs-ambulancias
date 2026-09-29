@@ -1,0 +1,33 @@
+# Secretos y configuración local — NUNCA se commitea
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Node / frontend (cuando exista /app)
+node_modules/
+dist/
+.vite/
+
+# Docker
+*.pid
+
+# Archivos subidos en desarrollo (firmas, PDF, fotos SOAT) — nunca al repo
+/data/archivos/*
+!/data/archivos/.gitkeep
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
