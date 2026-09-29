@@ -1,0 +1,6 @@
+# Reverse proxy para la API. En local corre en HTTP (puerto 80); en
+# producción, apuntando a un dominio real en vez de ":80", Caddy emite
+# y renueva certificados TLS automáticamente sin configuración extra.
+:80 {
+    reverse_proxy api:8000
+}
