@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from app.api.routes import health
+from app.api.routes import auth, health
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 
@@ -22,6 +22,9 @@ app = FastAPI(
 )
 
 app.include_router(health.router)
+app.include_router(auth.router)
 
+# Los routers de atenciones, formatos, chequeos y reportes se agregan
+# aquí a medida que se implementan (ver el backlog en GitHub Issues).
 # Los routers de auth, atenciones, formatos, chequeos y reportes se agregan
 # aquí a medida que se implementan (ver el backlog en GitHub Issues).
