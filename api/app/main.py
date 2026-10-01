@@ -1,14 +1,14 @@
 """Punto de entrada de la API de LAFS Ambulancias."""
-
+ 
 from fastapi import FastAPI
-
-from app.api.routes import auth, health
+ 
+from app.api.routes import auth, empleados, health, roles, usuarios
 from app.core.config import get_settings
 from app.core.logging import configure_logging
-
+ 
 settings = get_settings()
 configure_logging()
-
+ 
 app = FastAPI(
     title="LAFS Ambulancias API",
     description=(
@@ -20,11 +20,13 @@ app = FastAPI(
     docs_url="/docs" if settings.api_docs_enabled and not settings.is_production else None,
     redoc_url="/redoc" if settings.api_docs_enabled and not settings.is_production else None,
 )
-
+ 
 app.include_router(health.router)
 app.include_router(auth.router)
-
-# Los routers de atenciones, formatos, chequeos y reportes se agregan
-# aquí a medida que se implementan (ver el backlog en GitHub Issues).
-# Los routers de auth, atenciones, formatos, chequeos y reportes se agregan
-# aquí a medida que se implementan (ver el backlog en GitHub Issues).
+app.include_router(roles.router)
+app.include_router(empleados.router)
+app.include_router(usuarios.router)
+ 
+# Los routers de ambulancias, atenciones, formatos, chequeos y reportes
+# se agregan aquí a medida que se implementan (ver el backlog en GitHub
+# Issues).
