@@ -2,6 +2,7 @@
 autenticado a partir del JWT, y permisos por rol.
 """
  
+from collections.abc import Callable
 from typing import Annotated
  
 import jwt
@@ -53,20 +54,34 @@ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: DbSessio
 CurrentUser = Annotated[Usuario, Depends(get_current_user)]
  
  
-def require_admin(usuario: CurrentUser) -> Usuario:
-    """Exige que el usuario autenticado tenga el rol "administrador".
- 
-    Se apoya en `get_current_user`, así que un token inválido o
+def require_roles(*nombres_permitidos: str) -> Callable[[Usuario], Usuario]:
+    """Fábrica de dependencias de permiso: construye un chequeo de rol
+    para el conjunto de nombres que se le pasen, en vez de un solo rol
+    fijo. Se apoya en `get_current_user`, así que un token inválido o
     expirado da 401 antes de llegar a revisar el rol — un 403 solo
-    puede pasar con una sesión ya válida (issue #4).
-    """
-    nombres_roles = {asignacion.rol.nombre for asignacion in usuario.roles}
-    if "administrador" not in nombres_roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Esta acción requiere rol de administrador",
-        )
-    return usuario
+    puede pasar con una sesión ya válida.
  
+    Hace falta porque no todos los endpoints son "solo administrador"
+    (issue #4): por ejemplo, el contador también necesita poder
+    consultar ambulancias, aunque no pueda crearlas ni editarlas
+    (issue #5).
+    """
+    permitidos = set(nombres_permitidos)
+ 
+    def _verificar(usuario: CurrentUser) -> Usuario:
+        nombres_roles = {asignacion.rol.nombre for asignacion in usuario.roles}
+        if not nombres_roles & permitidos:
+            lista_roles = ", ".join(sorted(permitidos))
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Esta acción requiere alguno de estos roles: {lista_roles}",
+            )
+        return usuario
+ 
+    return _verificar
+ 
+ 
+require_admin = require_roles("administrador")
+require_admin_o_contador = require_roles("administrador", "contador")
  
 AdminUser = Annotated[Usuario, Depends(require_admin)]

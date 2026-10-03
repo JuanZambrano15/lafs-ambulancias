@@ -82,3 +82,30 @@ def admin_headers(client: TestClient, db: Session) -> dict[str, str]:
     login = client.post("/auth/login", json={"documento": "999999999", "password": "clave-admin"})
     token = login.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+ 
+ 
+@pytest.fixture
+def contador_headers(client: TestClient, db: Session) -> dict[str, str]:
+    """Usuario con rol "contador" — solo lectura en /ambulancias
+    (issue #5), a diferencia de `admin_headers`.
+    """
+    from app.core.security import hash_secret
+    from app.models.rol import Rol
+    from app.models.usuario import Usuario
+    from app.models.usuario_rol import UsuarioRol
+ 
+    rol = Rol(nombre="contador", descripcion="Rol de prueba")
+    db.add(rol)
+    db.flush()
+ 
+    usuario = Usuario(documento="888888880", password_hash=hash_secret("clave-contador"))
+    db.add(usuario)
+    db.flush()
+    db.add(UsuarioRol(usuario_id=usuario.id, rol_id=rol.id))
+    db.commit()
+ 
+    login = client.post(
+        "/auth/login", json={"documento": "888888880", "password": "clave-contador"}
+    )
+    token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}

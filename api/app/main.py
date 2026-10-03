@@ -2,7 +2,7 @@
  
 from fastapi import FastAPI
  
-from app.api.routes import auth, empleados, health, roles, usuarios
+from app.api.routes import ambulancias, auth, empleados, health, roles, usuarios
 from app.core.config import get_settings
 from app.core.logging import configure_logging
  
@@ -26,7 +26,7 @@ app.include_router(auth.router)
 app.include_router(roles.router)
 app.include_router(empleados.router)
 app.include_router(usuarios.router)
+app.include_router(ambulancias.router)
  
-# Los routers de ambulancias, atenciones, formatos, chequeos y reportes
-# se agregan aquí a medida que se implementan (ver el backlog en GitHub
-# Issues).
+# Los routers de atenciones, formatos, chequeos y reportes se agregan
+# aquí a medida que se implementan (ver el backlog en GitHub Issues).
