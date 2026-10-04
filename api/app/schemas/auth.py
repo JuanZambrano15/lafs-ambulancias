@@ -4,6 +4,8 @@ from __future__ import annotations
  
 from pydantic import BaseModel, Field
  
+from app.schemas.rol import RolOut
+ 
  
 class LoginRequest(BaseModel):
     documento: str
@@ -41,3 +43,24 @@ class PinRequest(BaseModel):
 class CambiarPasswordRequest(BaseModel):
     password_actual: str
     password_nueva: str = Field(min_length=8, max_length=255)
+ 
+ 
+class MeResponse(BaseModel):
+    """Perfil del usuario autenticado, con sus roles.
+ 
+    Hace falta porque `TokenResponse` (la respuesta de `/auth/login`)
+    no trae los roles del usuario, y el único endpoint que sí los
+    devuelve (`GET /usuarios/{id}`) está restringido a administrador —
+    un auxiliar o conductor no puede usarlo para consultar su propio
+    perfil. Este endpoint solo exige una sesión válida (`CurrentUser`),
+    sin chequeo de rol, porque cada usuario únicamente puede consultar
+    su propia información (issue #6: lo necesita el frontend para
+    decidir qué navegación mostrarle a cada rol).
+    """
+ 
+    documento: str
+    activo: bool
+    empleado_id: int | None
+    debe_cambiar_password: bool
+    pin_configurado: bool
+    roles: list[RolOut]

@@ -1,6 +1,7 @@
 """Punto de entrada de la API de LAFS Ambulancias."""
  
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
  
 from app.api.routes import ambulancias, auth, empleados, health, roles, usuarios
 from app.core.config import get_settings
@@ -19,6 +20,13 @@ app = FastAPI(
     # Nunca exponer la documentación interactiva en producción sin control de acceso.
     docs_url="/docs" if settings.api_docs_enabled and not settings.is_production else None,
     redoc_url="/redoc" if settings.api_docs_enabled and not settings.is_production else None,
+)
+ 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.lista_cors_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
  
 app.include_router(health.router)
