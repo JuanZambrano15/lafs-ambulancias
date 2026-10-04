@@ -147,3 +147,75 @@ def auxiliar_headers(client: TestClient, db: Session) -> dict[str, str]:
     )
     token = login.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+ 
+ 
+@pytest.fixture
+def medico_headers(client: TestClient, db: Session) -> dict[str, str]:
+    """Usuario con rol "medico", ligado a un `Empleado` — igual que
+    `auxiliar_headers`, pero con el otro rol que también puede
+    diligenciar el contenido clínico del formato (issue #8).
+    """
+    from app.core.security import hash_secret
+    from app.models.empleado import Empleado
+    from app.models.rol import Rol
+    from app.models.usuario import Usuario
+    from app.models.usuario_rol import UsuarioRol
+ 
+    empleado = Empleado(nombres="Laura", apellidos="Gómez", cedula="700000002")
+    db.add(empleado)
+    db.flush()
+ 
+    rol = Rol(nombre="medico", descripcion="Rol de prueba")
+    db.add(rol)
+    db.flush()
+ 
+    usuario = Usuario(
+        documento="700000002",
+        password_hash=hash_secret("clave-medico"),
+        empleado_id=empleado.id,
+    )
+    db.add(usuario)
+    db.flush()
+    db.add(UsuarioRol(usuario_id=usuario.id, rol_id=rol.id))
+    db.commit()
+ 
+    login = client.post("/auth/login", json={"documento": "700000002", "password": "clave-medico"})
+    token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+ 
+ 
+@pytest.fixture
+def conductor_headers(client: TestClient, db: Session) -> dict[str, str]:
+    """Usuario con rol "conductor" — puede iniciar atenciones (issue #7)
+    pero NO diligenciar el formato (issue #8): sirve para probar ese
+    límite de permisos.
+    """
+    from app.core.security import hash_secret
+    from app.models.empleado import Empleado
+    from app.models.rol import Rol
+    from app.models.usuario import Usuario
+    from app.models.usuario_rol import UsuarioRol
+ 
+    empleado = Empleado(nombres="Pedro", apellidos="Londoño", cedula="800000009")
+    db.add(empleado)
+    db.flush()
+ 
+    rol = Rol(nombre="conductor", descripcion="Rol de prueba")
+    db.add(rol)
+    db.flush()
+ 
+    usuario = Usuario(
+        documento="800000009",
+        password_hash=hash_secret("clave-conductor2"),
+        empleado_id=empleado.id,
+    )
+    db.add(usuario)
+    db.flush()
+    db.add(UsuarioRol(usuario_id=usuario.id, rol_id=rol.id))
+    db.commit()
+ 
+    login = client.post(
+        "/auth/login", json={"documento": "800000009", "password": "clave-conductor2"}
+    )
+    token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}

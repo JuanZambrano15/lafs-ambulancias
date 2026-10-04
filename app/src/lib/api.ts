@@ -14,6 +14,8 @@ import type {
   Atencion,
   AtencionCreate,
   Empleado,
+  FormatoTraslado,
+  FormatoTrasladoEncabezado,
   MeResponse,
   TokenResponse,
 } from './types'
@@ -148,6 +150,28 @@ export async function listarConductoresDisponibles(): Promise<Empleado[]> {
 export async function crearAtencion(datos: AtencionCreate): Promise<Atencion> {
   return apiFetch<Atencion>('/atenciones', {
     method: 'POST',
+    body: datos,
+  })
+}
+ 
+/** `null` si la atención todavía no tiene encabezado guardado (404 del backend). */
+export async function obtenerEncabezadoTraslado(
+  atencionId: number,
+): Promise<FormatoTraslado | null> {
+  try {
+    return await apiFetch<FormatoTraslado>(`/atenciones/${atencionId}/formato-traslado`)
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null
+    throw err
+  }
+}
+ 
+export async function guardarEncabezadoTraslado(
+  atencionId: number,
+  datos: FormatoTrasladoEncabezado,
+): Promise<FormatoTraslado> {
+  return apiFetch<FormatoTraslado>(`/atenciones/${atencionId}/formato-traslado`, {
+    method: 'PUT',
     body: datos,
   })
 }
