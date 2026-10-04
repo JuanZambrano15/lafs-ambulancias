@@ -7,9 +7,9 @@
  * `vi.mock('../lib/api', () => import('../test/mockApi').then(...))`
  * — ver los archivos de prueba para el uso exacto.
  */
-
+ 
 import { vi } from 'vitest'
-
+ 
 export async function construirMockApi(): Promise<Record<string, unknown>> {
   const real = await vi.importActual<typeof import('../lib/api')>('../lib/api')
   return {
@@ -17,5 +17,8 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     login: vi.fn(),
     obtenerPerfil: vi.fn(),
     cambiarPassword: vi.fn(),
+    listarAmbulanciasDisponibles: vi.fn(),
+    listarConductoresDisponibles: vi.fn(),
+    crearAtencion: vi.fn(),
   }
 }
