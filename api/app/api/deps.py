@@ -83,5 +83,10 @@ def require_roles(*nombres_permitidos: str) -> Callable[[Usuario], Usuario]:
  
 require_admin = require_roles("administrador")
 require_admin_o_contador = require_roles("administrador", "contador")
+# Personal que sale a la calle en la ambulancia (issue #7): quienes
+# pueden iniciar una atención. El administrador queda afuera a
+# propósito — programar atenciones por adelantado es otra discusión
+# (ver docs/adr/0005-crear-atencion-y-elegir-movil.md).
+require_personal_operativo = require_roles("auxiliar_enfermeria", "medico", "conductor")
  
 AdminUser = Annotated[Usuario, Depends(require_admin)]
