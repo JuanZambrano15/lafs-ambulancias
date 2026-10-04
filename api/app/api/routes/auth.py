@@ -32,10 +32,12 @@ from app.schemas.auth import (
     AccessTokenResponse,
     CambiarPasswordRequest,
     LoginRequest,
+    MeResponse,
     PinRequest,
     RefreshRequest,
     TokenResponse,
 )
+from app.schemas.rol import RolOut
  
 router = APIRouter(prefix="/auth", tags=["autenticación"])
  
@@ -65,6 +67,23 @@ def login(datos: LoginRequest, db: DbSession) -> TokenResponse:
         refresh_token=create_refresh_token(subject),
         pin_configurado=usuario.pin_hash is not None,
         debe_cambiar_password=usuario.debe_cambiar_password,
+    )
+ 
+ 
+@router.get("/me", response_model=MeResponse)
+def obtener_perfil(usuario: CurrentUser) -> MeResponse:
+    """Perfil del usuario autenticado — solo exige sesión válida, sin
+    chequeo de rol, porque cada quien puede consultar su propia
+    información (a diferencia de `GET /usuarios/{id}`, que es solo
+    para administrador).
+    """
+    return MeResponse(
+        documento=usuario.documento,
+        activo=usuario.activo,
+        empleado_id=usuario.empleado_id,
+        debe_cambiar_password=usuario.debe_cambiar_password,
+        pin_configurado=usuario.pin_hash is not None,
+        roles=[RolOut.model_validate(asignacion.rol) for asignacion in usuario.roles],
     )
  
  

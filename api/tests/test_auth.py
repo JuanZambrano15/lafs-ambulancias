@@ -155,3 +155,21 @@ def test_cambiar_password_actual_incorrecta_da_401(client: TestClient, db: Sessi
     )
  
     assert response.status_code == 401
+ 
+ 
+def test_me_devuelve_perfil_y_roles(client: TestClient, admin_headers: dict[str, str]) -> None:
+    response = client.get("/auth/me", headers=admin_headers)
+ 
+    assert response.status_code == 200
+    body = response.json()
+    assert body["documento"] == "999999999"
+    assert body["activo"] is True
+    assert body["debe_cambiar_password"] is True
+    assert body["pin_configurado"] is False
+    assert [rol["nombre"] for rol in body["roles"]] == ["administrador"]
+ 
+ 
+def test_me_sin_token_da_401(client: TestClient) -> None:
+    response = client.get("/auth/me")
+ 
+    assert response.status_code == 401
