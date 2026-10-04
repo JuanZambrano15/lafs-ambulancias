@@ -40,6 +40,7 @@ function renderPagina(): void {
       <Routes>
         <Route path="/" element={<div>pantalla principal</div>} />
         <Route path="/atenciones/nueva" element={<CrearAtencionPage />} />
+        <Route path="/atenciones/:atencionId/encabezado-traslado" element={<div>encabezado</div>} />
       </Routes>
     </MemoryRouter>,
   )
@@ -67,7 +68,7 @@ describe('CrearAtencionPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Error del servidor')
   })
  
-  it('inicia la atención y vuelve a la pantalla principal', async () => {
+  it('al crear una atención de traslado, va al encabezado del formato', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.listarAmbulanciasDisponibles).mockResolvedValue([ambulancia])
     vi.mocked(api.listarConductoresDisponibles).mockResolvedValue([conductor])
@@ -96,6 +97,32 @@ describe('CrearAtencionPage', () => {
         conductor_id: 2,
       }),
     )
+    expect(await screen.findByText('encabezado')).toBeInTheDocument()
+  })
+ 
+  it('al crear una atención SOAT, vuelve a la pantalla principal', async () => {
+    const usuario = userEvent.setup()
+    vi.mocked(api.listarAmbulanciasDisponibles).mockResolvedValue([ambulancia])
+    vi.mocked(api.listarConductoresDisponibles).mockResolvedValue([conductor])
+    vi.mocked(api.crearAtencion).mockResolvedValue({
+      id: 1,
+      tipo: 'atencion_soat',
+      estado: 'abierto',
+      abierta_en: '2026-10-03T12:00:00Z',
+      cerrada_en: null,
+      ambulancia,
+      conductor,
+      responsable: conductor,
+    })
+ 
+    renderPagina()
+ 
+    await screen.findByText('M-01 — ABC123')
+    await usuario.selectOptions(screen.getByLabelText('Tipo de atención'), 'atencion_soat')
+    await usuario.selectOptions(screen.getByLabelText('Móvil'), '1')
+    await usuario.selectOptions(screen.getByLabelText('Conductor'), '2')
+    await usuario.click(screen.getByRole('button', { name: 'Iniciar atención' }))
+ 
     expect(await screen.findByText('pantalla principal')).toBeInTheDocument()
   })
  

@@ -79,3 +79,45 @@ export interface Atencion {
   conductor: Empleado
   responsable: Empleado
 }
+ 
+/** Issue #8: encabezado del formato de traslado asistencial (TAP-LAFS-002). */
+export type TipoDocumentoPaciente = 'rc' | 'ti' | 'cc' | 'ce' | 'ppt'
+export type SexoPaciente = 'm' | 'f'
+export type ComplejidadTraslado = 'alta' | 'baja'
+export type CategoriaPaciente = 'neonato' | 'pediatrico' | 'adulto'
+export type NivelServicioTraslado = 'basico' | 'medicalizado'
+export type ModalidadTraslado = 'sencillo' | 'redondo'
+ 
+export interface FormatoTrasladoEncabezado {
+  paciente_tipo_documento: TipoDocumentoPaciente
+  paciente_numero_documento: string
+  paciente_eps: string
+  paciente_nombres: string
+  paciente_apellidos: string
+  paciente_edad: number
+  paciente_sexo: SexoPaciente
+  paciente_direccion_residencial: string
+  paciente_ciudad: string
+  paciente_telefono: string | null
+  acompanante_nombres_apellidos: string | null
+  acompanante_parentesco: string | null
+  acompanante_telefono: string | null
+  recepcion_fecha: string
+  recepcion_hora: string
+  recepcion_ciudad: string
+  recepcion_ips: string
+  recepcion_servicio: string
+  entrega_fecha: string
+  entrega_hora: string
+  entrega_ciudad: string
+  entrega_ips: string
+  entrega_servicio: string
+  complejidad: ComplejidadTraslado
+  categoria_paciente: CategoriaPaciente
+  nivel_servicio: NivelServicioTraslado
+  modalidad: ModalidadTraslado
+}
+ 
+export interface FormatoTraslado extends FormatoTrasladoEncabezado {
+  atencion_id: number
+}

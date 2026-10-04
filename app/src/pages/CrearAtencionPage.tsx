@@ -12,12 +12,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
  
-import {
-  ApiError,
-  crearAtencion,
-  listarAmbulanciasDisponibles,
-  listarConductoresDisponibles,
-} from '../lib/api'
+import { ApiError, crearAtencion, listarAmbulanciasDisponibles, listarConductoresDisponibles } from '../lib/api'
 import type { Ambulancia, Empleado, TipoAtencion } from '../lib/types'
  
 const TIPOS: { valor: TipoAtencion; etiqueta: string }[] = [
@@ -62,12 +57,18 @@ export function CrearAtencionPage(): JSX.Element {
  
     setEnviando(true)
     try {
-      await crearAtencion({
+      const atencion = await crearAtencion({
         tipo,
         ambulancia_id: Number(ambulanciaId),
         conductor_id: Number(conductorId),
       })
-      navigate('/', { replace: true })
+      // El encabezado del formato (issue #8) solo existe para traslados —
+      // la atención SOAT todavía no tiene su propio formato (issue #17).
+      if (atencion.tipo === 'traslado') {
+        navigate(`/atenciones/${atencion.id}/encabezado-traslado`, { replace: true })
+      } else {
+        navigate('/', { replace: true })
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar la atención')
     } finally {
