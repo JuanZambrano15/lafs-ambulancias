@@ -6,55 +6,63 @@
  * el access token expira (401) — así ninguna pantalla tiene que saber
  * de tokens, solo llamar `apiFetch`.
  */
-
+ 
 import { borrarTokens, guardarAccessToken, leerTokens } from './storage'
-import type { AccessTokenResponse, MeResponse, TokenResponse } from './types'
-
+import type {
+  AccessTokenResponse,
+  Ambulancia,
+  Atencion,
+  AtencionCreate,
+  Empleado,
+  MeResponse,
+  TokenResponse,
+} from './types'
+ 
 const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000') as string
-
+ 
 export class ApiError extends Error {
   readonly status: number
-
+ 
   constructor(status: number, detail: string) {
     super(detail)
     this.name = 'ApiError'
     this.status = status
   }
 }
-
+ 
 interface ApiFetchOptions {
   method?: string
   body?: unknown
   /** false para rutas públicas (login) que no deben llevar token. */
   auth?: boolean
 }
-
+ 
 // Evita que dos 401 simultáneos disparen dos refresh en paralelo: el
 // segundo espera el resultado del primero en vez de pedir uno nuevo.
 let refreshEnCurso: Promise<string> | null = null
-
+ 
 async function refrescarAccessToken(): Promise<string> {
   const { refreshToken } = await leerTokens()
   if (!refreshToken) {
     throw new ApiError(401, 'No hay sesión activa')
   }
-
+ 
   const response = await fetch(`${BASE_URL}/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: refreshToken }),
   })
-
+ 
   if (!response.ok) {
     await borrarTokens()
     throw new ApiError(401, 'La sesión expiró, inicia sesión de nuevo')
   }
-
+ 
   const datos = (await response.json()) as AccessTokenResponse
   await guardarAccessToken(datos.access_token)
   return datos.access_token
 }
-
+ 
 async function leerError(response: Response): Promise<never> {
   let detail = `Error ${response.status}`
   try {
@@ -65,25 +73,25 @@ async function leerError(response: Response): Promise<never> {
   }
   throw new ApiError(response.status, detail)
 }
-
+ 
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = true } = options
-
+ 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (auth) {
     const { accessToken } = await leerTokens()
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`
   }
-
+ 
   const hacerPeticion = async (): Promise<Response> =>
     fetch(`${BASE_URL}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     })
-
+ 
   let response = await hacerPeticion()
-
+ 
   if (response.status === 401 && auth) {
     try {
       refreshEnCurso ??= refrescarAccessToken().finally(() => {
@@ -96,17 +104,17 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
       await leerError(response)
     }
   }
-
+ 
   if (!response.ok) {
     await leerError(response)
   }
-
+ 
   if (response.status === 204) {
     return undefined as T
   }
   return (await response.json()) as T
 }
-
+ 
 export async function login(documento: string, password: string): Promise<TokenResponse> {
   return apiFetch<TokenResponse>('/auth/login', {
     method: 'POST',
@@ -114,11 +122,11 @@ export async function login(documento: string, password: string): Promise<TokenR
     auth: false,
   })
 }
-
+ 
 export async function obtenerPerfil(): Promise<MeResponse> {
   return apiFetch<MeResponse>('/auth/me')
 }
-
+ 
 export async function cambiarPassword(
   passwordActual: string,
   passwordNueva: string,
@@ -126,5 +134,20 @@ export async function cambiarPassword(
   await apiFetch<void>('/auth/password', {
     method: 'PUT',
     body: { password_actual: passwordActual, password_nueva: passwordNueva },
+  })
+}
+ 
+export async function listarAmbulanciasDisponibles(): Promise<Ambulancia[]> {
+  return apiFetch<Ambulancia[]>('/atenciones/ambulancias-disponibles')
+}
+ 
+export async function listarConductoresDisponibles(): Promise<Empleado[]> {
+  return apiFetch<Empleado[]>('/atenciones/conductores-disponibles')
+}
+ 
+export async function crearAtencion(datos: AtencionCreate): Promise<Atencion> {
+  return apiFetch<Atencion>('/atenciones', {
+    method: 'POST',
+    body: datos,
   })
 }
