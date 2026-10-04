@@ -88,5 +88,10 @@ require_admin_o_contador = require_roles("administrador", "contador")
 # propósito — programar atenciones por adelantado es otra discusión
 # (ver docs/adr/0005-crear-atencion-y-elegir-movil.md).
 require_personal_operativo = require_roles("auxiliar_enfermeria", "medico", "conductor")
+# Quienes diligencian el contenido clínico de un formato (issue #8 en
+# adelante): a diferencia de `require_personal_operativo`, el
+# conductor queda afuera — él elige el móvil y conduce, pero no llena
+# el formato (ver docs/adr/0006-encabezado-formato-traslado.md).
+require_personal_clinico = require_roles("auxiliar_enfermeria", "medico")
  
 AdminUser = Annotated[Usuario, Depends(require_admin)]

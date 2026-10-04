@@ -16,16 +16,23 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
  
-from app.api.deps import CurrentUser, DbSession, require_personal_operativo
+from app.api.deps import (
+    CurrentUser,
+    DbSession,
+    require_personal_clinico,
+    require_personal_operativo,
+)
 from app.models.ambulancia import Ambulancia
-from app.models.atencion import Atencion, EstadoAtencion
+from app.models.atencion import Atencion, EstadoAtencion, TipoAtencion
 from app.models.empleado import Empleado
+from app.models.formato_traslado import FormatoTraslado
 from app.models.rol import Rol
 from app.models.usuario import Usuario
 from app.models.usuario_rol import UsuarioRol
 from app.schemas.ambulancia import AmbulanciaOut
 from app.schemas.atencion import AtencionCreate, AtencionOut
 from app.schemas.empleado import EmpleadoOut
+from app.schemas.formato_traslado import FormatoTrasladoEncabezado, FormatoTrasladoOut
  
 router = APIRouter(
     prefix="/atenciones",
@@ -155,3 +162,68 @@ def crear_atencion(datos: AtencionCreate, usuario: CurrentUser, db: DbSession) -
         .where(Atencion.id == atencion_id)
     ).scalar_one()
     return atencion
+ 
+ 
+def _atencion_de_traslado(atencion_id: int, db: DbSession) -> Atencion:
+    """Valida que la atención exista y sea de tipo `traslado` — el
+    encabezado de este formato no aplica a una atención SOAT (issue #17
+    tiene su propio formato, con sus propios campos).
+    """
+    atencion = db.get(Atencion, atencion_id)
+    if atencion is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atención no encontrada")
+    if atencion.tipo != TipoAtencion.traslado:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Esta atención no es de traslado, no tiene encabezado de traslado",
+        )
+    return atencion
+ 
+ 
+@router.get(
+    "/{atencion_id}/formato-traslado",
+    response_model=FormatoTrasladoOut,
+    dependencies=[Depends(require_personal_clinico)],
+)
+def obtener_encabezado_traslado(atencion_id: int, db: DbSession) -> FormatoTraslado:
+    _atencion_de_traslado(atencion_id, db)
+    formato = db.get(FormatoTraslado, atencion_id)
+    if formato is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Esta atención todavía no tiene encabezado de traslado",
+        )
+    return formato
+ 
+ 
+@router.put(
+    "/{atencion_id}/formato-traslado",
+    response_model=FormatoTrasladoOut,
+    dependencies=[Depends(require_personal_clinico)],
+)
+def guardar_encabezado_traslado(
+    atencion_id: int, datos: FormatoTrasladoEncabezado, db: DbSession
+) -> FormatoTraslado:
+    """Crea o actualiza el encabezado — mientras la atención sigue
+    `abierta` se puede reescribir libremente, las veces que haga falta
+    (ADR-0002): no hay un endpoint de creación separado de uno de
+    edición, es el mismo formulario completo cada vez.
+    """
+    atencion = _atencion_de_traslado(atencion_id, db)
+    if atencion.estado != EstadoAtencion.abierto:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La atención ya está cerrada, el encabezado no se puede editar así",
+        )
+ 
+    formato = db.get(FormatoTraslado, atencion_id)
+    if formato is None:
+        formato = FormatoTraslado(atencion_id=atencion_id)
+        db.add(formato)
+ 
+    for campo, valor in datos.model_dump().items():
+        setattr(formato, campo, valor)
+ 
+    db.commit()
+    db.refresh(formato)
+    return formato
