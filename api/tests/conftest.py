@@ -109,3 +109,41 @@ def contador_headers(client: TestClient, db: Session) -> dict[str, str]:
     )
     token = login.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+ 
+ 
+@pytest.fixture
+def auxiliar_headers(client: TestClient, db: Session) -> dict[str, str]:
+    """Usuario con rol "auxiliar_enfermeria", ligado a un `Empleado` —
+    a diferencia de `admin_headers`/`contador_headers`, este sí
+    necesita `empleado_id` (issue #7: el responsable de una atención es
+    el empleado ligado a quien está logueado).
+    """
+    from app.core.security import hash_secret
+    from app.models.empleado import Empleado
+    from app.models.rol import Rol
+    from app.models.usuario import Usuario
+    from app.models.usuario_rol import UsuarioRol
+ 
+    empleado = Empleado(nombres="Ana", apellidos="Ruiz", cedula="700000001")
+    db.add(empleado)
+    db.flush()
+ 
+    rol = Rol(nombre="auxiliar_enfermeria", descripcion="Rol de prueba")
+    db.add(rol)
+    db.flush()
+ 
+    usuario = Usuario(
+        documento="700000001",
+        password_hash=hash_secret("clave-auxiliar"),
+        empleado_id=empleado.id,
+    )
+    db.add(usuario)
+    db.flush()
+    db.add(UsuarioRol(usuario_id=usuario.id, rol_id=rol.id))
+    db.commit()
+ 
+    login = client.post(
+        "/auth/login", json={"documento": "700000001", "password": "clave-auxiliar"}
+    )
+    token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}

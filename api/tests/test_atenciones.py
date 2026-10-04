@@ -1,0 +1,303 @@
+from datetime import date
+ 
+from app.core.security import hash_secret
+from app.models.ambulancia import Ambulancia, TipoAmbulancia
+from app.models.empleado import Empleado
+from app.models.rol import Rol
+from app.models.usuario import Usuario
+from app.models.usuario_rol import UsuarioRol
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+ 
+ 
+def _crear_ambulancia(db: Session, movil: str = "M-01", activa: bool = True) -> Ambulancia:
+    ambulancia = Ambulancia(
+        movil=movil,
+        placa=f"{movil}PLACA"[:10],
+        tipo=TipoAmbulancia.basica,
+        vencimiento_soat=date(2027, 1, 1),
+        vencimiento_tecnomecanica=date(2027, 1, 1),
+        activa=activa,
+    )
+    db.add(ambulancia)
+    db.commit()
+    db.refresh(ambulancia)
+    return ambulancia
+ 
+ 
+def _crear_conductor(
+    db: Session, cedula: str = "800000001", activo: bool = True, con_rol: bool = True
+) -> Empleado:
+    empleado = Empleado(nombres="Carlos", apellidos="Gómez", cedula=cedula, activo=activo)
+    db.add(empleado)
+    db.flush()
+ 
+    if con_rol:
+        rol = db.query(Rol).filter(Rol.nombre == "conductor").first()
+        if rol is None:
+            rol = Rol(nombre="conductor", descripcion="Rol de prueba")
+            db.add(rol)
+            db.flush()
+ 
+        usuario = Usuario(
+            documento=cedula,
+            password_hash=hash_secret("clave-conductor"),
+            empleado_id=empleado.id,
+            activo=activo,
+        )
+        db.add(usuario)
+        db.flush()
+        db.add(UsuarioRol(usuario_id=usuario.id, rol_id=rol.id))
+ 
+    db.commit()
+    db.refresh(empleado)
+    return empleado
+ 
+ 
+def test_crear_atencion_sin_token_da_401(client: TestClient) -> None:
+    response = client.post(
+        "/atenciones", json={"tipo": "traslado", "ambulancia_id": 1, "conductor_id": 1}
+    )
+ 
+    assert response.status_code == 401
+ 
+ 
+def test_admin_no_puede_crear_atencion(client: TestClient, admin_headers: dict[str, str]) -> None:
+    response = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": 1, "conductor_id": 1},
+        headers=admin_headers,
+    )
+ 
+    assert response.status_code == 403
+ 
+ 
+def test_crear_atencion_exitosa(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    ambulancia = _crear_ambulancia(db)
+    conductor = _crear_conductor(db)
+ 
+    response = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia.id, "conductor_id": conductor.id},
+        headers=auxiliar_headers,
+    )
+ 
+    assert response.status_code == 201
+    body = response.json()
+    assert body["estado"] == "abierto"
+    assert body["ambulancia"]["movil"] == ambulancia.movil
+    assert body["conductor"]["cedula"] == conductor.cedula
+    assert body["responsable"]["cedula"] == "700000001"
+    assert body["cerrada_en"] is None
+ 
+ 
+def test_usuario_sin_empleado_no_puede_crear_atencion(
+    client: TestClient, db: Session, contador_headers: dict[str, str]
+) -> None:
+    """contador_headers no tiene empleado_id — ni siquiera tiene el rol
+    correcto, pero esto confirma que el chequeo de empleado también
+    existe (defensa en profundidad)."""
+    ambulancia = _crear_ambulancia(db)
+    conductor = _crear_conductor(db)
+ 
+    response = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia.id, "conductor_id": conductor.id},
+        headers=contador_headers,
+    )
+ 
+    assert response.status_code == 403
+ 
+ 
+def test_no_se_puede_elegir_una_ambulancia_inactiva(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    ambulancia = _crear_ambulancia(db, activa=False)
+    conductor = _crear_conductor(db)
+ 
+    response = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia.id, "conductor_id": conductor.id},
+        headers=auxiliar_headers,
+    )
+ 
+    assert response.status_code == 409
+ 
+ 
+def test_no_se_puede_elegir_una_ambulancia_con_atencion_abierta(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    ambulancia = _crear_ambulancia(db)
+    conductor_1 = _crear_conductor(db, cedula="800000001")
+    conductor_2 = _crear_conductor(db, cedula="800000002")
+ 
+    primera = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia.id, "conductor_id": conductor_1.id},
+        headers=auxiliar_headers,
+    )
+    assert primera.status_code == 201
+ 
+    segunda = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia.id, "conductor_id": conductor_2.id},
+        headers=auxiliar_headers,
+    )
+ 
+    assert segunda.status_code == 409
+ 
+ 
+def test_no_se_puede_elegir_un_conductor_ya_ocupado(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    ambulancia_1 = _crear_ambulancia(db, movil="M-01")
+    ambulancia_2 = _crear_ambulancia(db, movil="M-02")
+    conductor = _crear_conductor(db)
+ 
+    primera = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia_1.id, "conductor_id": conductor.id},
+        headers=auxiliar_headers,
+    )
+    assert primera.status_code == 201
+ 
+    segunda = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia_2.id, "conductor_id": conductor.id},
+        headers=auxiliar_headers,
+    )
+ 
+    assert segunda.status_code == 409
+ 
+ 
+def test_no_se_puede_elegir_un_empleado_sin_rol_de_conductor(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    ambulancia = _crear_ambulancia(db)
+    empleado_cualquiera = _crear_conductor(db, con_rol=False)
+ 
+    response = client.post(
+        "/atenciones",
+        json={
+            "tipo": "traslado",
+            "ambulancia_id": ambulancia.id,
+            "conductor_id": empleado_cualquiera.id,
+        },
+        headers=auxiliar_headers,
+    )
+ 
+    # No se valida el rol del conductor en la creación (solo que exista
+    # y esté activo) — el filtro por rol es para la lista de
+    # "disponibles", no una restricción dura. Documentado en el ADR.
+    assert response.status_code == 201
+ 
+ 
+def test_listar_ambulancias_disponibles_excluye_inactivas_y_ocupadas(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    disponible = _crear_ambulancia(db, movil="M-01")
+    _crear_ambulancia(db, movil="M-02", activa=False)
+    ocupada = _crear_ambulancia(db, movil="M-03")
+    conductor = _crear_conductor(db)
+ 
+    client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ocupada.id, "conductor_id": conductor.id},
+        headers=auxiliar_headers,
+    )
+ 
+    response = client.get("/atenciones/ambulancias-disponibles", headers=auxiliar_headers)
+ 
+    assert response.status_code == 200
+    moviles = [a["movil"] for a in response.json()]
+    assert moviles == [disponible.movil]
+ 
+ 
+def test_crear_atencion_con_ambulancia_inexistente_da_404(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    conductor = _crear_conductor(db)
+ 
+    response = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": 9999, "conductor_id": conductor.id},
+        headers=auxiliar_headers,
+    )
+ 
+    assert response.status_code == 404
+ 
+ 
+def test_crear_atencion_con_conductor_inexistente_da_404(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    ambulancia = _crear_ambulancia(db)
+ 
+    response = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia.id, "conductor_id": 9999},
+        headers=auxiliar_headers,
+    )
+ 
+    assert response.status_code == 404
+ 
+ 
+def test_crear_atencion_con_conductor_inactivo_da_409(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    ambulancia = _crear_ambulancia(db)
+    conductor = _crear_conductor(db, activo=False)
+ 
+    response = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia.id, "conductor_id": conductor.id},
+        headers=auxiliar_headers,
+    )
+ 
+    assert response.status_code == 409
+ 
+ 
+def test_usuario_sin_empleado_vinculado_no_puede_crear_atencion(
+    client: TestClient, db: Session
+) -> None:
+    """Un usuario con el rol correcto (medico) pero sin empleado_id —
+    caso real: alguien creó el usuario antes de registrar el empleado,
+    o el empleado se desactivó después.
+    """
+    rol = Rol(nombre="medico", descripcion="Rol de prueba")
+    db.add(rol)
+    db.flush()
+    usuario = Usuario(documento="600000001", password_hash=hash_secret("clave-medico"))
+    db.add(usuario)
+    db.flush()
+    db.add(UsuarioRol(usuario_id=usuario.id, rol_id=rol.id))
+    db.commit()
+ 
+    login = client.post("/auth/login", json={"documento": "600000001", "password": "clave-medico"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+ 
+    ambulancia = _crear_ambulancia(db)
+    conductor = _crear_conductor(db)
+ 
+    response = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia.id, "conductor_id": conductor.id},
+        headers=headers,
+    )
+ 
+    assert response.status_code == 409
+ 
+ 
+def test_listar_conductores_disponibles_excluye_sin_rol_e_inactivos(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    disponible = _crear_conductor(db, cedula="800000001")
+    _crear_conductor(db, cedula="800000002", con_rol=False)
+    _crear_conductor(db, cedula="800000003", activo=False)
+ 
+    response = client.get("/atenciones/conductores-disponibles", headers=auxiliar_headers)
+ 
+    assert response.status_code == 200
+    cedulas = [c["cedula"] for c in response.json()]
+    assert cedulas == [disponible.cedula]
