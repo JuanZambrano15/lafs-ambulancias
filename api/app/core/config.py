@@ -45,6 +45,19 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
  
+    # Orígenes permitidos para peticiones CORS (el frontend, issue #6),
+    # separados por coma. String simple en vez de list[str]: evita la
+    # complicación de que pydantic-settings espere JSON en la variable
+    # de entorno para parsear una lista. "http://localhost" es Caddy en
+    # desarrollo local si alguien prueba la API desde un navegador en
+    # ese origen; "capacitor://localhost" es el origen que usa la app
+    # ya empaquetada en Android.
+    cors_origins: str = "http://localhost:5173,http://localhost,capacitor://localhost"
+ 
+    @property
+    def lista_cors_origins(self) -> list[str]:
+        return [origen.strip() for origen in self.cors_origins.split(",") if origen.strip()]
+ 
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
