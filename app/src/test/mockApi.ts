@@ -22,5 +22,6 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     crearAtencion: vi.fn(),
     obtenerEncabezadoTraslado: vi.fn(),
     guardarEncabezadoTraslado: vi.fn(),
+    guardarClinicoTraslado: vi.fn(),
   }
 }

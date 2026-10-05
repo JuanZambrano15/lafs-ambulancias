@@ -39,6 +39,23 @@ const ENCABEZADO: FormatoTraslado = {
   categoria_paciente: 'adulto',
   nivel_servicio: 'medicalizado',
   modalidad: 'sencillo',
+  diagnostico: null,
+  tratamiento: [],
+  tratamiento_otro: null,
+  pupila_derecha: null,
+  pupila_izquierda: null,
+  signos_vitales: [],
+  lesiones: [],
+  lesion_otro: null,
+  glasgow_ocular: null,
+  glasgow_verbal: null,
+  glasgow_motora: null,
+  insumos_entregados: [],
+  nota_auxiliar: null,
+  atendido_por: null,
+  nota_medica: null,
+  evolucionado_por: null,
+  glasgow_total: null,
 }
  
 beforeEach(() => {
@@ -54,6 +71,7 @@ function renderPagina(): void {
           path="/atenciones/:atencionId/encabezado-traslado"
           element={<EncabezadoTrasladoPage />}
         />
+        <Route path="/atenciones/:atencionId/clinico-traslado" element={<div>clinico</div>} />
       </Routes>
     </MemoryRouter>,
   )
@@ -88,7 +106,7 @@ describe('EncabezadoTrasladoPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Error del servidor')
   })
  
-  it('guarda el encabezado y vuelve a la pantalla principal', async () => {
+  it('guarda el encabezado y continúa a la parte clínica', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(null)
     vi.mocked(api.guardarEncabezadoTraslado).mockResolvedValue(ENCABEZADO)
@@ -129,7 +147,7 @@ describe('EncabezadoTrasladoPage', () => {
     expect(datos.paciente_edad).toBe(45)
     expect(datos.acompanante_nombres_apellidos).toBeNull()
  
-    expect(await screen.findByText('pantalla principal')).toBeInTheDocument()
+    expect(await screen.findByText('clinico')).toBeInTheDocument()
   })
  
   it('muestra un error si falla al guardar', async () => {

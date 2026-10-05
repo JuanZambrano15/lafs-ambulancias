@@ -179,7 +179,10 @@ export function EncabezadoTrasladoPage(): JSX.Element {
         acompanante_telefono: campos.acompanante_telefono || null,
       }
       await guardarEncabezadoTraslado(id, datos)
-      navigate('/', { replace: true })
+      // La parte clínica (issue #9) se llena después, durante el
+      // traslado — no en esta misma pantalla, que es solo la
+      // recepción del paciente.
+      navigate(`/atenciones/${id}/clinico-traslado`, { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar el encabezado')
     } finally {

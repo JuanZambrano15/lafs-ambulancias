@@ -15,6 +15,7 @@ import type {
   AtencionCreate,
   Empleado,
   FormatoTraslado,
+  FormatoTrasladoClinico,
   FormatoTrasladoEncabezado,
   MeResponse,
   TokenResponse,
@@ -171,6 +172,19 @@ export async function guardarEncabezadoTraslado(
   datos: FormatoTrasladoEncabezado,
 ): Promise<FormatoTraslado> {
   return apiFetch<FormatoTraslado>(`/atenciones/${atencionId}/formato-traslado`, {
+    method: 'PUT',
+    body: datos,
+  })
+}
+ 
+/** Issue #9 — a diferencia del encabezado, todos los campos son
+ * opcionales: se guarda el avance clínico tal como esté hasta el
+ * momento, sin necesidad de llenar todo de una. */
+export async function guardarClinicoTraslado(
+  atencionId: number,
+  datos: FormatoTrasladoClinico,
+): Promise<FormatoTraslado> {
+  return apiFetch<FormatoTraslado>(`/atenciones/${atencionId}/formato-traslado/clinico`, {
     method: 'PUT',
     body: datos,
   })
