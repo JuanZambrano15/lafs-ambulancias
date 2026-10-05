@@ -1,21 +1,21 @@
-"""Encabezado del formato de traslado asistencial de pacientes
-(TAP-LAFS-002, issue #8): datos del paciente, del acompañante, la
-recepción y entrega del paciente, y la clasificación del traslado.
+"""Formato de traslado asistencial de pacientes (TAP-LAFS-002):
+encabezado (issue #8) y parte clínica (issue #9), en la misma tabla —
+es un solo documento en papel, llenado en dos momentos (ver ADR-0002
+sobre el ciclo de vida del servicio, ADR-0006 sobre el encabezado y
+ADR-0007 sobre la parte clínica).
  
-Es la primera mitad del formato en papel — la parte clínica
-(diagnóstico, tratamiento, signos vitales, lesiones, etc.) llega en el
-issue #9, como columnas nuevas en esta misma tabla: es un solo
-documento en papel, llenado en dos momentos (ver ADR-0002 sobre el
-ciclo de vida del servicio y ADR-0006 sobre este formato).
+A diferencia del encabezado (se llena una sola vez, al recibir al
+paciente), la parte clínica se llena progresivamente durante el
+traslado — por eso todas sus columnas son nullable.
 """
  
 from __future__ import annotations
  
 import enum
 from datetime import date, time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
  
-from sqlalchemy import Date, Enum, ForeignKey, Integer, String, Time
+from sqlalchemy import JSON, Date, Enum, ForeignKey, Integer, String, Text, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
  
 from app.db.base import Base
@@ -62,6 +62,72 @@ class NivelServicioTraslado(enum.StrEnum):
 class ModalidadTraslado(enum.StrEnum):
     sencillo = "sencillo"
     redondo = "redondo"
+ 
+ 
+class TratamientoAplicado(enum.StrEnum):
+    """Casillas de la sección TRATAMIENTO (issue #9). "otros" va
+    acompañado del texto libre en `tratamiento_otro`.
+    """
+ 
+    collar_cervical = "collar_cervical"
+    inmovilizacion = "inmovilizacion"
+    succion_secrecion = "succion_secrecion"
+    oxigeno = "oxigeno"
+    hemostasia = "hemostasia"
+    linea_iv = "linea_iv"
+    canula_orofaringea = "canula_orofaringea"
+    rcp = "rcp"
+    canula_nasal = "canula_nasal"
+    monitoreo = "monitoreo"
+    parto = "parto"
+    vendaje = "vendaje"
+    asepsia = "asepsia"
+    otros = "otros"
+ 
+ 
+class ReflejoPupilar(enum.StrEnum):
+    """Una de estas por ojo (`pupila_derecha`, `pupila_izquierda`)."""
+ 
+    midriatica = "midriatica"
+    miotica = "miotica"
+    isocorica = "isocorica"
+    anisocorica = "anisocorica"
+    no_reactiva = "no_reactiva"
+ 
+ 
+class LesionTipo(enum.StrEnum):
+    """Casillas de la cuadrícula LOCALIZACIÓN DE LESIONES. El espacio
+    en blanco de esa cuadrícula se guarda como texto libre en
+    `lesion_otro`, no como un valor más de este enum. El diagrama
+    corporal (adelante/atrás) del papel no se digitaliza en este
+    issue — es una imagen, no un dato estructurado.
+    """
+ 
+    tce = "tce"
+    amputacion = "amputacion"
+    escalpe = "escalpe"
+    eritema = "eritema"
+    fractura_abierta = "fractura_abierta"
+    puncion = "puncion"
+    laceracion = "laceracion"
+    edema = "edema"
+    luxacion = "luxacion"
+    mordedura = "mordedura"
+    abrasion = "abrasion"
+    hematoma = "hematoma"
+    esguince = "esguince"
+    picadura = "picadura"
+    trauma = "trauma"
+    torax_inestable = "torax_inestable"
+    contusion = "contusion"
+    cuerpo_extrano = "cuerpo_extrano"
+    hemotorax_masivo = "hemotorax_masivo"
+    abdomen_cerrado = "abdomen_cerrado"
+    hemorragia = "hemorragia"
+    quemadura = "quemadura"
+    aplastamiento = "aplastamiento"
+    avulsion = "avulsion"
+    dolor = "dolor"
  
  
 class FormatoTraslado(Base):
@@ -117,3 +183,51 @@ class FormatoTraslado(Base):
     modalidad: Mapped[ModalidadTraslado] = mapped_column(
         Enum(ModalidadTraslado, name="modalidad_traslado")
     )
+ 
+    # --- Parte clínica (issue #9). Se llena durante el traslado, no
+    # de una sola vez como el encabezado — todo nullable (ADR-0007).
+    # Las listas (`tratamiento`, `signos_vitales`, `lesiones`,
+    # `insumos_entregados`) quedan en JSON en vez de tablas propias:
+    # son datos de este formato nada más, no hace falta consultarlos
+    # por su cuenta todavía. El valor por defecto en Python es `[]`
+    # (no `None`) para que una fila recién creada por el encabezado ya
+    # tenga listas vacías, no nulas (ver `FormatoTrasladoClinico` en
+    # `app/schemas/formato_traslado.py`).
+    diagnostico: Mapped[str | None] = mapped_column(Text, default=None)
+ 
+    tratamiento: Mapped[list[str]] = mapped_column(JSON, default=list)
+    tratamiento_otro: Mapped[str | None] = mapped_column(String(255), default=None)
+ 
+    pupila_derecha: Mapped[ReflejoPupilar | None] = mapped_column(
+        Enum(ReflejoPupilar, name="reflejo_pupilar"), default=None
+    )
+    pupila_izquierda: Mapped[ReflejoPupilar | None] = mapped_column(
+        Enum(ReflejoPupilar, name="reflejo_pupilar"), default=None
+    )
+ 
+    signos_vitales: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+ 
+    lesiones: Mapped[list[str]] = mapped_column(JSON, default=list)
+    lesion_otro: Mapped[str | None] = mapped_column(String(255), default=None)
+ 
+    glasgow_ocular: Mapped[int | None] = mapped_column(Integer, default=None)
+    glasgow_verbal: Mapped[int | None] = mapped_column(Integer, default=None)
+    glasgow_motora: Mapped[int | None] = mapped_column(Integer, default=None)
+ 
+    insumos_entregados: Mapped[list[str]] = mapped_column(JSON, default=list)
+ 
+    # Las firmas (issue #11) no son columnas en esta tabla todavía —
+    # aquí solo se guarda el nombre de quien atendió/evolucionó.
+    nota_auxiliar: Mapped[str | None] = mapped_column(Text, default=None)
+    atendido_por: Mapped[str | None] = mapped_column(String(150), default=None)
+    nota_medica: Mapped[str | None] = mapped_column(Text, default=None)
+    evolucionado_por: Mapped[str | None] = mapped_column(String(150), default=None)
+ 
+    # El total de Glasgow (suma de las tres escalas) no es una columna
+    # — se calcula en `FormatoTrasladoOut.glasgow_total`
+    # (app/schemas/formato_traslado.py), no aquí. Un `@property` del
+    # modelo leído a través de `from_attributes=True` de Pydantic
+    # depende de cómo cada versión de Pydantic/SQLAlchemy resuelve el
+    # acceso a atributos que no son columnas mapeadas — no es
+    # confiable entre entornos, así que el cálculo se mueve al
+    # esquema, sobre campos que Pydantic ya validó.

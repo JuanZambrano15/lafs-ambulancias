@@ -32,7 +32,11 @@ from app.models.usuario_rol import UsuarioRol
 from app.schemas.ambulancia import AmbulanciaOut
 from app.schemas.atencion import AtencionCreate, AtencionOut
 from app.schemas.empleado import EmpleadoOut
-from app.schemas.formato_traslado import FormatoTrasladoEncabezado, FormatoTrasladoOut
+from app.schemas.formato_traslado import (
+    FormatoTrasladoClinico,
+    FormatoTrasladoEncabezado,
+    FormatoTrasladoOut,
+)
  
 router = APIRouter(
     prefix="/atenciones",
@@ -220,6 +224,49 @@ def guardar_encabezado_traslado(
     if formato is None:
         formato = FormatoTraslado(atencion_id=atencion_id)
         db.add(formato)
+ 
+    for campo, valor in datos.model_dump().items():
+        setattr(formato, campo, valor)
+ 
+    db.commit()
+    db.refresh(formato)
+    return formato
+ 
+ 
+@router.put(
+    "/{atencion_id}/formato-traslado/clinico",
+    response_model=FormatoTrasladoOut,
+    dependencies=[Depends(require_personal_clinico)],
+)
+def guardar_clinico_traslado(
+    atencion_id: int, datos: FormatoTrasladoClinico, db: DbSession
+) -> FormatoTraslado:
+    """Guarda la parte clínica del formato (issue #9).
+ 
+    A diferencia del encabezado, esta parte se llena progresivamente
+    durante el traslado (signos vitales en el tiempo, notas de
+    evolución) — por eso `FormatoTrasladoClinico` tiene todo opcional.
+    Pero sigue sin haber un PATCH parcial: cada PUT manda el estado
+    completo de la parte clínica tal como esté hasta ese momento (ver
+    ADR-0007).
+ 
+    Requiere que el encabezado ya exista — mismo registro (ADR-0006),
+    no tiene sentido diligenciar lo clínico de un traslado que ni
+    siquiera se ha recibido.
+    """
+    atencion = _atencion_de_traslado(atencion_id, db)
+    if atencion.estado != EstadoAtencion.abierto:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La atención ya está cerrada, la parte clínica no se puede editar así",
+        )
+ 
+    formato = db.get(FormatoTraslado, atencion_id)
+    if formato is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Esta atención todavía no tiene encabezado — guárdalo primero",
+        )
  
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
