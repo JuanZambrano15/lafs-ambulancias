@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
  
 import { AuthProvider } from './auth/AuthContext'
 import { CambiarPasswordPage } from './pages/CambiarPasswordPage'
+import { ClinicoTrasladoPage } from './pages/ClinicoTrasladoPage'
 import { CrearAtencionPage } from './pages/CrearAtencionPage'
 import { EncabezadoTrasladoPage } from './pages/EncabezadoTrasladoPage'
 import { HomePage } from './pages/HomePage'
@@ -21,6 +22,10 @@ export function App(): JSX.Element {
           <Route
             path="/atenciones/:atencionId/encabezado-traslado"
             element={<EncabezadoTrasladoPage />}
+          />
+          <Route
+            path="/atenciones/:atencionId/clinico-traslado"
+            element={<ClinicoTrasladoPage />}
           />
         </Route>
       </Routes>

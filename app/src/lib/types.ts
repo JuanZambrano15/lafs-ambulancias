@@ -118,6 +118,82 @@ export interface FormatoTrasladoEncabezado {
   modalidad: ModalidadTraslado
 }
  
-export interface FormatoTraslado extends FormatoTrasladoEncabezado {
+/** Issue #9: parte clínica del formato de traslado (mismo registro
+ * que el encabezado — se llena progresivamente durante el traslado,
+ * por eso todo es opcional). */
+export type TratamientoAplicado =
+  | 'collar_cervical'
+  | 'inmovilizacion'
+  | 'succion_secrecion'
+  | 'oxigeno'
+  | 'hemostasia'
+  | 'linea_iv'
+  | 'canula_orofaringea'
+  | 'rcp'
+  | 'canula_nasal'
+  | 'monitoreo'
+  | 'parto'
+  | 'vendaje'
+  | 'asepsia'
+  | 'otros'
+ 
+export type ReflejoPupilar = 'midriatica' | 'miotica' | 'isocorica' | 'anisocorica' | 'no_reactiva'
+ 
+export type LesionTipo =
+  | 'tce'
+  | 'amputacion'
+  | 'escalpe'
+  | 'eritema'
+  | 'fractura_abierta'
+  | 'puncion'
+  | 'laceracion'
+  | 'edema'
+  | 'luxacion'
+  | 'mordedura'
+  | 'abrasion'
+  | 'hematoma'
+  | 'esguince'
+  | 'picadura'
+  | 'trauma'
+  | 'torax_inestable'
+  | 'contusion'
+  | 'cuerpo_extrano'
+  | 'hemotorax_masivo'
+  | 'abdomen_cerrado'
+  | 'hemorragia'
+  | 'quemadura'
+  | 'aplastamiento'
+  | 'avulsion'
+  | 'dolor'
+ 
+export interface SignoVitalItem {
+  hora: string
+  ta: string | null
+  fc: number | null
+  fr: number | null
+  spo2: number | null
+}
+ 
+export interface FormatoTrasladoClinico {
+  diagnostico: string | null
+  tratamiento: TratamientoAplicado[]
+  tratamiento_otro: string | null
+  pupila_derecha: ReflejoPupilar | null
+  pupila_izquierda: ReflejoPupilar | null
+  signos_vitales: SignoVitalItem[]
+  lesiones: LesionTipo[]
+  lesion_otro: string | null
+  glasgow_ocular: number | null
+  glasgow_verbal: number | null
+  glasgow_motora: number | null
+  insumos_entregados: string[]
+  nota_auxiliar: string | null
+  atendido_por: string | null
+  nota_medica: string | null
+  evolucionado_por: string | null
+}
+ 
+export interface FormatoTraslado extends FormatoTrasladoEncabezado, FormatoTrasladoClinico {
   atencion_id: number
+  glasgow_total: number | null
 }
