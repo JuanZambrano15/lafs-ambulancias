@@ -18,11 +18,13 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     obtenerPerfil: vi.fn(),
     cambiarPassword: vi.fn(),
     guardarFirma: vi.fn(),
+    establecerPin: vi.fn(),
     listarAmbulanciasDisponibles: vi.fn(),
     listarConductoresDisponibles: vi.fn(),
     crearAtencion: vi.fn(),
     obtenerEncabezadoTraslado: vi.fn(),
     guardarEncabezadoTraslado: vi.fn(),
     guardarClinicoTraslado: vi.fn(),
+    cerrarAtencion: vi.fn(),
   }
 }

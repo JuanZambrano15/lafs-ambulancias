@@ -4,12 +4,14 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
  
 import * as api from '../lib/api'
+import * as pinLocal from '../lib/pinLocal'
 import { AuthProvider } from '../auth/AuthContext'
-import type { FormatoTraslado, MeResponse } from '../lib/types'
+import type { Ambulancia, Atencion, Empleado, FormatoTraslado, MeResponse } from '../lib/types'
 import { ClinicoTrasladoPage } from './ClinicoTrasladoPage'
  
 vi.mock('../lib/api', () => import('../test/mockApi').then((m) => m.construirMockApi()))
 vi.mock('../lib/storage')
+vi.mock('../lib/pinLocal')
  
 function perfilCon(
   roles: MeResponse['roles'],
@@ -75,6 +77,37 @@ const FORMATO: FormatoTraslado = {
   evolucionado_por: 'Laura Gómez',
   firma_evolucionado_por: null,
   glasgow_total: 15,
+}
+ 
+const AMBULANCIA: Ambulancia = {
+  id: 1,
+  movil: 'M-01',
+  placa: 'ABC123',
+  tipo: 'basica',
+  vencimiento_soat: '2027-01-01',
+  vencimiento_tecnomecanica: '2027-01-01',
+  activa: true,
+}
+ 
+const EMPLEADO: Empleado = {
+  id: 1,
+  nombres: 'Ana',
+  apellidos: 'Ruiz',
+  cedula: '800000001',
+  telefono: null,
+  tipo_vinculacion: 'planta',
+  activo: true,
+}
+ 
+const ATENCION_CERRADA: Atencion = {
+  id: 1,
+  tipo: 'traslado',
+  estado: 'cerrado',
+  abierta_en: '2026-10-07T08:00:00Z',
+  cerrada_en: '2026-10-07T09:00:00Z',
+  ambulancia: AMBULANCIA,
+  conductor: EMPLEADO,
+  responsable: EMPLEADO,
 }
  
 const FORMATO_SIN_CLINICO: FormatoTraslado = {
@@ -322,6 +355,87 @@ describe('ClinicoTrasladoPage', () => {
       await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
       const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
       expect(datos.firma_atendido_por).toBe('data:image/png;base64,DEL-AUXILIAR')
+    })
+  })
+ 
+  describe('cerrar atención (issue #12)', () => {
+    beforeEach(() => {
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+    })
+ 
+    it('no muestra la opción de cerrar si el usuario no tiene rol clínico', async () => {
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(perfilCon([]))
+ 
+      renderPagina()
+ 
+      await screen.findByLabelText('Diagnóstico')
+      expect(screen.queryByRole('button', { name: 'Cerrar atención' })).not.toBeInTheDocument()
+    })
+ 
+    it('muestra la opción de cerrar para auxiliar o médico y revela el formulario de PIN', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+ 
+      renderPagina()
+ 
+      await usuario.click(await screen.findByRole('button', { name: 'Cerrar atención' }))
+ 
+      expect(screen.getByLabelText('PIN')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Confirmar cierre' })).toBeInTheDocument()
+    })
+ 
+    it('cierra la atención con el PIN correcto y vuelve a la pantalla principal', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'medico', descripcion: null }]),
+      )
+      vi.mocked(pinLocal.pinLocalValido).mockResolvedValue(true)
+      vi.mocked(api.cerrarAtencion).mockResolvedValue(ATENCION_CERRADA)
+ 
+      renderPagina()
+ 
+      await usuario.click(await screen.findByRole('button', { name: 'Cerrar atención' }))
+      await usuario.type(screen.getByLabelText('PIN'), '1234')
+      await usuario.click(screen.getByRole('button', { name: 'Confirmar cierre' }))
+ 
+      await waitFor(() => expect(api.cerrarAtencion).toHaveBeenCalledWith(1, '1234'))
+      expect(await screen.findByText('pantalla principal')).toBeInTheDocument()
+    })
+ 
+    it('rechaza el PIN sin tocar la red si no coincide con el hash local del dispositivo', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(pinLocal.pinLocalValido).mockResolvedValue(false)
+ 
+      renderPagina()
+ 
+      await usuario.click(await screen.findByRole('button', { name: 'Cerrar atención' }))
+      await usuario.type(screen.getByLabelText('PIN'), '0000')
+      await usuario.click(screen.getByRole('button', { name: 'Confirmar cierre' }))
+ 
+      expect(await screen.findByRole('alert')).toHaveTextContent('PIN incorrecto')
+      expect(api.cerrarAtencion).not.toHaveBeenCalled()
+    })
+ 
+    it('muestra el error del servidor si el PIN es incorrecto allí', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'medico', descripcion: null }]),
+      )
+      vi.mocked(pinLocal.pinLocalValido).mockResolvedValue(null)
+      vi.mocked(api.cerrarAtencion).mockRejectedValue(new api.ApiError(401, 'PIN incorrecto'))
+ 
+      renderPagina()
+ 
+      await usuario.click(await screen.findByRole('button', { name: 'Cerrar atención' }))
+      await usuario.type(screen.getByLabelText('PIN'), '1234')
+      await usuario.click(screen.getByRole('button', { name: 'Confirmar cierre' }))
+ 
+      expect(await screen.findByRole('alert')).toHaveTextContent('PIN incorrecto')
     })
   })
 })

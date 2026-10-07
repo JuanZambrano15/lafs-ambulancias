@@ -17,6 +17,12 @@
  * sin volver a dibujarla; si no (personal ocasional, o planta que
  * todavía no configuró la suya) se dibuja en pantalla, sin guardarla
  * en su perfil — solo queda en este formato puntual.
+ *
+ * "Cerrar atención" (issue #12, ADR-0010) es una acción aparte del
+ * "Guardar": pide el PIN de firma, lo valida contra el hash local de
+ * este dispositivo si hay uno (feedback instantáneo, sin red) y manda
+ * el cierre — en línea o encolado, según haya conexión. El servidor
+ * siempre revalida el PIN de verdad, la validación local es solo UX.
  */
  
 import { useEffect, useRef, useState } from 'react'
@@ -26,13 +32,20 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
 import { ApiError } from '../lib/api'
-import { guardarClinicoConRespaldo, obtenerFormatoConRespaldo } from '../lib/trasladoOffline'
+import { pinLocalValido } from '../lib/pinLocal'
+import {
+  cerrarAtencionConRespaldo,
+  guardarClinicoConRespaldo,
+  obtenerFormatoConRespaldo,
+} from '../lib/trasladoOffline'
 import type {
   FormatoTrasladoClinico,
   LesionTipo,
   ReflejoPupilar,
   TratamientoAplicado,
 } from '../lib/types'
+ 
+const PIN_VALIDO = /^\d{4}$/
  
 interface SignoVitalForm {
   hora: string
@@ -165,6 +178,11 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+ 
+  const [mostrarCierre, setMostrarCierre] = useState(false)
+  const [pinCierre, setPinCierre] = useState('')
+  const [cerrando, setCerrando] = useState(false)
+  const [errorCierre, setErrorCierre] = useState<string | null>(null)
  
   useEffect(() => {
     obtenerFormatoConRespaldo(id)
@@ -300,6 +318,40 @@ export function ClinicoTrasladoPage(): JSX.Element {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar lo clínico')
     } finally {
       setGuardando(false)
+    }
+  }
+ 
+  /**
+   * Cierra la atención con el PIN de firma (issue #12, ADR-0010). Si
+   * hay un hash local del PIN en este dispositivo y no coincide, se
+   * rechaza de una sin tocar la red; si coincide o no hay hash local
+   * (dispositivo nuevo, o nunca se guardó), se manda al servidor —
+   * que es quien de verdad autoriza, en línea o encolado sin
+   * conexión — y él tiene la última palabra en cualquier caso.
+   */
+  async function manejarCierre(evento: FormEvent): Promise<void> {
+    evento.preventDefault()
+    setErrorCierre(null)
+ 
+    if (!PIN_VALIDO.test(pinCierre)) {
+      setErrorCierre('El PIN debe ser de 4 dígitos')
+      return
+    }
+ 
+    setCerrando(true)
+    try {
+      const localmenteValido = await pinLocalValido(pinCierre)
+      if (localmenteValido === false) {
+        setErrorCierre('PIN incorrecto')
+        return
+      }
+ 
+      await cerrarAtencionConRespaldo(id, pinCierre)
+      navigate('/', { replace: true })
+    } catch (err) {
+      setErrorCierre(err instanceof ApiError ? err.message : 'No se pudo cerrar la atención')
+    } finally {
+      setCerrando(false)
     }
   }
  
@@ -652,6 +704,70 @@ export function ClinicoTrasladoPage(): JSX.Element {
             {guardando ? 'Guardando…' : 'Guardar'}
           </button>
         </form>
+ 
+        {(tieneRolAuxiliar || tieneRolMedico) && (
+          <div className="mt-4 rounded-xl bg-white p-6 shadow-sm">
+            {!mostrarCierre ? (
+              <button
+                type="button"
+                onClick={() => setMostrarCierre(true)}
+                className="w-full rounded-lg border border-red-300 py-3 text-base font-medium text-red-600"
+              >
+                Cerrar atención
+              </button>
+            ) : (
+              <form onSubmit={manejarCierre}>
+                <h2 className="mb-1 text-base font-semibold text-slate-900">Cerrar atención</h2>
+                <p className="mb-4 text-sm text-slate-500">
+                  Ingresa tu PIN de firma para cerrar este formato. Una vez cerrado, no se podrá
+                  editar.
+                </p>
+ 
+                <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pin-cierre">
+                  PIN
+                </label>
+                <input
+                  id="pin-cierre"
+                  type="password"
+                  inputMode="numeric"
+                  pattern="\d{4}"
+                  maxLength={4}
+                  autoComplete="off"
+                  value={pinCierre}
+                  onChange={(e) => setPinCierre(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-red-500 focus:outline-none"
+                />
+ 
+                {errorCierre && (
+                  <p role="alert" className="mb-4 text-sm text-red-600">
+                    {errorCierre}
+                  </p>
+                )}
+ 
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMostrarCierre(false)
+                      setPinCierre('')
+                      setErrorCierre(null)
+                    }}
+                    className="flex-1 rounded-lg border border-slate-300 py-3 text-base font-medium text-slate-700"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={cerrando}
+                    className="flex-1 rounded-lg bg-red-600 py-3 text-base font-medium text-white disabled:opacity-60"
+                  >
+                    {cerrando ? 'Cerrando…' : 'Confirmar cierre'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

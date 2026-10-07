@@ -149,6 +149,15 @@ export async function guardarFirma(firma: string): Promise<void> {
   })
 }
  
+/** Define o cambia el PIN de firma (issue #12) — sin restricción de
+ * "solo la primera vez", igual que en el backend. */
+export async function establecerPin(pin: string): Promise<void> {
+  await apiFetch<void>('/auth/pin', {
+    method: 'PUT',
+    body: { pin },
+  })
+}
+ 
 export async function listarAmbulanciasDisponibles(): Promise<Ambulancia[]> {
   return apiFetch<Ambulancia[]>('/atenciones/ambulancias-disponibles')
 }
@@ -196,5 +205,15 @@ export async function guardarClinicoTraslado(
   return apiFetch<FormatoTraslado>(`/atenciones/${atencionId}/formato-traslado/clinico`, {
     method: 'PUT',
     body: datos,
+  })
+}
+ 
+/** Issue #12 — cierra la atención con el PIN de firma. El backend
+ * revalida el PIN contra el hash real sin importar si el dispositivo
+ * ya lo validó localmente (ver ADR-0010). */
+export async function cerrarAtencion(atencionId: number, pin: string): Promise<Atencion> {
+  return apiFetch<Atencion>(`/atenciones/${atencionId}/cerrar`, {
+    method: 'PUT',
+    body: { pin },
   })
 }

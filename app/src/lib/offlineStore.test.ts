@@ -3,10 +3,14 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   _reiniciarParaPruebas,
   contarPendientesSinSincronizar,
+  eliminarCierrePendiente,
   eliminarPendiente,
+  guardarCierrePendiente,
   guardarPendiente,
+  listarCierresPendientes,
   listarPendientes,
   obtenerPendiente,
+  type CierrePendiente,
   type TrasladoPendiente,
 } from './offlineStore'
  
@@ -18,9 +22,14 @@ function pendiente(clientId: string, sincronizado = false): TrasladoPendiente {
     atencionId: null,
     encabezado: null,
     clinico: null,
+    cierre: null,
     sincronizado,
     error: null,
   }
+}
+ 
+function cierre(atencionId: string): CierrePendiente {
+  return { atencionId, pin: '1234', intentadoEn: '2026-10-07T08:00:00.000Z', error: null }
 }
  
 beforeEach(async () => {
@@ -72,5 +81,34 @@ describe('offlineStore', () => {
     await guardarPendiente(pendiente('bbb', true))
  
     expect(await contarPendientesSinSincronizar()).toBe(1)
+  })
+})
+ 
+describe('cierres_pendientes (issue #12)', () => {
+  it('guarda y lista un cierre pendiente', async () => {
+    await guardarCierrePendiente(cierre('7'))
+ 
+    const lista = await listarCierresPendientes()
+ 
+    expect(lista).toHaveLength(1)
+    expect(lista[0]).toEqual(cierre('7'))
+  })
+ 
+  it('sobreescribe un cierre existente (mismo atencionId)', async () => {
+    await guardarCierrePendiente(cierre('7'))
+    await guardarCierrePendiente({ ...cierre('7'), error: 'ya ocupada' })
+ 
+    const lista = await listarCierresPendientes()
+ 
+    expect(lista).toHaveLength(1)
+    expect(lista[0].error).toBe('ya ocupada')
+  })
+ 
+  it('elimina un cierre pendiente', async () => {
+    await guardarCierrePendiente(cierre('7'))
+ 
+    await eliminarCierrePendiente('7')
+ 
+    expect(await listarCierresPendientes()).toHaveLength(0)
   })
 })
