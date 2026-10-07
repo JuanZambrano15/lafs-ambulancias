@@ -140,6 +140,15 @@ export async function cambiarPassword(
   })
 }
  
+/** Issue #11 — guarda la firma reutilizable del usuario autenticado
+ * (solo personal de planta; el backend responde 409 si no aplica). */
+export async function guardarFirma(firma: string): Promise<void> {
+  await apiFetch<void>('/auth/firma', {
+    method: 'PUT',
+    body: { firma },
+  })
+}
+ 
 export async function listarAmbulanciasDisponibles(): Promise<Ambulancia[]> {
   return apiFetch<Ambulancia[]>('/atenciones/ambulancias-disponibles')
 }

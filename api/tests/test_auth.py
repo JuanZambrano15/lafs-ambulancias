@@ -167,9 +167,95 @@ def test_me_devuelve_perfil_y_roles(client: TestClient, admin_headers: dict[str,
     assert body["debe_cambiar_password"] is True
     assert body["pin_configurado"] is False
     assert [rol["nombre"] for rol in body["roles"]] == ["administrador"]
+    # El admin de pruebas no tiene empleado vinculado (issue #11).
+    assert body["empleado_tipo_vinculacion"] is None
+    assert body["firma_guardada"] is None
  
  
 def test_me_sin_token_da_401(client: TestClient) -> None:
     response = client.get("/auth/me")
+ 
+    assert response.status_code == 401
+ 
+ 
+def test_guardar_firma_de_planta_queda_en_el_perfil(
+    client: TestClient, auxiliar_headers: dict[str, str]
+) -> None:
+    """auxiliar_headers crea un Empleado con tipo_vinculacion por
+    defecto (planta) — issue #11."""
+    firma = "data:image/png;base64,AAAA"
+ 
+    guardar = client.put("/auth/firma", json={"firma": firma}, headers=auxiliar_headers)
+    assert guardar.status_code == 204
+ 
+    perfil = client.get("/auth/me", headers=auxiliar_headers)
+    assert perfil.json()["empleado_tipo_vinculacion"] == "planta"
+    assert perfil.json()["firma_guardada"] == firma
+ 
+ 
+def test_guardar_firma_sobreescribe_la_anterior(
+    client: TestClient, auxiliar_headers: dict[str, str]
+) -> None:
+    client.put(
+        "/auth/firma", json={"firma": "data:image/png;base64,AAAA"}, headers=auxiliar_headers
+    )
+    client.put(
+        "/auth/firma", json={"firma": "data:image/png;base64,BBBB"}, headers=auxiliar_headers
+    )
+ 
+    perfil = client.get("/auth/me", headers=auxiliar_headers)
+ 
+    assert perfil.json()["firma_guardada"] == "data:image/png;base64,BBBB"
+ 
+ 
+def test_guardar_firma_personal_ocasional_da_409(client: TestClient, db: Session) -> None:
+    from app.core.security import hash_secret
+    from app.models.empleado import Empleado, TipoVinculacion
+    from app.models.usuario import Usuario
+ 
+    empleado = Empleado(
+        nombres="Pedro",
+        apellidos="Luna",
+        cedula="700000009",
+        tipo_vinculacion=TipoVinculacion.ocasional,
+    )
+    db.add(empleado)
+    db.flush()
+    usuario = Usuario(
+        documento="700000009", password_hash=hash_secret("clave-ocasional"), empleado_id=empleado.id
+    )
+    db.add(usuario)
+    db.commit()
+ 
+    login = client.post(
+        "/auth/login", json={"documento": "700000009", "password": "clave-ocasional"}
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+ 
+    response = client.put(
+        "/auth/firma", json={"firma": "data:image/png;base64,AAAA"}, headers=headers
+    )
+ 
+    assert response.status_code == 409
+ 
+ 
+def test_guardar_firma_sin_empleado_vinculado_da_409(
+    client: TestClient, contador_headers: dict[str, str]
+) -> None:
+    response = client.put(
+        "/auth/firma", json={"firma": "data:image/png;base64,AAAA"}, headers=contador_headers
+    )
+ 
+    assert response.status_code == 409
+ 
+ 
+def test_guardar_firma_vacia_da_422(client: TestClient, auxiliar_headers: dict[str, str]) -> None:
+    response = client.put("/auth/firma", json={"firma": ""}, headers=auxiliar_headers)
+ 
+    assert response.status_code == 422
+ 
+ 
+def test_guardar_firma_sin_token_da_401(client: TestClient) -> None:
+    response = client.put("/auth/firma", json={"firma": "data:image/png;base64,AAAA"})
  
     assert response.status_code == 401

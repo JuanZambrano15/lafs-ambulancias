@@ -4,6 +4,7 @@ from __future__ import annotations
  
 from pydantic import BaseModel, Field
  
+from app.models.empleado import TipoVinculacion
 from app.schemas.rol import RolOut
  
  
@@ -45,6 +46,11 @@ class CambiarPasswordRequest(BaseModel):
     password_nueva: str = Field(min_length=8, max_length=255)
  
  
+class FirmaRequest(BaseModel):
+    # Data URL en base64 del PNG dibujado en pantalla (issue #11).
+    firma: str = Field(min_length=1, max_length=300_000)
+ 
+ 
 class MeResponse(BaseModel):
     """Perfil del usuario autenticado, con sus roles.
  
@@ -64,3 +70,9 @@ class MeResponse(BaseModel):
     debe_cambiar_password: bool
     pin_configurado: bool
     roles: list[RolOut]
+    # Issue #11: null si no hay empleado vinculado. El frontend los usa
+    # para decidir si mostrar "Configurar mi firma" (solo planta) y
+    # para autocompletar la firma al diligenciar un formato, sin tener
+    # que pedirla con otra llamada aparte.
+    empleado_tipo_vinculacion: TipoVinculacion | None
+    firma_guardada: str | None

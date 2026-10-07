@@ -30,6 +30,11 @@ export interface MeResponse {
   debe_cambiar_password: boolean
   pin_configurado: boolean
   roles: Rol[]
+  /** `null` si no hay empleado vinculado (issue #11). */
+  empleado_tipo_vinculacion: TipoVinculacion | null
+  /** Data URL en base64 de la firma reutilizable, o `null` si todavía
+   * no la configuró (o si es personal ocasional, que nunca la guarda). */
+  firma_guardada: string | null
 }
  
 /** Nombres de rol tal como los siembra la migración del backend. */
@@ -194,8 +199,11 @@ export interface FormatoTrasladoClinico {
   insumos_entregados: string[]
   nota_auxiliar: string | null
   atendido_por: string | null
+  /** Data URL en base64 de lo dibujado en pantalla (issue #11). */
+  firma_atendido_por: string | null
   nota_medica: string | null
   evolucionado_por: string | null
+  firma_evolucionado_por: string | null
 }
  
 export interface FormatoTraslado extends FormatoTrasladoEncabezado, FormatoTrasladoClinico {

@@ -93,8 +93,10 @@ const CLINICO: FormatoTrasladoClinico = {
   insumos_entregados: [],
   nota_auxiliar: null,
   atendido_por: null,
+  firma_atendido_por: null,
   nota_medica: null,
   evolucionado_por: null,
+  firma_evolucionado_por: null,
 }
  
 function conEstadoDeRed(enLinea: boolean): () => void {

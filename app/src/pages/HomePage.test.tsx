@@ -10,7 +10,10 @@ import { HomePage } from './HomePage'
 vi.mock('../lib/api', () => import('../test/mockApi').then((m) => m.construirMockApi()))
 vi.mock('../lib/storage')
  
-function perfilCon(roles: MeResponse['roles']): MeResponse {
+function perfilCon(
+  roles: MeResponse['roles'],
+  tipoVinculacion: MeResponse['empleado_tipo_vinculacion'] = null,
+): MeResponse {
   return {
     documento: '123456789',
     activo: true,
@@ -18,6 +21,8 @@ function perfilCon(roles: MeResponse['roles']): MeResponse {
     debe_cambiar_password: false,
     pin_configurado: true,
     roles,
+    empleado_tipo_vinculacion: tipoVinculacion,
+    firma_guardada: null,
   }
 }
  
@@ -86,5 +91,26 @@ describe('HomePage', () => {
     expect(
       await screen.findByText('Tu usuario no tiene secciones asignadas todavía.'),
     ).toBeInTheDocument()
+  })
+ 
+  it('muestra "Mi firma" solo si el empleado es de planta (issue #11)', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }], 'planta'),
+    )
+ 
+    renderHome()
+ 
+    expect(await screen.findByText('Mi firma')).toBeInTheDocument()
+  })
+ 
+  it('no muestra "Mi firma" para personal ocasional', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }], 'ocasional'),
+    )
+ 
+    renderHome()
+ 
+    await screen.findByText('Formato de traslado')
+    expect(screen.queryByText('Mi firma')).not.toBeInTheDocument()
   })
 })
