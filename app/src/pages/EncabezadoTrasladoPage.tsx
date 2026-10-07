@@ -13,7 +13,8 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
  
-import { ApiError, guardarEncabezadoTraslado, obtenerEncabezadoTraslado } from '../lib/api'
+import { ApiError } from '../lib/api'
+import { guardarEncabezadoConRespaldo, obtenerFormatoConRespaldo } from '../lib/trasladoOffline'
 import type {
   CategoriaPaciente,
   ComplejidadTraslado,
@@ -113,7 +114,7 @@ function campoRequerido(label: string, id: string, props: JSX.IntrinsicElements[
 export function EncabezadoTrasladoPage(): JSX.Element {
   const navigate = useNavigate()
   const { atencionId } = useParams<{ atencionId: string }>()
-  const id = Number(atencionId)
+  const id = atencionId ?? ''
  
   const [campos, setCampos] = useState<CamposTexto>(CAMPOS_VACIOS)
   const [cargando, setCargando] = useState(true)
@@ -122,7 +123,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
   const [guardando, setGuardando] = useState(false)
  
   useEffect(() => {
-    obtenerEncabezadoTraslado(id)
+    obtenerFormatoConRespaldo(id)
       .then((existente) => {
         if (existente === null) return
         setCampos({
@@ -178,7 +179,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
         acompanante_parentesco: campos.acompanante_parentesco || null,
         acompanante_telefono: campos.acompanante_telefono || null,
       }
-      await guardarEncabezadoTraslado(id, datos)
+      await guardarEncabezadoConRespaldo(id, datos)
       // La parte clínica (issue #9) se llena después, durante el
       // traslado — no en esta misma pantalla, que es solo la
       // recepción del paciente.

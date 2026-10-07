@@ -67,6 +67,11 @@ export interface AtencionCreate {
   tipo: TipoAtencion
   ambulancia_id: number
   conductor_id: number
+  /** UUID generado en el dispositivo (issue #10) — permite que el
+   * backend detecte un reintento de sincronización y no duplique la
+   * atención. Opcional porque sigue siendo válido crear una atención
+   * en línea sin mandarlo. */
+  client_id?: string
 }
  
 export interface Atencion {

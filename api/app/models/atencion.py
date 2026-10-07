@@ -19,7 +19,7 @@ import enum
 from datetime import datetime
 from typing import TYPE_CHECKING
  
-from sqlalchemy import DateTime, Enum, ForeignKey
+from sqlalchemy import DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
  
 from app.db.base import Base
@@ -43,6 +43,13 @@ class Atencion(Base):
     __tablename__ = "atencion"
  
     id: Mapped[int] = mapped_column(primary_key=True)
+ 
+    # Generado en el dispositivo (UUID) cuando la atención se crea sin
+    # conexión (issue #10) — permite que el backend detecte un reintento
+    # de sincronización y devuelva la fila ya creada en vez de
+    # duplicarla. `None` en una atención creada normalmente, en línea
+    # (sigue siendo el caso más común). Ver ADR-0008.
+    client_id: Mapped[str | None] = mapped_column(String(36), unique=True, default=None)
  
     ambulancia_id: Mapped[int] = mapped_column(ForeignKey("ambulancia.id"))
     conductor_id: Mapped[int] = mapped_column(ForeignKey("empleado.id"))

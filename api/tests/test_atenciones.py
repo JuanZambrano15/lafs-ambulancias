@@ -289,6 +289,96 @@ def test_usuario_sin_empleado_vinculado_no_puede_crear_atencion(
     assert response.status_code == 409
  
  
+def test_crear_atencion_con_client_id_es_idempotente(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    """Simula un reintento de sincronización (issue #10): la segunda
+    llamada con el mismo client_id no debe crear una segunda fila ni
+    fallar por "ambulancia/conductor ya ocupado" — debe devolver la
+    misma atención que ya se había creado."""
+    ambulancia = _crear_ambulancia(db)
+    conductor = _crear_conductor(db)
+    client_id = "11111111-1111-1111-1111-111111111111"
+ 
+    primera = client.post(
+        "/atenciones",
+        json={
+            "tipo": "traslado",
+            "ambulancia_id": ambulancia.id,
+            "conductor_id": conductor.id,
+            "client_id": client_id,
+        },
+        headers=auxiliar_headers,
+    )
+    assert primera.status_code == 201
+    atencion_id = primera.json()["id"]
+ 
+    segunda = client.post(
+        "/atenciones",
+        json={
+            "tipo": "traslado",
+            "ambulancia_id": ambulancia.id,
+            "conductor_id": conductor.id,
+            "client_id": client_id,
+        },
+        headers=auxiliar_headers,
+    )
+ 
+    assert segunda.status_code == 200
+    assert segunda.json()["id"] == atencion_id
+ 
+ 
+def test_crear_atencion_con_client_id_distinto_crea_otra(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    ambulancia_1 = _crear_ambulancia(db, movil="M-01")
+    ambulancia_2 = _crear_ambulancia(db, movil="M-02")
+    conductor_1 = _crear_conductor(db, cedula="800000001")
+    conductor_2 = _crear_conductor(db, cedula="800000002")
+ 
+    primera = client.post(
+        "/atenciones",
+        json={
+            "tipo": "traslado",
+            "ambulancia_id": ambulancia_1.id,
+            "conductor_id": conductor_1.id,
+            "client_id": "22222222-2222-2222-2222-222222222222",
+        },
+        headers=auxiliar_headers,
+    )
+    segunda = client.post(
+        "/atenciones",
+        json={
+            "tipo": "traslado",
+            "ambulancia_id": ambulancia_2.id,
+            "conductor_id": conductor_2.id,
+            "client_id": "33333333-3333-3333-3333-333333333333",
+        },
+        headers=auxiliar_headers,
+    )
+ 
+    assert primera.status_code == 201
+    assert segunda.status_code == 201
+    assert primera.json()["id"] != segunda.json()["id"]
+ 
+ 
+def test_crear_atencion_sin_client_id_sigue_funcionando(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    """La mayoría de las atenciones se siguen creando en línea, sin
+    mandar client_id — no debe exigirse ni romper nada (issue #10)."""
+    ambulancia = _crear_ambulancia(db)
+    conductor = _crear_conductor(db)
+ 
+    response = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia.id, "conductor_id": conductor.id},
+        headers=auxiliar_headers,
+    )
+ 
+    assert response.status_code == 201
+ 
+ 
 def test_listar_conductores_disponibles_excluye_sin_rol_e_inactivos(
     client: TestClient, db: Session, auxiliar_headers: dict[str, str]
 ) -> None:
