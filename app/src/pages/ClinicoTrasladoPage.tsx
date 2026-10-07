@@ -8,14 +8,23 @@
  * paciente), esta parte se llena progresivamente durante el traslado
  * — por eso no hay ningún campo obligatorio y se puede guardar el
  * avance las veces que haga falta mientras la atención sigue abierta
- * (ver ADR-0007). Las firmas de "ATENDIDO POR"/"EVOLUCIONADO POR" son
- * del issue #11 — aquí solo se guarda el nombre.
+ * (ver ADR-0007).
+ *
+ * La firma de quien atendió/evolucionó (issue #11, ADR-0009) se
+ * muestra solo para el rol correspondiente de quien está logueado
+ * (auxiliar → "atendido por", médico → "evolucionado por"): si ya
+ * tiene una firma guardada (personal de planta) se usa automática,
+ * sin volver a dibujarla; si no (personal ocasional, o planta que
+ * todavía no configuró la suya) se dibuja en pantalla, sin guardarla
+ * en su perfil — solo queda en este formato puntual.
  */
  
-import { useEffect, useState } from 'react'
-import type { FormEvent, JSX } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { FormEvent, JSX, RefObject } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
  
+import { useAuth } from '../auth/AuthContext'
+import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
 import { ApiError } from '../lib/api'
 import { guardarClinicoConRespaldo, obtenerFormatoConRespaldo } from '../lib/trasladoOffline'
 import type {
@@ -48,8 +57,13 @@ interface EstadoClinico {
   insumos: string[]
   notaAuxiliar: string
   atendidoPor: string
+  /** Lo que ya estaba guardado para este formato (issue #11) — se
+   * precarga en el canvas para no perderlo si quien firma no vuelve a
+   * dibujar nada en una visita posterior. */
+  firmaAtendidoExistente: string | null
   notaMedica: string
   evolucionadoPor: string
+  firmaEvolucionadoExistente: string | null
 }
  
 const ESTADO_VACIO: EstadoClinico = {
@@ -67,8 +81,10 @@ const ESTADO_VACIO: EstadoClinico = {
   insumos: [],
   notaAuxiliar: '',
   atendidoPor: '',
+  firmaAtendidoExistente: null,
   notaMedica: '',
   evolucionadoPor: '',
+  firmaEvolucionadoExistente: null,
 }
  
 const TRATAMIENTO_OPCIONES: { valor: TratamientoAplicado; etiqueta: string }[] = [
@@ -138,6 +154,11 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const navigate = useNavigate()
   const { atencionId } = useParams<{ atencionId: string }>()
   const id = atencionId ?? ''
+  const { perfil, tieneRol } = useAuth()
+  const tieneRolAuxiliar = tieneRol('auxiliar_enfermeria')
+  const tieneRolMedico = tieneRol('medico')
+  const firmaAtendidoRef = useRef<FirmaCanvasHandle>(null)
+  const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
  
   const [campos, setCampos] = useState<EstadoClinico>(ESTADO_VACIO)
   const [cargando, setCargando] = useState(true)
@@ -170,8 +191,10 @@ export function ClinicoTrasladoPage(): JSX.Element {
           insumos: existente.insumos_entregados,
           notaAuxiliar: existente.nota_auxiliar ?? '',
           atendidoPor: existente.atendido_por ?? '',
+          firmaAtendidoExistente: existente.firma_atendido_por,
           notaMedica: existente.nota_medica ?? '',
           evolucionadoPor: existente.evolucionado_por ?? '',
+          firmaEvolucionadoExistente: existente.firma_evolucionado_por,
         })
       })
       .catch((err: unknown) => {
@@ -258,8 +281,18 @@ export function ClinicoTrasladoPage(): JSX.Element {
         insumos_entregados: campos.insumos.filter((insumo) => insumo.trim() !== ''),
         nota_auxiliar: campos.notaAuxiliar || null,
         atendido_por: campos.atendidoPor || null,
+        // La firma solo se recalcula para el rol de quien está
+        // logueado ahora mismo; si no le corresponde, se reenvía la
+        // que ya hubiera (mismo patrón de "reenvío completo" del
+        // resto del formato — ver ADR-0006/0007).
+        firma_atendido_por: tieneRolAuxiliar
+          ? perfil?.firma_guardada ?? firmaAtendidoRef.current?.exportar() ?? null
+          : campos.firmaAtendidoExistente,
         nota_medica: campos.notaMedica || null,
         evolucionado_por: campos.evolucionadoPor || null,
+        firma_evolucionado_por: tieneRolMedico
+          ? perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
+          : campos.firmaEvolucionadoExistente,
       }
       await guardarClinicoConRespaldo(id, datos)
       navigate('/', { replace: true })
@@ -576,6 +609,14 @@ export function ClinicoTrasladoPage(): JSX.Element {
           {campoTexto('Atendido por', 'atendido-por', campos.atendidoPor, (valor) =>
             setCampos((anterior) => ({ ...anterior, atendidoPor: valor })),
           )}
+          {tieneRolAuxiliar && (
+            <FirmaField
+              etiqueta="Firma de quien atendió"
+              firmaGuardada={perfil?.firma_guardada ?? null}
+              imagenInicial={campos.firmaAtendidoExistente}
+              canvasRef={firmaAtendidoRef}
+            />
+          )}
  
           <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">Evolución médica</h2>
           <textarea
@@ -587,6 +628,14 @@ export function ClinicoTrasladoPage(): JSX.Element {
           />
           {campoTexto('Evolucionado por', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
             setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
+          )}
+          {tieneRolMedico && (
+            <FirmaField
+              etiqueta="Firma de quien evolucionó"
+              firmaGuardada={perfil?.firma_guardada ?? null}
+              imagenInicial={campos.firmaEvolucionadoExistente}
+              canvasRef={firmaEvolucionadoRef}
+            />
           )}
  
           {error && (
@@ -604,6 +653,41 @@ export function ClinicoTrasladoPage(): JSX.Element {
           </button>
         </form>
       </div>
+    </div>
+  )
+}
+ 
+/**
+ * Firma de quien atiende/evoluciona (issue #11). Si el usuario
+ * logueado ya tiene firma guardada (personal de planta) se muestra
+ * como vista previa de solo lectura y se reusa automáticamente al
+ * guardar — no hay nada que dibujar. Si no (personal ocasional, o
+ * planta que todavía no configuró la suya), se dibuja en el canvas,
+ * precargando lo que ya hubiera quedado guardado en este formato.
+ */
+function FirmaField({
+  etiqueta,
+  firmaGuardada,
+  imagenInicial,
+  canvasRef,
+}: {
+  etiqueta: string
+  firmaGuardada: string | null
+  imagenInicial: string | null
+  canvasRef: RefObject<FirmaCanvasHandle | null>
+}): JSX.Element {
+  return (
+    <div className="mb-4">
+      <h3 className="mb-1 block text-sm font-medium text-slate-700">{etiqueta}</h3>
+      {firmaGuardada ? (
+        <img
+          src={firmaGuardada}
+          alt={etiqueta}
+          className="h-20 w-full rounded-lg border border-slate-300 bg-white object-contain"
+        />
+      ) : (
+        <FirmaCanvas ref={canvasRef} imagenInicial={imagenInicial} alto={120} />
+      )}
     </div>
   )
 }

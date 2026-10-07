@@ -53,6 +53,16 @@ export function HomePage(): JSX.Element {
   const { perfil, roles, cerrarSesion } = useAuth()
  
   const secciones = roles.flatMap((rol) => SECCIONES_POR_ROL[rol] ?? [])
+  // "Mi firma" no depende del rol sino de `tipo_vinculacion` del
+  // empleado (issue #11) — solo planta puede guardar una firma
+  // reutilizable, así que a personal ocasional no se le muestra.
+  if (perfil?.empleado_tipo_vinculacion === 'planta') {
+    secciones.push({
+      titulo: 'Mi firma',
+      descripcion: 'Configurar la firma que se reutiliza al diligenciar formatos',
+      ruta: '/configurar-firma',
+    })
+  }
   const sinDuplicados = Array.from(new Map(secciones.map((s) => [s.titulo, s])).values())
  
   return (
