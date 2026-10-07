@@ -12,7 +12,7 @@ from __future__ import annotations
  
 from datetime import UTC, datetime
  
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
  
@@ -109,8 +109,25 @@ def listar_conductores_disponibles(db: DbSession) -> list[Empleado]:
     return list(query.order_by(Empleado.apellidos, Empleado.nombres).all())
  
  
+def _atencion_por_client_id(client_id: str, db: DbSession) -> Atencion | None:
+    return db.execute(select(Atencion).where(Atencion.client_id == client_id)).scalar_one_or_none()
+ 
+ 
 @router.post("", response_model=AtencionOut, status_code=status.HTTP_201_CREATED)
-def crear_atencion(datos: AtencionCreate, usuario: CurrentUser, db: DbSession) -> Atencion:
+def crear_atencion(
+    datos: AtencionCreate, usuario: CurrentUser, db: DbSession, response: Response
+) -> Atencion:
+    # Idempotencia por `client_id` (issue #10, ADR-0008): si ya existe
+    # una atención con este client_id, es un reintento de sincronización
+    # — se devuelve la fila ya creada (200), sin repetir las
+    # validaciones de disponibilidad de ambulancia/conductor (que
+    # fallarían igual, porque esa misma atención ya las dejó ocupadas).
+    if datos.client_id is not None:
+        existente = _atencion_por_client_id(datos.client_id, db)
+        if existente is not None:
+            response.status_code = status.HTTP_200_OK
+            return existente
+ 
     responsable = _empleado_del_usuario(usuario, db)
  
     ambulancia = db.get(Ambulancia, datos.ambulancia_id)
@@ -148,6 +165,7 @@ def crear_atencion(datos: AtencionCreate, usuario: CurrentUser, db: DbSession) -
         responsable_id=responsable.id,
         estado=EstadoAtencion.abierto,
         abierta_en=datetime.now(UTC),
+        client_id=datos.client_id,
     )
     db.add(atencion)
     db.commit()
