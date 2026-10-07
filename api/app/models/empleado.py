@@ -16,7 +16,7 @@ from __future__ import annotations
  
 import enum
  
-from sqlalchemy import Boolean, Enum, String
+from sqlalchemy import Boolean, Enum, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
  
 from app.db.base import Base
@@ -41,6 +41,12 @@ class Empleado(Base):
     )
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
  
-    # La firma reutilizable (personal de planta) llega en el issue #11;
-    # se agrega ahí como columna aparte para no adivinar el formato de
-    # almacenamiento (URL a archivo vs. blob) antes de tiempo.
+    # Firma reutilizable, solo para personal de planta (issue #11,
+    # ADR-0009): imagen PNG dibujada en pantalla, guardada como data
+    # URL en base64 — no hay almacenamiento de archivos en este
+    # proyecto todavía, y una firma pesa poco, así que un blob de texto
+    # alcanza sin montar esa infraestructura antes de tiempo. El
+    # personal ocasional nunca llega a tener esto guardado (lo exige el
+    # endpoint que lo escribe, no esta columna): dibuja su firma en
+    # pantalla cada vez, solo para ese formato puntual.
+    firma_guardada: Mapped[str | None] = mapped_column(Text, default=None)

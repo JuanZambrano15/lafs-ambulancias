@@ -107,9 +107,14 @@ class FormatoTrasladoClinico(BaseModel):
  
     nota_auxiliar: str | None = Field(default=None, max_length=2000)
     atendido_por: str | None = None
+    # Data URL en base64 de la firma dibujada en pantalla (issue #11) —
+    # 300_000 caracteres alcanzan de sobra para un PNG pequeño de una
+    # firma; es solo para no aceptar un payload arbitrariamente grande.
+    firma_atendido_por: str | None = Field(default=None, max_length=300_000)
  
     nota_medica: str | None = Field(default=None, max_length=2000)
     evolucionado_por: str | None = None
+    firma_evolucionado_por: str | None = Field(default=None, max_length=300_000)
  
  
 class FormatoTrasladoOut(FormatoTrasladoEncabezado, FormatoTrasladoClinico):

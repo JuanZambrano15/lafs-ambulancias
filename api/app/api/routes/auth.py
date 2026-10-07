@@ -27,10 +27,12 @@ from app.core.security import (
     hash_secret,
     verify_secret,
 )
+from app.models.empleado import Empleado, TipoVinculacion
 from app.models.usuario import Usuario
 from app.schemas.auth import (
     AccessTokenResponse,
     CambiarPasswordRequest,
+    FirmaRequest,
     LoginRequest,
     MeResponse,
     PinRequest,
@@ -71,12 +73,13 @@ def login(datos: LoginRequest, db: DbSession) -> TokenResponse:
  
  
 @router.get("/me", response_model=MeResponse)
-def obtener_perfil(usuario: CurrentUser) -> MeResponse:
+def obtener_perfil(usuario: CurrentUser, db: DbSession) -> MeResponse:
     """Perfil del usuario autenticado — solo exige sesión válida, sin
     chequeo de rol, porque cada quien puede consultar su propia
     información (a diferencia de `GET /usuarios/{id}`, que es solo
     para administrador).
     """
+    empleado = db.get(Empleado, usuario.empleado_id) if usuario.empleado_id is not None else None
     return MeResponse(
         documento=usuario.documento,
         activo=usuario.activo,
@@ -84,6 +87,8 @@ def obtener_perfil(usuario: CurrentUser) -> MeResponse:
         debe_cambiar_password=usuario.debe_cambiar_password,
         pin_configurado=usuario.pin_hash is not None,
         roles=[RolOut.model_validate(asignacion.rol) for asignacion in usuario.roles],
+        empleado_tipo_vinculacion=empleado.tipo_vinculacion if empleado is not None else None,
+        firma_guardada=empleado.firma_guardada if empleado is not None else None,
     )
  
  
@@ -138,4 +143,34 @@ def cambiar_password(datos: CambiarPasswordRequest, usuario: CurrentUser, db: Db
  
     usuario.password_hash = hash_secret(datos.password_nueva)
     usuario.debe_cambiar_password = False
+    db.commit()
+ 
+ 
+@router.put("/firma", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+def guardar_firma(datos: FirmaRequest, usuario: CurrentUser, db: DbSession) -> None:
+    """Guarda la firma reutilizable del usuario autenticado (issue #11,
+    ADR-0009) — solo para personal de planta: el ocasional dibuja su
+    firma en pantalla cada vez, sin que quede guardada en su perfil
+    (es la decisión del issue, no un detalle técnico). Sobreescribe
+    la firma anterior si ya tenía una — "configurar mi firma" es la
+    misma pantalla para crearla la primera vez y para rehacerla.
+    """
+    if usuario.empleado_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Tu usuario no está vinculado a un empleado, no puedes guardar una firma",
+        )
+    empleado = db.get(Empleado, usuario.empleado_id)
+    if empleado is None or not empleado.activo:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="El empleado ligado a tu usuario no está activo",
+        )
+    if empleado.tipo_vinculacion != TipoVinculacion.planta:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Solo el personal de planta puede guardar una firma reutilizable",
+        )
+ 
+    empleado.firma_guardada = datos.firma
     db.commit()

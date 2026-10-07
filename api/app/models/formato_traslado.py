@@ -223,6 +223,16 @@ class FormatoTraslado(Base):
     nota_medica: Mapped[str | None] = mapped_column(Text, default=None)
     evolucionado_por: Mapped[str | None] = mapped_column(String(150), default=None)
  
+    # Firma de quien atendió/evolucionó (issue #11, ADR-0009): data URL
+    # en base64 de lo dibujado en pantalla — la del auxiliar de planta
+    # con firma guardada llega ya resuelta desde el frontend (copiada
+    # de `Empleado.firma_guardada`), así que este endpoint no necesita
+    # saber si viene de ahí o de un dibujo nuevo en pantalla. Las
+    # firmas de "quien entrega"/"quien recibe" (personal de la IPS,
+    # no de LAFS) quedan fuera de este issue.
+    firma_atendido_por: Mapped[str | None] = mapped_column(Text, default=None)
+    firma_evolucionado_por: Mapped[str | None] = mapped_column(Text, default=None)
+ 
     # El total de Glasgow (suma de las tres escalas) no es una columna
     # — se calcula en `FormatoTrasladoOut.glasgow_total`
     # (app/schemas/formato_traslado.py), no aquí. Un `@property` del
