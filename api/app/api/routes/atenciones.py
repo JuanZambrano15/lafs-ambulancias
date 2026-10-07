@@ -22,6 +22,7 @@ from app.api.deps import (
     require_personal_clinico,
     require_personal_operativo,
 )
+from app.core.security import verify_secret
 from app.models.ambulancia import Ambulancia
 from app.models.atencion import Atencion, EstadoAtencion, TipoAtencion
 from app.models.empleado import Empleado
@@ -31,6 +32,7 @@ from app.models.usuario import Usuario
 from app.models.usuario_rol import UsuarioRol
 from app.schemas.ambulancia import AmbulanciaOut
 from app.schemas.atencion import AtencionCreate, AtencionOut
+from app.schemas.auth import PinRequest
 from app.schemas.empleado import EmpleadoOut
 from app.schemas.formato_traslado import (
     FormatoTrasladoClinico,
@@ -102,7 +104,11 @@ def listar_conductores_disponibles(db: DbSession) -> list[Empleado]:
         .join(Usuario, Usuario.empleado_id == Empleado.id)
         .join(UsuarioRol, UsuarioRol.usuario_id == Usuario.id)
         .join(Rol, Rol.id == UsuarioRol.rol_id)
-        .filter(Empleado.activo.is_(True), Usuario.activo.is_(True), Rol.nombre == "conductor")
+        .filter(
+            Empleado.activo.is_(True),
+            Usuario.activo.is_(True),
+            Rol.nombre == "conductor",
+        )
     )
     if ocupados:
         query = query.filter(Empleado.id.notin_(ocupados))
@@ -110,7 +116,9 @@ def listar_conductores_disponibles(db: DbSession) -> list[Empleado]:
  
  
 def _atencion_por_client_id(client_id: str, db: DbSession) -> Atencion | None:
-    return db.execute(select(Atencion).where(Atencion.client_id == client_id)).scalar_one_or_none()
+    return db.execute(
+        select(Atencion).where(Atencion.client_id == client_id)
+    ).scalar_one_or_none()
  
  
 @router.post("", response_model=AtencionOut, status_code=status.HTTP_201_CREATED)
@@ -147,7 +155,9 @@ def crear_atencion(
  
     conductor = db.get(Empleado, datos.conductor_id)
     if conductor is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conductor no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Conductor no encontrado"
+        )
     if not conductor.activo:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Ese conductor no está activo"
@@ -193,7 +203,9 @@ def _atencion_de_traslado(atencion_id: int, db: DbSession) -> Atencion:
     """
     atencion = db.get(Atencion, atencion_id)
     if atencion is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atención no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Atención no encontrada"
+        )
     if atencion.tipo != TipoAtencion.traslado:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -292,3 +304,64 @@ def guardar_clinico_traslado(
     db.commit()
     db.refresh(formato)
     return formato
+ 
+ 
+@router.put(
+    "/{atencion_id}/cerrar",
+    response_model=AtencionOut,
+    dependencies=[Depends(require_personal_clinico)],
+)
+def cerrar_atencion(
+    atencion_id: int, datos: PinRequest, usuario: CurrentUser, db: DbSession
+) -> Atencion:
+    """Cierra la atención con el PIN de firma (issue #12, ADR-0002,
+    ADR-0010).
+ 
+    A partir de este momento, ni el encabezado ni la parte clínica se
+    pueden seguir editando "libremente" (ya lo exigen `estado ==
+    abierto` las rutas de arriba) — una edición posterior necesitaría
+    permiso del administrador y quedar en el historial de versiones
+    (issue #14, todavía no existe).
+ 
+    Cualquier auxiliar/médico puede cerrar cualquier atención abierta
+    (no se exige que sea el mismo `responsable_id` que la creó) — es
+    el mismo criterio de permiso que ya rige para editar el formato
+    clínico, no uno más estricto.
+ 
+    El PIN se revalida siempre contra el hash real en la base de
+    datos, así el dispositivo haya "pre-validado" con un hash local
+    más liviano (ver ADR-0010) — ese hash local es solo para dar
+    feedback rápido sin conexión, nunca la autorización real.
+    """
+    atencion = db.get(Atencion, atencion_id)
+    if atencion is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Atención no encontrada"
+        )
+    if atencion.estado != EstadoAtencion.abierto:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Esta atención ya está cerrada"
+        )
+    if usuario.pin_hash is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Todavía no has configurado tu PIN de firma",
+        )
+    if not verify_secret(datos.pin, usuario.pin_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="PIN incorrecto"
+        )
+ 
+    atencion.estado = EstadoAtencion.cerrado
+    atencion.cerrada_en = datetime.now(UTC)
+    db.commit()
+ 
+    return db.execute(
+        select(Atencion)
+        .options(
+            joinedload(Atencion.ambulancia),
+            joinedload(Atencion.conductor),
+            joinedload(Atencion.responsable),
+        )
+        .where(Atencion.id == atencion_id)
+    ).scalar_one()

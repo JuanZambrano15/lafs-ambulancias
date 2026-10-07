@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
  
 import * as api from './api'
-import { _reiniciarParaPruebas, listarPendientes } from './offlineStore'
+import { _reiniciarParaPruebas, listarCierresPendientes, listarPendientes } from './offlineStore'
 import {
+  cerrarAtencionConRespaldo,
   contarPendientes,
   crearAtencionConRespaldo,
   esIdLocal,
@@ -264,5 +265,94 @@ describe('sincronizarPendientes', () => {
  
     expect(resultado).toEqual({ sincronizados: 0, fallidos: 0 })
     expect(api.crearAtencion).not.toHaveBeenCalled()
+  })
+ 
+  it('sincroniza también los cierres encolados aparte (atención ya con id real)', async () => {
+    const restaurar = conEstadoDeRed(false)
+    await cerrarAtencionConRespaldo('9', '1234')
+    restaurar()
+ 
+    vi.mocked(api.cerrarAtencion).mockResolvedValue({ ...atencionDeServidor(9), estado: 'cerrado' })
+ 
+    const resultado = await sincronizarPendientes()
+ 
+    expect(resultado).toEqual({ sincronizados: 1, fallidos: 0 })
+    expect(api.cerrarAtencion).toHaveBeenCalledWith(9, '1234')
+    expect(await listarCierresPendientes()).toHaveLength(0)
+  })
+ 
+  it('deja el cierre encolado (sin borrar) si falla la sincronización', async () => {
+    const restaurar = conEstadoDeRed(false)
+    await cerrarAtencionConRespaldo('9', '1234')
+    restaurar()
+ 
+    vi.mocked(api.cerrarAtencion).mockRejectedValue(new api.ApiError(401, 'PIN incorrecto'))
+ 
+    const resultado = await sincronizarPendientes()
+ 
+    expect(resultado).toEqual({ sincronizados: 0, fallidos: 1 })
+    const [cierre] = await listarCierresPendientes()
+    expect(cierre.error).toBe('PIN incorrecto')
+  })
+})
+ 
+describe('cerrarAtencionConRespaldo', () => {
+  it('cierra en línea cuando hay conexión y el backend responde', async () => {
+    const restaurar = conEstadoDeRed(true)
+    vi.mocked(api.cerrarAtencion).mockResolvedValue({ ...atencionDeServidor(9), estado: 'cerrado' })
+ 
+    const resultado = await cerrarAtencionConRespaldo('9', '1234')
+ 
+    expect(resultado).toEqual({ guardadoSinConexion: false })
+    expect(api.cerrarAtencion).toHaveBeenCalledWith(9, '1234')
+    restaurar()
+  })
+ 
+  it('encola el cierre si el dispositivo ya está sin conexión (atención con id real)', async () => {
+    const restaurar = conEstadoDeRed(false)
+ 
+    const resultado = await cerrarAtencionConRespaldo('9', '1234')
+ 
+    expect(resultado).toEqual({ guardadoSinConexion: true })
+    expect(api.cerrarAtencion).not.toHaveBeenCalled()
+    expect(await listarCierresPendientes()).toHaveLength(1)
+    restaurar()
+  })
+ 
+  it('encola el cierre si la llamada falla por un error de red', async () => {
+    const restaurar = conEstadoDeRed(true)
+    vi.mocked(api.cerrarAtencion).mockRejectedValue(new TypeError('Failed to fetch'))
+ 
+    const resultado = await cerrarAtencionConRespaldo('9', '1234')
+ 
+    expect(resultado).toEqual({ guardadoSinConexion: true })
+    expect(await listarCierresPendientes()).toHaveLength(1)
+    restaurar()
+  })
+ 
+  it('propaga un error que no es de red (p. ej. PIN incorrecto)', async () => {
+    const restaurar = conEstadoDeRed(true)
+    vi.mocked(api.cerrarAtencion).mockRejectedValue(new api.ApiError(401, 'PIN incorrecto'))
+ 
+    await expect(cerrarAtencionConRespaldo('9', '1234')).rejects.toBeInstanceOf(api.ApiError)
+    expect(await listarCierresPendientes()).toHaveLength(0)
+    restaurar()
+  })
+ 
+  it('si la atención todavía es local, el cierre se guarda dentro del mismo pendiente', async () => {
+    const restaurar = conEstadoDeRed(false)
+    const { atencionId } = await crearAtencionConRespaldo({
+      tipo: 'traslado',
+      ambulancia_id: 1,
+      conductor_id: 2,
+    })
+ 
+    const resultado = await cerrarAtencionConRespaldo(atencionId, '1234')
+ 
+    expect(resultado).toEqual({ guardadoSinConexion: true })
+    expect(await listarCierresPendientes()).toHaveLength(0)
+    const [pendiente] = await listarPendientes()
+    expect(pendiente.cierre).toEqual({ pin: '1234' })
+    restaurar()
   })
 })

@@ -6,6 +6,7 @@ import { OfflineSyncBanner } from './components/OfflineSyncBanner'
 import { CambiarPasswordPage } from './pages/CambiarPasswordPage'
 import { ClinicoTrasladoPage } from './pages/ClinicoTrasladoPage'
 import { ConfigurarFirmaPage } from './pages/ConfigurarFirmaPage'
+import { ConfigurarPinPage } from './pages/ConfigurarPinPage'
 import { CrearAtencionPage } from './pages/CrearAtencionPage'
 import { EncabezadoTrasladoPage } from './pages/EncabezadoTrasladoPage'
 import { HomePage } from './pages/HomePage'
@@ -20,6 +21,7 @@ export function App(): JSX.Element {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/cambiar-password" element={<CambiarPasswordPage />} />
+          <Route path="/configurar-pin" element={<ConfigurarPinPage />} />
           <Route path="/configurar-firma" element={<ConfigurarFirmaPage />} />
           <Route path="/" element={<HomePage />} />
           <Route path="/atenciones/nueva" element={<CrearAtencionPage />} />

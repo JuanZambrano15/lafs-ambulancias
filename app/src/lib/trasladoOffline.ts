@@ -12,6 +12,7 @@
  */
  
 import {
+  cerrarAtencion,
   crearAtencion,
   guardarClinicoTraslado,
   guardarEncabezadoTraslado,
@@ -19,8 +20,11 @@ import {
 } from './api'
 import {
   contarPendientesSinSincronizar,
+  eliminarCierrePendiente,
   eliminarPendiente,
+  guardarCierrePendiente,
   guardarPendiente,
+  listarCierresPendientes,
   listarPendientes,
   obtenerPendiente,
   type TrasladoPendiente,
@@ -123,6 +127,7 @@ async function guardarComoPendiente(clientId: string, atencion: AtencionCreate):
     atencionId: null,
     encabezado: null,
     clinico: null,
+    cierre: null,
     sincronizado: false,
     error: null,
   })
@@ -168,8 +173,59 @@ export async function guardarClinicoConRespaldo(
   await guardarClinicoTraslado(Number(atencionId), datos)
 }
  
+export interface ResultadoCerrarAtencion {
+  /** true si se encoló para cerrar cuando se recupere conexión. */
+  guardadoSinConexion: boolean
+}
+ 
+/** Cierra la atención con el PIN de firma (issue #12, ADR-0010). Si
+ * la atención todavía es local (ni siquiera se sincronizó su
+ * creación), el cierre viaja con el resto del traslado al
+ * sincronizar; si ya tiene id real pero no hay conexión justo ahora,
+ * se encola aparte en `cierres_pendientes`. La validación del PIN en
+ * el dispositivo (instantánea, sin red) la hace la pantalla antes de
+ * llamar a esto — ver `lib/pinLocal.ts`. */
+export async function cerrarAtencionConRespaldo(
+  atencionId: string,
+  pin: string,
+): Promise<ResultadoCerrarAtencion> {
+  if (esIdLocal(atencionId)) {
+    const pendiente = await pendienteOFallar(atencionId)
+    await guardarPendiente({ ...pendiente, cierre: { pin } })
+    return { guardadoSinConexion: true }
+  }
+ 
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    await guardarCierrePendiente({
+      atencionId,
+      pin,
+      intentadoEn: new Date().toISOString(),
+      error: null,
+    })
+    return { guardadoSinConexion: true }
+  }
+ 
+  try {
+    await cerrarAtencion(Number(atencionId), pin)
+    return { guardadoSinConexion: false }
+  } catch (err) {
+    if (!esErrorDeRed(err)) throw err
+    await guardarCierrePendiente({
+      atencionId,
+      pin,
+      intentadoEn: new Date().toISOString(),
+      error: null,
+    })
+    return { guardadoSinConexion: true }
+  }
+}
+ 
 export async function contarPendientes(): Promise<number> {
-  return contarPendientesSinSincronizar()
+  const [traslados, cierres] = await Promise.all([
+    contarPendientesSinSincronizar(),
+    listarCierresPendientes(),
+  ])
+  return traslados + cierres.length
 }
  
 export interface ResultadoSincronizacion {
@@ -202,6 +258,21 @@ export async function sincronizarPendientes(): Promise<ResultadoSincronizacion> 
     }
   }
  
+  const cierres = await listarCierresPendientes()
+  for (const cierre of cierres) {
+    try {
+      await cerrarAtencion(Number(cierre.atencionId), cierre.pin)
+      await eliminarCierrePendiente(cierre.atencionId)
+      sincronizados += 1
+    } catch (err) {
+      fallidos += 1
+      await guardarCierrePendiente({
+        ...cierre,
+        error: err instanceof Error ? err.message : 'No se pudo sincronizar',
+      })
+    }
+  }
+ 
   return { sincronizados, fallidos }
 }
  
@@ -217,6 +288,9 @@ async function sincronizarUno(pendiente: TrasladoPendiente): Promise<void> {
   }
   if (pendiente.clinico !== null) {
     await guardarClinicoTraslado(atencionId, pendiente.clinico)
+  }
+  if (pendiente.cierre !== null) {
+    await cerrarAtencion(atencionId, pendiente.cierre.pin)
   }
   await eliminarPendiente(pendiente.clientId)
 }

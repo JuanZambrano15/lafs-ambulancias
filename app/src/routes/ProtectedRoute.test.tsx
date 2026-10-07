@@ -21,7 +21,13 @@ const perfilDebeCambiar: MeResponse = {
   firma_guardada: null,
 }
  
-const perfilNormal: MeResponse = { ...perfilDebeCambiar, debe_cambiar_password: false }
+const perfilNormal: MeResponse = {
+  ...perfilDebeCambiar,
+  debe_cambiar_password: false,
+  pin_configurado: true,
+}
+ 
+const perfilSinPin: MeResponse = { ...perfilNormal, pin_configurado: false }
  
 beforeEach(() => {
   vi.clearAllMocks()
@@ -35,6 +41,7 @@ function renderConRuta(rutaInicial: string): void {
           <Route path="/login" element={<div>pantalla de login</div>} />
           <Route element={<ProtectedRoute />}>
             <Route path="/cambiar-password" element={<div>pantalla de cambiar contraseña</div>} />
+            <Route path="/configurar-pin" element={<div>pantalla de configurar pin</div>} />
             <Route path="/" element={<div>pantalla principal</div>} />
           </Route>
         </Routes>
@@ -71,6 +78,22 @@ describe('ProtectedRoute', () => {
  
     await waitFor(() =>
       expect(screen.getByText('pantalla de cambiar contraseña')).toBeInTheDocument(),
+    )
+  })
+ 
+  it('redirige a /configurar-pin cuando el usuario no tiene PIN (issue #12)', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(perfilSinPin)
+    renderConRuta('/')
+ 
+    expect(await screen.findByText('pantalla de configurar pin')).toBeInTheDocument()
+  })
+ 
+  it('no redirige en bucle cuando ya está en /configurar-pin', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(perfilSinPin)
+    renderConRuta('/configurar-pin')
+ 
+    await waitFor(() =>
+      expect(screen.getByText('pantalla de configurar pin')).toBeInTheDocument(),
     )
   })
 })

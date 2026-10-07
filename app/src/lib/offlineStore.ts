@@ -7,6 +7,12 @@
  * la atención y lo que se haya guardado del encabezado/parte clínica
  * hasta el momento. Se borra una vez los tres pasos se confirmaron
  * contra el backend (ver `trasladoOffline.ts`).
+ *
+ * Issue #12 (ADR-0010) agrega una segunda cola, `cierres_pendientes`,
+ * para cerrar con PIN una atención que ya existe en el backend pero
+ * el dispositivo se quedó sin señal justo al cerrarla — a diferencia
+ * de `traslados_pendientes`, esta no necesita guardar todo el
+ * traslado, solo el PIN y el id real de la atención.
  */
  
 import type { AtencionCreate, FormatoTrasladoClinico, FormatoTrasladoEncabezado } from './types'
@@ -21,14 +27,27 @@ export interface TrasladoPendiente {
   atencionId: number | null
   encabezado: FormatoTrasladoEncabezado | null
   clinico: FormatoTrasladoClinico | null
+  /** Cierre pedido mientras la atención seguía sin sincronizar (issue
+   * #12) — se manda después de encabezado y clínico, en ese orden. */
+  cierre: { pin: string } | null
   sincronizado: boolean
   /** Mensaje del último intento fallido de sincronización, si lo hubo. */
   error: string | null
 }
  
+export interface CierrePendiente {
+  /** Id real de la atención, como string (ya existe en el backend —
+   * si todavía es local, el cierre va dentro de `TrasladoPendiente`). */
+  atencionId: string
+  pin: string
+  intentadoEn: string
+  error: string | null
+}
+ 
 const DB_NAME = 'lafs-offline'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE = 'traslados_pendientes'
+const STORE_CIERRES = 'cierres_pendientes'
  
 function abrirDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -38,6 +57,9 @@ function abrirDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE, { keyPath: 'clientId' })
       }
+      if (!db.objectStoreNames.contains(STORE_CIERRES)) {
+        db.createObjectStore(STORE_CIERRES, { keyPath: 'atencionId' })
+      }
     }
     solicitud.onsuccess = () => resolve(solicitud.result)
     solicitud.onerror = () => reject(solicitud.error ?? new Error('No se pudo abrir el storage local'))
@@ -45,14 +67,15 @@ function abrirDb(): Promise<IDBDatabase> {
 }
  
 async function conTransaccion<T>(
+  nombreStore: string,
   modo: IDBTransactionMode,
   accion: (store: IDBObjectStore) => IDBRequest<T>,
 ): Promise<T> {
   const db = await abrirDb()
   try {
     return await new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(STORE, modo)
-      const solicitud = accion(tx.objectStore(STORE))
+      const tx = db.transaction(nombreStore, modo)
+      const solicitud = accion(tx.objectStore(nombreStore))
       solicitud.onsuccess = () => resolve(solicitud.result)
       solicitud.onerror = () => reject(solicitud.error ?? new Error('Error de storage local'))
     })
@@ -62,27 +85,39 @@ async function conTransaccion<T>(
 }
  
 export async function guardarPendiente(pendiente: TrasladoPendiente): Promise<void> {
-  await conTransaccion('readwrite', (store) => store.put(pendiente))
+  await conTransaccion(STORE, 'readwrite', (store) => store.put(pendiente))
 }
  
 export async function obtenerPendiente(clientId: string): Promise<TrasladoPendiente | null> {
-  const resultado = await conTransaccion<TrasladoPendiente | undefined>('readonly', (store) =>
+  const resultado = await conTransaccion<TrasladoPendiente | undefined>(STORE, 'readonly', (store) =>
     store.get(clientId),
   )
   return resultado ?? null
 }
  
 export async function listarPendientes(): Promise<TrasladoPendiente[]> {
-  return conTransaccion('readonly', (store) => store.getAll())
+  return conTransaccion(STORE, 'readonly', (store) => store.getAll())
 }
  
 export async function eliminarPendiente(clientId: string): Promise<void> {
-  await conTransaccion('readwrite', (store) => store.delete(clientId))
+  await conTransaccion(STORE, 'readwrite', (store) => store.delete(clientId))
 }
  
 export async function contarPendientesSinSincronizar(): Promise<number> {
   const pendientes = await listarPendientes()
   return pendientes.filter((p) => !p.sincronizado).length
+}
+ 
+export async function guardarCierrePendiente(cierre: CierrePendiente): Promise<void> {
+  await conTransaccion(STORE_CIERRES, 'readwrite', (store) => store.put(cierre))
+}
+ 
+export async function listarCierresPendientes(): Promise<CierrePendiente[]> {
+  return conTransaccion(STORE_CIERRES, 'readonly', (store) => store.getAll())
+}
+ 
+export async function eliminarCierrePendiente(atencionId: string): Promise<void> {
+  await conTransaccion(STORE_CIERRES, 'readwrite', (store) => store.delete(atencionId))
 }
  
 /** Solo para pruebas: deja la cola local en blanco entre tests. */
