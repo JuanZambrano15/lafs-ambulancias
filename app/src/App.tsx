@@ -2,6 +2,7 @@ import type { JSX } from 'react'
 import { Route, Routes } from 'react-router-dom'
  
 import { AuthProvider } from './auth/AuthContext'
+import { OfflineSyncBanner } from './components/OfflineSyncBanner'
 import { CambiarPasswordPage } from './pages/CambiarPasswordPage'
 import { ClinicoTrasladoPage } from './pages/ClinicoTrasladoPage'
 import { CrearAtencionPage } from './pages/CrearAtencionPage'
@@ -13,6 +14,7 @@ import { ProtectedRoute } from './routes/ProtectedRoute'
 export function App(): JSX.Element {
   return (
     <AuthProvider>
+      <OfflineSyncBanner />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>

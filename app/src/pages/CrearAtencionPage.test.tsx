@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
  
 import * as api from '../lib/api'
+import { _reiniciarParaPruebas } from '../lib/offlineStore'
 import type { Ambulancia, Empleado } from '../lib/types'
 import { CrearAtencionPage } from './CrearAtencionPage'
  
@@ -30,8 +31,9 @@ const conductor: Empleado = {
   activo: true,
 }
  
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks()
+  await _reiniciarParaPruebas()
 })
  
 function renderPagina(): void {
@@ -91,11 +93,16 @@ describe('CrearAtencionPage', () => {
     await usuario.click(screen.getByRole('button', { name: 'Iniciar atención' }))
  
     await waitFor(() =>
-      expect(api.crearAtencion).toHaveBeenCalledWith({
-        tipo: 'traslado',
-        ambulancia_id: 1,
-        conductor_id: 2,
-      }),
+      expect(api.crearAtencion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tipo: 'traslado',
+          ambulancia_id: 1,
+          conductor_id: 2,
+          // Generado en el dispositivo (issue #10) — siempre se manda,
+          // también cuando hay conexión, para que un reintento no duplique.
+          client_id: expect.any(String),
+        }),
+      ),
     )
     expect(await screen.findByText('encabezado')).toBeInTheDocument()
   })
@@ -124,6 +131,24 @@ describe('CrearAtencionPage', () => {
     await usuario.click(screen.getByRole('button', { name: 'Iniciar atención' }))
  
     expect(await screen.findByText('pantalla principal')).toBeInTheDocument()
+  })
+ 
+  it('si no hay conexión, guarda la atención localmente y entra igual al encabezado (issue #10)', async () => {
+    const usuario = userEvent.setup()
+    vi.mocked(api.listarAmbulanciasDisponibles).mockResolvedValue([ambulancia])
+    vi.mocked(api.listarConductoresDisponibles).mockResolvedValue([conductor])
+    // fetch lanza TypeError cuando no hay red — a diferencia de un
+    // ApiError, que es una respuesta real del servidor.
+    vi.mocked(api.crearAtencion).mockRejectedValue(new TypeError('Failed to fetch'))
+ 
+    renderPagina()
+ 
+    await screen.findByText('M-01 — ABC123')
+    await usuario.selectOptions(screen.getByLabelText('Móvil'), '1')
+    await usuario.selectOptions(screen.getByLabelText('Conductor'), '2')
+    await usuario.click(screen.getByRole('button', { name: 'Iniciar atención' }))
+ 
+    expect(await screen.findByText('encabezado')).toBeInTheDocument()
   })
  
   it('muestra un error si falla al crear la atención', async () => {

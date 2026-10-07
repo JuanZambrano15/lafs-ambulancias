@@ -12,7 +12,8 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
  
-import { ApiError, crearAtencion, listarAmbulanciasDisponibles, listarConductoresDisponibles } from '../lib/api'
+import { ApiError, listarAmbulanciasDisponibles, listarConductoresDisponibles } from '../lib/api'
+import { crearAtencionConRespaldo } from '../lib/trasladoOffline'
 import type { Ambulancia, Empleado, TipoAtencion } from '../lib/types'
  
 const TIPOS: { valor: TipoAtencion; etiqueta: string }[] = [
@@ -57,15 +58,18 @@ export function CrearAtencionPage(): JSX.Element {
  
     setEnviando(true)
     try {
-      const atencion = await crearAtencion({
+      const resultado = await crearAtencionConRespaldo({
         tipo,
         ambulancia_id: Number(ambulanciaId),
         conductor_id: Number(conductorId),
       })
       // El encabezado del formato (issue #8) solo existe para traslados —
       // la atención SOAT todavía no tiene su propio formato (issue #17).
-      if (atencion.tipo === 'traslado') {
-        navigate(`/atenciones/${atencion.id}/encabezado-traslado`, { replace: true })
+      // Si no había conexión, `atencionId` es un identificador local
+      // (issue #10) y esta misma pantalla de encabezado sigue
+      // funcionando guardando en el dispositivo (ver trasladoOffline.ts).
+      if (resultado.tipo === 'traslado') {
+        navigate(`/atenciones/${resultado.atencionId}/encabezado-traslado`, { replace: true })
       } else {
         navigate('/', { replace: true })
       }

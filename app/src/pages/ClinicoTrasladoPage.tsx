@@ -16,7 +16,8 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
  
-import { ApiError, guardarClinicoTraslado, obtenerEncabezadoTraslado } from '../lib/api'
+import { ApiError } from '../lib/api'
+import { guardarClinicoConRespaldo, obtenerFormatoConRespaldo } from '../lib/trasladoOffline'
 import type {
   FormatoTrasladoClinico,
   LesionTipo,
@@ -136,7 +137,7 @@ function aNumeroONulo(valor: string): number | null {
 export function ClinicoTrasladoPage(): JSX.Element {
   const navigate = useNavigate()
   const { atencionId } = useParams<{ atencionId: string }>()
-  const id = Number(atencionId)
+  const id = atencionId ?? ''
  
   const [campos, setCampos] = useState<EstadoClinico>(ESTADO_VACIO)
   const [cargando, setCargando] = useState(true)
@@ -145,7 +146,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const [guardando, setGuardando] = useState(false)
  
   useEffect(() => {
-    obtenerEncabezadoTraslado(id)
+    obtenerFormatoConRespaldo(id)
       .then((existente) => {
         if (existente === null) return
         setCampos({
@@ -260,7 +261,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
         nota_medica: campos.notaMedica || null,
         evolucionado_por: campos.evolucionadoPor || null,
       }
-      await guardarClinicoTraslado(id, datos)
+      await guardarClinicoConRespaldo(id, datos)
       navigate('/', { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar lo clínico')
