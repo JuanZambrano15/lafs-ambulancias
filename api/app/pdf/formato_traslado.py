@@ -19,9 +19,10 @@ from collections.abc import Mapping
 from datetime import UTC, date, datetime, time
 from typing import TYPE_CHECKING, TypeVar
 
-from app.models.formato_traslado import LesionTipo, ReflejoPupilar, TratamientoAplicado
 from jinja2 import Environment
 from weasyprint import HTML
+
+from app.models.formato_traslado import LesionTipo, ReflejoPupilar, TratamientoAplicado
 
 if TYPE_CHECKING:
     from app.models.atencion import Atencion
