@@ -20,6 +20,7 @@ from app.api.deps import (
     CurrentUser,
     DbSession,
     require_personal_clinico,
+    require_personal_clinico_o_admin,
     require_personal_operativo,
 )
 from app.core.security import verify_secret
@@ -30,6 +31,7 @@ from app.models.formato_traslado import FormatoTraslado
 from app.models.rol import Rol
 from app.models.usuario import Usuario
 from app.models.usuario_rol import UsuarioRol
+from app.pdf.formato_traslado import generar_pdf_formato_traslado
 from app.schemas.ambulancia import AmbulanciaOut
 from app.schemas.atencion import AtencionCreate, AtencionOut
 from app.schemas.auth import PinRequest
@@ -43,7 +45,6 @@ from app.schemas.formato_traslado import (
 router = APIRouter(
     prefix="/atenciones",
     tags=["atenciones"],
-    dependencies=[Depends(require_personal_operativo)],
 )
  
  
@@ -80,7 +81,11 @@ def _conductores_con_atencion_abierta(db: DbSession) -> set[int]:
     return {fila[0] for fila in filas}
  
  
-@router.get("/ambulancias-disponibles", response_model=list[AmbulanciaOut])
+@router.get(
+    "/ambulancias-disponibles",
+    response_model=list[AmbulanciaOut],
+    dependencies=[Depends(require_personal_operativo)],
+)
 def listar_ambulancias_disponibles(db: DbSession) -> list[Ambulancia]:
     """Activas y sin una atención abierta — la flota es rotativa, así
     que un móvil que ya salió no se puede volver a elegir hasta que se
@@ -93,7 +98,11 @@ def listar_ambulancias_disponibles(db: DbSession) -> list[Ambulancia]:
     return list(query.order_by(Ambulancia.movil).all())
  
  
-@router.get("/conductores-disponibles", response_model=list[EmpleadoOut])
+@router.get(
+    "/conductores-disponibles",
+    response_model=list[EmpleadoOut],
+    dependencies=[Depends(require_personal_operativo)],
+)
 def listar_conductores_disponibles(db: DbSession) -> list[Empleado]:
     """Empleados activos cuyo usuario tiene el rol "conductor", y que
     no están ya manejando otra atención abierta.
@@ -121,7 +130,12 @@ def _atencion_por_client_id(client_id: str, db: DbSession) -> Atencion | None:
     ).scalar_one_or_none()
  
  
-@router.post("", response_model=AtencionOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=AtencionOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_personal_operativo)],
+)
 def crear_atencion(
     datos: AtencionCreate, usuario: CurrentUser, db: DbSession, response: Response
 ) -> Atencion:
@@ -214,6 +228,19 @@ def _atencion_de_traslado(atencion_id: int, db: DbSession) -> Atencion:
     return atencion
  
  
+def _regenerar_pdf(atencion: Atencion, formato: FormatoTraslado, db: DbSession) -> None:
+    """Regenera el PDF del formato completo y lo guarda (issue #13,
+    ADR-0011) — se llama después de cada guardado de encabezado o
+    clínico, y al cerrar la atención, para que el PDF en la base de
+    datos siempre refleje el último estado guardado en el servidor
+    (en línea o por sincronización offline, mismos endpoints de
+    siempre — ver ADR-0008).
+    """
+    formato.pdf_generado = generar_pdf_formato_traslado(atencion, formato)
+    formato.pdf_generado_en = datetime.now(UTC)
+    db.commit()
+ 
+ 
 @router.get(
     "/{atencion_id}/formato-traslado",
     response_model=FormatoTrasladoOut,
@@ -260,6 +287,7 @@ def guardar_encabezado_traslado(
  
     db.commit()
     db.refresh(formato)
+    _regenerar_pdf(atencion, formato, db)
     return formato
  
  
@@ -303,6 +331,7 @@ def guardar_clinico_traslado(
  
     db.commit()
     db.refresh(formato)
+    _regenerar_pdf(atencion, formato, db)
     return formato
  
  
@@ -356,7 +385,7 @@ def cerrar_atencion(
     atencion.cerrada_en = datetime.now(UTC)
     db.commit()
  
-    return db.execute(
+    atencion = db.execute(
         select(Atencion)
         .options(
             joinedload(Atencion.ambulancia),
@@ -365,3 +394,35 @@ def cerrar_atencion(
         )
         .where(Atencion.id == atencion_id)
     ).scalar_one()
+ 
+    # Si nunca llegó a tener encabezado, no hay nada que renderizar —
+    # se puede cerrar igual (ver ADR-0002), simplemente sin PDF.
+    formato = db.get(FormatoTraslado, atencion_id)
+    if formato is not None:
+        _regenerar_pdf(atencion, formato, db)
+ 
+    return atencion
+ 
+ 
+@router.get(
+    "/{atencion_id}/formato-traslado/pdf",
+    dependencies=[Depends(require_personal_clinico_o_admin)],
+)
+def descargar_pdf_formato_traslado(atencion_id: int, db: DbSession) -> Response:
+    """Descarga el último PDF generado del formato (issue #13,
+    ADR-0011) — no lo genera al vuelo: siempre es el que quedó
+    guardado en el último `PUT` de encabezado/clínico, o al cerrar.
+ 
+    404 si la atención ni siquiera tiene encabezado todavía (nunca se
+    generó nada) — no debería pasar que *tenga* encabezado y no tenga
+    PDF, porque ambos endpoints de guardado siempre regeneran uno
+    (ver `_regenerar_pdf`), pero se valida igual en vez de asumirlo.
+    """
+    _atencion_de_traslado(atencion_id, db)
+    formato = db.get(FormatoTraslado, atencion_id)
+    if formato is None or formato.pdf_generado is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Esta atención todavía no tiene un PDF generado",
+        )
+    return Response(content=formato.pdf_generado, media_type="application/pdf")
