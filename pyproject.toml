@@ -25,12 +25,7 @@ strict = true
 # de dependencias); se relaja explícitamente eso, no todo el chequeo.
 disallow_untyped_decorators = false
  
-# WeasyPrint (issue #13) no distribuye stubs ni marcador py.typed —
-# no es un problema de nuestro código, así que se ignora solo para
-# este import en vez de relajar el chequeo estricto en general.
-[[tool.mypy.overrides]]
-module = "weasyprint"
-ignore_missing_imports = true
+
  
 [tool.pytest.ini_options]
 testpaths = ["api/tests"]

@@ -20,7 +20,13 @@ from datetime import UTC, date, datetime, time
 from typing import TYPE_CHECKING, TypeVar
 
 from jinja2 import Environment
-from weasyprint import HTML
+
+# WeasyPrint no distribuye stubs ni marcador py.typed — no es un
+# problema de nuestro código. Se ignora inline (en vez de en
+# pyproject.toml) porque mypy, a diferencia de ruff, no busca
+# pyproject.toml en directorios padre: si se corre "mypy app" con
+# cwd=api/ (como hace el CI), un override en la raíz no se encuentra.
+from weasyprint import HTML  # type: ignore[import-untyped]
 
 from app.models.formato_traslado import LesionTipo, ReflejoPupilar, TratamientoAplicado
 
