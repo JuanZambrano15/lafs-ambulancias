@@ -12,10 +12,21 @@ traslado — por eso todas sus columnas son nullable.
 from __future__ import annotations
  
 import enum
-from datetime import date, time
+from datetime import date, datetime, time
 from typing import TYPE_CHECKING, Any
  
-from sqlalchemy import JSON, Date, Enum, ForeignKey, Integer, String, Text, Time
+from sqlalchemy import (
+    JSON,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    Time,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
  
 from app.db.base import Base
@@ -241,3 +252,13 @@ class FormatoTraslado(Base):
     # acceso a atributos que no son columnas mapeadas — no es
     # confiable entre entornos, así que el cálculo se mueve al
     # esquema, sobre campos que Pydantic ya validó.
+ 
+    # PDF del formato completo (issue #13, ADR-0011): bytes, no una
+    # ruta a archivo en disco — mismo criterio que la firma (ADR-0009,
+    # sin S3 ni almacenamiento externo para este volumen). Se
+    # regenera en cada `PUT` de encabezado/clínico y al cerrar la
+    # atención (ver `app/pdf/formato_traslado.py` y las rutas en
+    # `app/api/routes/atenciones.py`), así que siempre refleja el
+    # último guardado — `None` solo antes de que exista encabezado.
+    pdf_generado: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
+    pdf_generado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)

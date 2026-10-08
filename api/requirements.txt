@@ -9,4 +9,9 @@ argon2-cffi==23.1.0
 pyjwt==2.9.0
 orjson==3.10.7
 weasyprint==62.3
+# WeasyPrint 62.3 declara "pydyf >=0.10.0" sin techo, pero pydyf 0.12
+# le rompe la API (Stream.transform) — fijar la última versión
+# compatible en vez de dejar que pip resuelva lo que sea más nuevo.
+pydyf==0.11.0
+jinja2==3.1.4
 apscheduler==3.10.4

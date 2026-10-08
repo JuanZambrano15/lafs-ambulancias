@@ -2,12 +2,20 @@
 line-length = 100
 target-version = "py312"
 src = ["api/app", "api/tests"]
-
+ 
 [tool.ruff.lint]
 # E/F: errores y estilo básicos de pyflakes/pycodestyle
 # B: flake8-bugbear (bugs comunes) · I: orden de imports · UP: modernizar sintaxis
 select = ["E", "F", "B", "I", "UP"]
-
+ 
+[tool.ruff.lint.per-file-ignores]
+# La plantilla HTML/CSS del PDF (issue #13) va como un único string
+# grande para que WeasyPrint/Jinja2 la rendericen tal cual — partir
+# sus líneas para cumplir el límite de 100 columnas la haría más
+# difícil de leer, no más, así que se exceptúa solo E501 en este
+# archivo (el resto de reglas sigue aplicando).
+"api/app/pdf/formato_traslado.py" = ["E501"]
+ 
 [tool.mypy]
 python_version = "3.12"
 mypy_path = "api"
@@ -16,7 +24,14 @@ strict = true
 # FastAPI/SQLAlchemy a veces necesitan Any en límites de tipado (p.ej. **kwargs
 # de dependencias); se relaja explícitamente eso, no todo el chequeo.
 disallow_untyped_decorators = false
-
+ 
+# WeasyPrint (issue #13) no distribuye stubs ni marcador py.typed —
+# no es un problema de nuestro código, así que se ignora solo para
+# este import en vez de relajar el chequeo estricto en general.
+[[tool.mypy.overrides]]
+module = "weasyprint"
+ignore_missing_imports = true
+ 
 [tool.pytest.ini_options]
 testpaths = ["api/tests"]
 pythonpath = ["api"]

@@ -93,5 +93,11 @@ require_personal_operativo = require_roles("auxiliar_enfermeria", "medico", "con
 # conductor queda afuera — él elige el móvil y conduce, pero no llena
 # el formato (ver docs/adr/0006-encabezado-formato-traslado.md).
 require_personal_clinico = require_roles("auxiliar_enfermeria", "medico")
+# Descargar el PDF del formato (issue #13): el mismo personal clínico
+# que lo diligencia, más el administrador — que no participa en el
+# traslado pero sí necesita poder consultar el documento final (p.
+# ej. para el panel administrativo del issue #15). El conductor queda
+# afuera, igual que en `require_personal_clinico`.
+require_personal_clinico_o_admin = require_roles("auxiliar_enfermeria", "medico", "administrador")
  
 AdminUser = Annotated[Usuario, Depends(require_admin)]
