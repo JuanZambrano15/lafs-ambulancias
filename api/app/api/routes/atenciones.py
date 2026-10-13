@@ -28,6 +28,7 @@ from app.models.ambulancia import Ambulancia
 from app.models.atencion import Atencion, EstadoAtencion, TipoAtencion
 from app.models.empleado import Empleado
 from app.models.formato_traslado import FormatoTraslado
+from app.models.formato_version import FormatoVersion
 from app.models.rol import Rol
 from app.models.usuario import Usuario
 from app.models.usuario_rol import UsuarioRol
@@ -41,6 +42,7 @@ from app.schemas.formato_traslado import (
     FormatoTrasladoEncabezado,
     FormatoTrasladoOut,
 )
+from app.schemas.formato_version import FormatoVersionOut
  
 router = APIRouter(
     prefix="/atenciones",
@@ -241,10 +243,83 @@ def _regenerar_pdf(atencion: Atencion, formato: FormatoTraslado, db: DbSession) 
     db.commit()
  
  
+# Campos que se copian a FormatoVersion antes de aplicar una corrección
+# (issue #14, ADR-0012)
+_CAMPOS_VERSIONADOS = (
+    "paciente_tipo_documento",
+    "paciente_numero_documento",
+    "paciente_eps",
+    "paciente_nombres",
+    "paciente_apellidos",
+    "paciente_edad",
+    "paciente_sexo",
+    "paciente_direccion_residencial",
+    "paciente_ciudad",
+    "paciente_telefono",
+    "acompanante_nombres_apellidos",
+    "acompanante_parentesco",
+    "acompanante_telefono",
+    "recepcion_fecha",
+    "recepcion_hora",
+    "recepcion_ciudad",
+    "recepcion_ips",
+    "recepcion_servicio",
+    "entrega_fecha",
+    "entrega_hora",
+    "entrega_ciudad",
+    "entrega_ips",
+    "entrega_servicio",
+    "complejidad",
+    "categoria_paciente",
+    "nivel_servicio",
+    "modalidad",
+    "tratamiento",
+    "tratamiento_otro",
+    "pupila_derecha",
+    "pupila_izquierda",
+    "signos_vitales",
+    "lesiones",
+    "lesion_otro",
+    "glasgow_ocular",
+    "glasgow_verbal",
+    "glasgow_motora",
+    "insumos_entregados",
+    "atendido_por",
+    "firma_atendido_por",
+    "evolucionado_por",
+    "firma_evolucionado_por",
+)
+ 
+ 
+def _guardar_version(formato: FormatoTraslado, usuario: Usuario, db: DbSession) -> None:
+    """Copia el estado actual de `formato` a `formato_version` antes de
+    que una corrección de administrador lo sobreescriba (issue #14,
+    ADR-0012) — se llama siempre ANTES de aplicar los campos nuevos.
+    No hace `commit`: queda en la misma transacción que la corrección,
+    para que ambas cosas se guarden juntas o ninguna lo haga.
+    """
+    version = FormatoVersion(
+        atencion_id=formato.atencion_id,
+        corregido_por_id=usuario.id,
+        corregido_en=datetime.now(UTC),
+        **{campo: getattr(formato, campo) for campo in _CAMPOS_VERSIONADOS},
+    )
+    db.add(version)
+ 
+ 
+def _es_admin(usuario: Usuario) -> bool:
+    return any(asignacion.rol.nombre == "administrador" for asignacion in usuario.roles)
+ 
+ 
+def _es_personal_clinico(usuario: Usuario) -> bool:
+    nombres_roles = {asignacion.rol.nombre for asignacion in usuario.roles}
+    return bool(nombres_roles & {"auxiliar_enfermeria", "medico"})
+ 
+ 
 @router.get(
     "/{atencion_id}/formato-traslado",
     response_model=FormatoTrasladoOut,
-    dependencies=[Depends(require_personal_clinico)],
+    dependencies=[Depends(require_personal_clinico_o_admin)],
 )
 def obtener_encabezado_traslado(atencion_id: int, db: DbSession) -> FormatoTraslado:
     _atencion_de_traslado(atencion_id, db)
@@ -260,27 +335,52 @@ def obtener_encabezado_traslado(atencion_id: int, db: DbSession) -> FormatoTrasl
 @router.put(
     "/{atencion_id}/formato-traslado",
     response_model=FormatoTrasladoOut,
-    dependencies=[Depends(require_personal_clinico)],
+    dependencies=[Depends(require_personal_clinico_o_admin)],
 )
 def guardar_encabezado_traslado(
-    atencion_id: int, datos: FormatoTrasladoEncabezado, db: DbSession
+    atencion_id: int, datos: FormatoTrasladoEncabezado, usuario: CurrentUser, db: DbSession
 ) -> FormatoTraslado:
-    """Crea o actualiza el encabezado — mientras la atención sigue
-    `abierta` se puede reescribir libremente, las veces que haga falta
-    (ADR-0002): no hay un endpoint de creación separado de uno de
-    edición, es el mismo formulario completo cada vez.
+    """Crea o actualiza el encabezado.
+ 
+    Mientras la atención sigue `abierta`, el auxiliar o médico la
+    reescribe libremente, las veces que haga falta (ADR-0002): no hay
+    un endpoint de creación separado de uno de edición, es el mismo
+    formulario completo cada vez. El administrador NO edita acá
+    mientras está abierta — ese sigue siendo trabajo del auxiliar/
+    médico de turno (ADR-0006).
+ 
+    Una vez `cerrada`, solo el administrador puede seguir editando —
+    es una corrección (issue #14, ADR-0012), no el llenado normal — y
+    el estado anterior del formato se guarda en `formato_version` antes
+    de sobreescribirlo.
     """
     atencion = _atencion_de_traslado(atencion_id, db)
-    if atencion.estado != EstadoAtencion.abierto:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="La atención ya está cerrada, el encabezado no se puede editar así",
-        )
  
-    formato = db.get(FormatoTraslado, atencion_id)
-    if formato is None:
-        formato = FormatoTraslado(atencion_id=atencion_id)
-        db.add(formato)
+    if atencion.estado == EstadoAtencion.abierto:
+        if _es_admin(usuario) and not _es_personal_clinico(usuario):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "El administrador no edita atenciones abiertas, "
+                    "eso lo hace el auxiliar o médico de turno"
+                ),
+            )
+        formato = db.get(FormatoTraslado, atencion_id)
+        if formato is None:
+            formato = FormatoTraslado(atencion_id=atencion_id)
+            db.add(formato)
+    else:
+        if not _es_admin(usuario):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La atención ya está cerrada, solo un administrador puede corregirla",
+            )
+        formato = db.get(FormatoTraslado, atencion_id)
+        if formato is None:
+            formato = FormatoTraslado(atencion_id=atencion_id)
+            db.add(formato)
+        else:
+            _guardar_version(formato, usuario, db)
  
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
@@ -294,10 +394,10 @@ def guardar_encabezado_traslado(
 @router.put(
     "/{atencion_id}/formato-traslado/clinico",
     response_model=FormatoTrasladoOut,
-    dependencies=[Depends(require_personal_clinico)],
+    dependencies=[Depends(require_personal_clinico_o_admin)],
 )
 def guardar_clinico_traslado(
-    atencion_id: int, datos: FormatoTrasladoClinico, db: DbSession
+    atencion_id: int, datos: FormatoTrasladoClinico, usuario: CurrentUser, db: DbSession
 ) -> FormatoTraslado:
     """Guarda la parte clínica del formato (issue #9).
  
@@ -311,20 +411,42 @@ def guardar_clinico_traslado(
     Requiere que el encabezado ya exista — mismo registro (ADR-0006),
     no tiene sentido diligenciar lo clínico de un traslado que ni
     siquiera se ha recibido.
+ 
+    Igual que el encabezado: una vez `cerrada` la atención, solo el
+    administrador puede seguir corrigiendo (issue #14, ADR-0012), y el
+    estado anterior se guarda en `formato_version` antes de aplicar la
+    corrección.
     """
     atencion = _atencion_de_traslado(atencion_id, db)
-    if atencion.estado != EstadoAtencion.abierto:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="La atención ya está cerrada, la parte clínica no se puede editar así",
-        )
  
-    formato = db.get(FormatoTraslado, atencion_id)
-    if formato is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Esta atención todavía no tiene encabezado — guárdalo primero",
-        )
+    if atencion.estado == EstadoAtencion.abierto:
+        if _es_admin(usuario) and not _es_personal_clinico(usuario):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "El administrador no edita atenciones abiertas, "
+                    "eso lo hace el auxiliar o médico de turno"
+                ),
+            )
+        formato = db.get(FormatoTraslado, atencion_id)
+        if formato is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Esta atención todavía no tiene encabezado — guárdalo primero",
+            )
+    else:
+        if not _es_admin(usuario):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La atención ya está cerrada, solo un administrador puede corregirla",
+            )
+        formato = db.get(FormatoTraslado, atencion_id)
+        if formato is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Esta atención no tiene encabezado, no hay nada que corregir",
+            )
+        _guardar_version(formato, usuario, db)
  
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
@@ -348,9 +470,9 @@ def cerrar_atencion(
  
     A partir de este momento, ni el encabezado ni la parte clínica se
     pueden seguir editando "libremente" (ya lo exigen `estado ==
-    abierto` las rutas de arriba) — una edición posterior necesitaría
-    permiso del administrador y quedar en el historial de versiones
-    (issue #14, todavía no existe).
+    abierto` las rutas de arriba) — una edición posterior necesita
+    permiso del administrador y queda en el historial de versiones
+    (issue #14, ADR-0012).
  
     Cualquier auxiliar/médico puede cerrar cualquier atención abierta
     (no se exige que sea el mismo `responsable_id` que la creó) — es
@@ -426,3 +548,26 @@ def descargar_pdf_formato_traslado(atencion_id: int, db: DbSession) -> Response:
             detail="Esta atención todavía no tiene un PDF generado",
         )
     return Response(content=formato.pdf_generado, media_type="application/pdf")
+ 
+ 
+@router.get(
+    "/{atencion_id}/formato-traslado/historial",
+    response_model=list[FormatoVersionOut],
+    dependencies=[Depends(require_personal_clinico_o_admin)],
+)
+def historial_formato_traslado(atencion_id: int, db: DbSession) -> list[FormatoVersion]:
+    """Lista las correcciones hechas por un administrador sobre este
+    formato (issue #14, ADR-0012), más reciente primero — cada una es
+    el estado del formato justo *antes* de esa corrección.
+ 
+    Vacío (no 404) si nunca hubo una corrección — es un estado normal,
+    no un error: la mayoría de atenciones nunca van a tener nada acá.
+    """
+    _atencion_de_traslado(atencion_id, db)
+    versiones = db.execute(
+        select(FormatoVersion)
+        .options(joinedload(FormatoVersion.corregido_por))
+        .where(FormatoVersion.atencion_id == atencion_id)
+        .order_by(FormatoVersion.corregido_en.desc())
+    ).scalars().all()
+    return list(versiones)

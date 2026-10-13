@@ -110,10 +110,25 @@ def test_conductor_no_puede_guardar_encabezado(
  
  
 def test_admin_no_puede_guardar_encabezado(
-    client: TestClient, admin_headers: dict[str, str]
+    client: TestClient,
+    db: Session,
+    auxiliar_headers: dict[str, str],
+    admin_headers: dict[str, str],
 ) -> None:
+    """El administrador sí puede llegar al endpoint (issue #13: también
+    puede leer/descargar el formato), pero mientras la atención sigue
+    `abierta` sigue sin poder editarla — eso es trabajo del auxiliar o
+    médico de turno. Corregirla una vez `cerrada` sí puede (issue #14,
+    ADR-0012; ver test_formato_version.py), por eso esta prueba
+    necesita una atención real y abierta, no basta con un id
+    inexistente como antes de ese issue.
+    """
+    atencion_id = _crear_atencion(client, db, auxiliar_headers)
+ 
     response = client.put(
-        "/atenciones/1/formato-traslado", json=ENCABEZADO_VALIDO, headers=admin_headers
+        f"/atenciones/{atencion_id}/formato-traslado",
+        json=ENCABEZADO_VALIDO,
+        headers=admin_headers,
     )
  
     assert response.status_code == 403
