@@ -30,6 +30,9 @@ estén en el repo o enlazados desde aquí)*
 
 - **App (celular y tablet):** React + Vite + TypeScript, empaquetada como
   APK con Capacitor (necesario para modo kiosco y borrado remoto).
+- **Panel web del administrador:** React + Vite + TypeScript, mismas
+  convenciones que la app pero para navegador de escritorio (sin
+  Capacitor) — servido por Caddy bajo `/admin` (ver ADR-0013).
 - **Backend:** FastAPI + PostgreSQL, con SQLAlchemy y Alembic.
 - **Sin conexión:** almacenamiento local en el dispositivo, sincronización
   por lote al reconectar.
