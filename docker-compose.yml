@@ -35,11 +35,26 @@ services:
     # puerta de entrada, incluso en desarrollo local, para que el
     # comportamiento sea el mismo que en producción.
 
+  # Compila el panel web del administrador (issue #49) a estáticos y
+  # termina — no es un servicio de larga duración. Ver web/Dockerfile
+  # para cómo deja esos estáticos en el volumen `web_dist` que monta
+  # `caddy` abajo.
+  web-build:
+    build:
+      context: ./web
+      args:
+        VITE_API_URL: ${PANEL_ADMIN_API_URL:-http://localhost:81}
+    volumes:
+      - web_dist:/srv
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_started
+      web-build:
+        condition: service_completed_successfully
     ports:
       - "81:80"
       - "443:443"
@@ -47,9 +62,13 @@ services:
       - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      # :ro — Caddy solo lee los estáticos que sembró `web-build`;
+      # nunca escribe en este volumen.
+      - web_dist:/srv:ro
 
 volumes:
   pg_data:
   files_data:
   caddy_data:
   caddy_config:
+  web_dist:
