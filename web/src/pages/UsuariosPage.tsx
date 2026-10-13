@@ -12,10 +12,10 @@
  * El borrado es "soft" (ver ADR-0003): "Desactivar"/"Activar"
  * alternan `activo`, nunca se elimina la fila.
  */
-
+ 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
-
+ 
 import {
   ApiError,
   actualizarUsuario,
@@ -27,24 +27,24 @@ import {
   resetearPasswordUsuario,
 } from '../lib/api'
 import type { Empleado, Rol, Usuario } from '../lib/types'
-
+ 
 export function UsuariosPage(): JSX.Element {
   const [usuarios, setUsuarios] = useState<Usuario[] | null>(null)
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [roles, setRoles] = useState<Rol[]>([])
   const [error, setError] = useState<string | null>(null)
   const [mensaje, setMensaje] = useState<string | null>(null)
-
+ 
   // Formulario de creación.
   const [documento, setDocumento] = useState('')
   const [empleadoId, setEmpleadoId] = useState<string>('')
   const [rolesSeleccionados, setRolesSeleccionados] = useState<Set<number>>(new Set())
   const [enviando, setEnviando] = useState(false)
-
+ 
   // Edición de roles de un usuario ya existente (uno a la vez).
   const [edicionRolesId, setEdicionRolesId] = useState<number | null>(null)
   const [rolesEdicion, setRolesEdicion] = useState<Set<number>>(new Set())
-
+ 
   // Ver el comentario equivalente en RolesPage.tsx sobre por qué el
   // efecto de montaje encadena `.then/.catch` en vez de llamar a
   // `cargar` — esta sí se reutiliza después de crear/editar un
@@ -63,7 +63,7 @@ export function UsuariosPage(): JSX.Element {
       setError(err instanceof ApiError ? err.message : 'No se pudieron cargar los usuarios')
     }
   }, [])
-
+ 
   useEffect(() => {
     Promise.all([listarUsuarios(), listarEmpleados(), listarRoles()])
       .then(([listaUsuarios, listaEmpleados, listaRoles]) => {
@@ -75,12 +75,12 @@ export function UsuariosPage(): JSX.Element {
         setError(err instanceof ApiError ? err.message : 'No se pudieron cargar los usuarios')
       })
   }, [])
-
+ 
   const empleadoPorId = useMemo(
     () => new Map(empleados.map((empleado) => [empleado.id, empleado])),
     [empleados],
   )
-
+ 
   function alternarRolFormulario(rolId: number): void {
     setRolesSeleccionados((actuales) => {
       const siguientes = new Set(actuales)
@@ -92,7 +92,7 @@ export function UsuariosPage(): JSX.Element {
       return siguientes
     })
   }
-
+ 
   async function manejarCrear(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setError(null)
@@ -117,14 +117,14 @@ export function UsuariosPage(): JSX.Element {
       setEnviando(false)
     }
   }
-
+ 
   function comenzarEdicionRoles(usuario: Usuario): void {
     setEdicionRolesId(usuario.id)
     setRolesEdicion(new Set(usuario.roles.map((rol) => rol.id)))
     setError(null)
     setMensaje(null)
   }
-
+ 
   function alternarRolEdicion(rolId: number): void {
     setRolesEdicion((actuales) => {
       const siguientes = new Set(actuales)
@@ -136,7 +136,7 @@ export function UsuariosPage(): JSX.Element {
       return siguientes
     })
   }
-
+ 
   async function guardarRolesEdicion(): Promise<void> {
     if (edicionRolesId === null) return
     setError(null)
@@ -148,7 +148,7 @@ export function UsuariosPage(): JSX.Element {
       setError(err instanceof ApiError ? err.message : 'No se pudieron guardar los roles')
     }
   }
-
+ 
   async function manejarResetearPassword(usuario: Usuario): Promise<void> {
     if (
       !window.confirm(
@@ -165,7 +165,7 @@ export function UsuariosPage(): JSX.Element {
       setError(err instanceof ApiError ? err.message : 'No se pudo resetear la contraseña')
     }
   }
-
+ 
   async function manejarActivo(usuario: Usuario): Promise<void> {
     setError(null)
     try {
@@ -175,17 +175,17 @@ export function UsuariosPage(): JSX.Element {
       setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado del usuario')
     }
   }
-
+ 
   return (
     <div>
       <h2 className="mb-6 text-2xl font-semibold text-slate-900">Usuarios</h2>
-
+ 
       <form
         onSubmit={manejarCrear}
         className="mb-8 max-w-md rounded-xl border border-slate-200 bg-white p-6"
       >
         <h3 className="mb-4 text-sm font-semibold text-slate-700">Nuevo usuario</h3>
-
+ 
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="usr-documento">
           Documento
         </label>
@@ -198,24 +198,41 @@ export function UsuariosPage(): JSX.Element {
           onChange={(evento) => setDocumento(evento.target.value)}
           className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
         />
-
+ 
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="usr-empleado">
           Empleado vinculado (opcional)
         </label>
         <select
           id="usr-empleado"
           value={empleadoId}
-          onChange={(evento) => setEmpleadoId(evento.target.value)}
+          onChange={(evento) => {
+            const valor = evento.target.value
+            setEmpleadoId(valor)
+            // Autocompletar el documento con la cédula del empleado
+            // elegido -- solo si el campo está vacío, para no pisar
+            // algo que el administrador ya haya escrito a mano.
+            if (valor && documento.trim() === '') {
+              const empleado = empleados.find((candidato) => candidato.id === Number(valor))
+              if (empleado) setDocumento(empleado.cedula)
+            }
+          }}
           className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
         >
           <option value="">— Sin empleado —</option>
-          {empleados.map((empleado) => (
-            <option key={empleado.id} value={empleado.id}>
-              {empleado.nombres} {empleado.apellidos} ({empleado.cedula})
-            </option>
-          ))}
+          {/* Solo empleados activos: uno desactivado no debería poder
+              vincularse a un usuario nuevo. Los ya vinculados antes de
+              desactivarse se siguen mostrando en la tabla de abajo,
+              porque esa usa `empleadoPorId` con la lista completa, no
+              esta. */}
+          {empleados
+            .filter((empleado) => empleado.activo)
+            .map((empleado) => (
+              <option key={empleado.id} value={empleado.id}>
+                {empleado.nombres} {empleado.apellidos} ({empleado.cedula})
+              </option>
+            ))}
         </select>
-
+ 
         <p className="mb-1 block text-sm font-medium text-slate-700">Roles</p>
         <div className="mb-4 flex flex-wrap gap-3">
           {roles.map((rol) => (
@@ -229,14 +246,14 @@ export function UsuariosPage(): JSX.Element {
             </label>
           ))}
         </div>
-
+ 
         {error && (
           <p role="alert" className="mb-4 text-sm text-red-600">
             {error}
           </p>
         )}
         {mensaje && <p className="mb-4 text-sm text-green-700">{mensaje}</p>}
-
+ 
         <button
           type="submit"
           disabled={enviando}
@@ -245,7 +262,7 @@ export function UsuariosPage(): JSX.Element {
           {enviando ? 'Creando…' : 'Crear usuario'}
         </button>
       </form>
-
+ 
       {usuarios === null ? (
         <p className="text-slate-500">Cargando…</p>
       ) : (
