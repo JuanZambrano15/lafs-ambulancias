@@ -7,6 +7,7 @@ from app.models.ambulancia import Ambulancia
 from app.models.atencion import Atencion
 from app.models.empleado import Empleado
 from app.models.formato_traslado import FormatoTraslado
+from app.models.formato_version import FormatoVersion
 from app.models.rol import Rol
 from app.models.usuario import Usuario
 from app.models.usuario_rol import UsuarioRol
@@ -16,6 +17,7 @@ __all__ = [
     "Atencion",
     "Empleado",
     "FormatoTraslado",
+    "FormatoVersion",
     "Rol",
     "Usuario",
     "UsuarioRol",
