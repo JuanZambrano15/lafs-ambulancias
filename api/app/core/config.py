@@ -51,8 +51,13 @@ class Settings(BaseSettings):
     # de entorno para parsear una lista. "http://localhost" es Caddy en
     # desarrollo local si alguien prueba la API desde un navegador en
     # ese origen; "capacitor://localhost" es el origen que usa la app
-    # ya empaquetada en Android.
-    cors_origins: str = "http://localhost:5173,http://localhost,capacitor://localhost"
+    # ya empaquetada en Android. "localhost:5173" es `npm run dev` de
+    # la app Android en modo web; "localhost:5174" es `npm run dev` del
+    # panel web de administración (issue #49) — puerto distinto a
+    # propósito, para poder correr los dos `vite` al mismo tiempo.
+    cors_origins: str = (
+        "http://localhost:5173,http://localhost:5174,http://localhost,capacitor://localhost"
+    )
  
     @property
     def lista_cors_origins(self) -> list[str]:
