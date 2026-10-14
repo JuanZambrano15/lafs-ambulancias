@@ -22,6 +22,11 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     listarAmbulanciasDisponibles: vi.fn(),
     listarConductoresDisponibles: vi.fn(),
     crearAtencion: vi.fn(),
+    // Default a [] -- la mayoría de las pruebas de HomePage no les
+    // importa el aviso de "servicio en curso" (issue #51), así que no
+    // deberían tener que mockear esto explícitamente para no romper
+    // con un `undefined.then(...)`.
+    listarAtencionesEnCurso: vi.fn().mockResolvedValue([]),
     obtenerEncabezadoTraslado: vi.fn(),
     guardarEncabezadoTraslado: vi.fn(),
     guardarClinicoTraslado: vi.fn(),

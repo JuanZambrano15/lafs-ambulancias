@@ -173,6 +173,13 @@ export async function crearAtencion(datos: AtencionCreate): Promise<Atencion> {
   })
 }
  
+/** Issue #51 — atenciones abiertas donde el usuario logueado es el
+ * responsable: así Home puede ofrecer "continuar" en vez de dejar a
+ * alguien varado si salió de la pantalla sin cerrar. */
+export async function listarAtencionesEnCurso(): Promise<Atencion[]> {
+  return apiFetch<Atencion[]>('/atenciones/en-curso')
+}
+ 
 /** `null` si la atención todavía no tiene encabezado guardado (404 del backend). */
 export async function obtenerEncabezadoTraslado(
   atencionId: number,

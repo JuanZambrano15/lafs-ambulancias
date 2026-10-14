@@ -7,11 +7,13 @@
  * base que pide el issue #6.
  */
  
+import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import { Link } from 'react-router-dom'
  
 import { useAuth } from '../auth/AuthContext'
-import type { NombreRol } from '../lib/types'
+import { listarAtencionesEnCurso } from '../lib/api'
+import type { Atencion, NombreRol } from '../lib/types'
  
 interface Seccion {
   titulo: string
@@ -49,8 +51,36 @@ const SECCIONES_POR_ROL: Record<NombreRol, Seccion[]> = {
   ],
 }
  
+/** Issue #51 — solo auxiliar_enfermeria/medico pueden ser responsables
+ * de una atención (ver `require_personal_clinico` en el backend), así
+ * que solo a ellos vale la pena preguntarles por atenciones en curso. */
+function puedeTenerAtencionesEnCurso(roles: NombreRol[]): boolean {
+  return roles.includes('auxiliar_enfermeria') || roles.includes('medico')
+}
+ 
+/** A dónde manda "Continuar": el formato de traslado siempre arranca
+ * por el encabezado (precarga lo que ya haya y de ahí sigue solo al
+ * clínico al guardar — ver EncabezadoTrasladoPage), así que no hace
+ * falta que este endpoint diga si el encabezado ya existe o no. La
+ * atención SOAT (issue #17) todavía no tiene pantalla propia. */
+function rutaParaContinuar(atencion: Atencion): string | null {
+  if (atencion.tipo === 'traslado') return `/atenciones/${atencion.id}/encabezado-traslado`
+  return null
+}
+ 
 export function HomePage(): JSX.Element {
   const { perfil, roles, cerrarSesion } = useAuth()
+  const [atencionesEnCurso, setAtencionesEnCurso] = useState<Atencion[]>([])
+ 
+  useEffect(() => {
+    if (!puedeTenerAtencionesEnCurso(roles)) return
+    listarAtencionesEnCurso()
+      .then(setAtencionesEnCurso)
+      .catch(() => {
+        // Si falla, Home sigue funcionando igual -- no es más grave
+        // que no ver el aviso de "servicio en curso" esta vez.
+      })
+  }, [roles])
  
   const secciones = roles.flatMap((rol) => SECCIONES_POR_ROL[rol] ?? [])
   // "Mi firma" no depende del rol sino de `tipo_vinculacion` del
@@ -81,6 +111,43 @@ export function HomePage(): JSX.Element {
       </header>
  
       <main className="mx-auto max-w-2xl px-4 py-6">
+        {atencionesEnCurso.length > 0 && (
+          <ul className="mb-6 flex flex-col gap-3">
+            {atencionesEnCurso.map((atencion) => {
+              const ruta = rutaParaContinuar(atencion)
+              return (
+                <li
+                  key={atencion.id}
+                  className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="font-medium text-amber-900">
+                        Servicio en curso — móvil {atencion.ambulancia.movil}
+                      </h2>
+                      <p className="text-sm text-amber-700">
+                        {atencion.tipo === 'traslado' ? 'Traslado asistencial' : 'Atención SOAT'}
+                        , iniciado sin cerrar todavía.
+                      </p>
+                    </div>
+                    {ruta ? (
+                      <Link
+                        to={ruta}
+                        className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white"
+                      >
+                        Continuar
+                      </Link>
+                    ) : (
+                      <span className="shrink-0 text-xs text-amber-700">
+                        Sin pantalla todavía
+                      </span>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
         {sinDuplicados.length === 0 ? (
           <p className="text-slate-500">Tu usuario no tiene secciones asignadas todavía.</p>
         ) : (
