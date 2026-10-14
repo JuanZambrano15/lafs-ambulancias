@@ -41,6 +41,7 @@ import {
 import type {
   FormatoTrasladoClinico,
   LesionTipo,
+  NivelServicioTraslado,
   ReflejoPupilar,
   TratamientoAplicado,
 } from '../lib/types'
@@ -201,6 +202,35 @@ function aNumeroONulo(valor: string): number | null {
   return valor === '' ? null : Number(valor)
 }
  
+/** Issue #57 -- qué le falta a lo clínico para poder cerrar el
+ * traslado, calculado en el cliente a partir del estado actual del
+ * formulario (sin esperar la respuesta del servidor). Es un espejo
+ * de `_campos_faltantes_para_cerrar` en el backend -- la nota médica
+ * solo es obligatoria si el nivel de servicio del encabezado es
+ * "medicalizado". */
+function camposFaltantesParaCerrar(
+  campos: EstadoClinico,
+  nivelServicio: NivelServicioTraslado | null,
+): string[] {
+  const faltantes: string[] = []
+  if (campos.signosVitales.filter((signo) => signo.hora.trim() !== '').length === 0) {
+    faltantes.push('signos vitales')
+  }
+  if (campos.glasgowOcular === '' || campos.glasgowVerbal === '' || campos.glasgowMotora === '') {
+    faltantes.push('escala de Glasgow')
+  }
+  if (campos.diagnostico.trim() === '') {
+    faltantes.push('diagnóstico')
+  }
+  if (campos.notaAuxiliar.trim() === '') {
+    faltantes.push('nota de enfermería')
+  }
+  if (nivelServicio === 'medicalizado' && campos.notaMedica.trim() === '') {
+    faltantes.push('nota médica (obligatoria en traslado medicalizado)')
+  }
+  return faltantes
+}
+ 
 export function ClinicoTrasladoPage(): JSX.Element {
   const navigate = useNavigate()
   const { atencionId } = useParams<{ atencionId: string }>()
@@ -212,6 +242,10 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
  
   const [campos, setCampos] = useState<EstadoClinico>(ESTADO_VACIO)
+  // Nivel de servicio del encabezado (issue #57) -- decide si la nota
+  // médica es obligatoria para poder cerrar. `null` mientras carga o
+  // si todavía no existe encabezado.
+  const [nivelServicio, setNivelServicio] = useState<NivelServicioTraslado | null>(null)
   const [cargando, setCargando] = useState(true)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -252,6 +286,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
           evolucionadoPor: existente.evolucionado_por ?? '',
           firmaEvolucionadoExistente: existente.firma_evolucionado_por,
         })
+        setNivelServicio(existente.nivel_servicio)
       })
       .catch((err: unknown) => {
         setErrorCarga(err instanceof ApiError ? err.message : 'No se pudo cargar lo clínico')
@@ -314,6 +349,12 @@ export function ClinicoTrasladoPage(): JSX.Element {
     campos.glasgowOcular !== '' && campos.glasgowVerbal !== '' && campos.glasgowMotora !== ''
       ? Number(campos.glasgowOcular) + Number(campos.glasgowVerbal) + Number(campos.glasgowMotora)
       : null
+ 
+  // Issue #57 -- qué le falta al formulario para poder cerrar, visto
+  // en el cliente antes de intentarlo (el servidor vuelve a validar
+  // igual, esto es solo para no hacer a alguien llenar el PIN para
+  // enterarse recién ahí de que falta algo).
+  const faltantesParaCerrar = camposFaltantesParaCerrar(campos, nivelServicio)
  
   async function manejarEnvio(evento: FormEvent): Promise<void> {
     evento.preventDefault()
@@ -763,11 +804,25 @@ export function ClinicoTrasladoPage(): JSX.Element {
  
         {(tieneRolAuxiliar || tieneRolMedico) && (
           <div className="mt-4 rounded-xl bg-white p-6 shadow-sm">
+            {faltantesParaCerrar.length > 0 && (
+              <div
+                role="alert"
+                className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800"
+              >
+                <p className="font-medium">Falta diligenciar antes de poder cerrar:</p>
+                <ul className="mt-1 list-inside list-disc">
+                  {faltantesParaCerrar.map((campo) => (
+                    <li key={campo}>{campo}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {!mostrarCierre ? (
               <button
                 type="button"
                 onClick={() => setMostrarCierre(true)}
-                className="w-full rounded-lg border border-red-300 py-3 text-base font-medium text-red-600"
+                disabled={faltantesParaCerrar.length > 0}
+                className="w-full rounded-lg border border-red-300 py-3 text-base font-medium text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cerrar atención
               </button>
@@ -814,7 +869,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
                   </button>
                   <button
                     type="submit"
-                    disabled={cerrando}
+                    disabled={cerrando || faltantesParaCerrar.length > 0}
                     className="flex-1 rounded-lg bg-red-600 py-3 text-base font-medium text-white disabled:opacity-60"
                   >
                     {cerrando ? 'Cerrando…' : 'Confirmar cierre'}

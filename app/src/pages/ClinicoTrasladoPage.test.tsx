@@ -261,33 +261,33 @@ describe('ClinicoTrasladoPage', () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
     vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
-
+ 
     renderPagina()
-
+ 
     await screen.findByLabelText('Diagnóstico')
     await usuario.selectOptions(screen.getByLabelText('Ocular (1-4)'), '3')
     await usuario.selectOptions(screen.getByLabelText('Verbal (1-5)'), '4')
     await usuario.selectOptions(screen.getByLabelText('Motora (1-6)'), '5')
-
+ 
     await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
-
+ 
     await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
     const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
     expect(datos.glasgow_ocular).toBe(3)
     expect(datos.glasgow_verbal).toBe(4)
     expect(datos.glasgow_motora).toBe(5)
   })
-
+ 
   it('precarga la hora actual al agregar una medición (issue #52)', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
     vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
-
+ 
     renderPagina()
-
+ 
     await screen.findByLabelText('Diagnóstico')
     await usuario.click(screen.getByRole('button', { name: '+ Agregar medición' }))
-
+ 
     // No se fija la hora exacta del reloj del sistema -- solo que
     // venga precargada con algo (no vacía) y en formato HH:MM, para no
     // perder la fila completa si a alguien se le olvida escribirla a
@@ -295,16 +295,16 @@ describe('ClinicoTrasladoPage', () => {
     // de guardado descartara toda la medición).
     const campoHora = screen.getByLabelText('Hora medición 1') as HTMLInputElement
     expect(campoHora.value).toMatch(/^\d{2}:\d{2}$/)
-
+ 
     await usuario.type(screen.getByLabelText('TA medición 1'), '120/80')
     await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
-
+ 
     await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
     const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
     expect(datos.signos_vitales).toHaveLength(1)
     expect(datos.signos_vitales[0].hora).toMatch(/^\d{2}:\d{2}$/)
   })
-
+ 
   it('muestra un error si falla al guardar', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO)
@@ -430,7 +430,13 @@ describe('ClinicoTrasladoPage', () => {
  
   describe('cerrar atención (issue #12)', () => {
     beforeEach(() => {
-      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      // Issue #57 agrega una validación de completitud al cerrar --
+      // estas pruebas solo le interesan la mecánica del PIN (quién
+      // puede cerrar, hash local, error del servidor), así que usan
+      // un formato completo para no mezclarse con esa otra
+      // validación (ver 'cerrar atención exige campos completos'
+      // más abajo, que sí usa FORMATO_SIN_CLINICO a propósito).
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO)
     })
  
     it('no muestra la opción de cerrar si el usuario no tiene rol clínico', async () => {
@@ -506,6 +512,72 @@ describe('ClinicoTrasladoPage', () => {
       await usuario.click(screen.getByRole('button', { name: 'Confirmar cierre' }))
  
       expect(await screen.findByRole('alert')).toHaveTextContent('PIN incorrecto')
+    })
+  })
+ 
+  describe('aviso de campos faltantes antes de cerrar (issue #57)', () => {
+    it('deshabilita "Cerrar atención" y lista lo que falta si el formato está vacío', async () => {
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+ 
+      renderPagina()
+ 
+      const boton = await screen.findByRole('button', { name: 'Cerrar atención' })
+      expect(boton).toBeDisabled()
+      const aviso = screen.getByRole('alert')
+      expect(aviso).toHaveTextContent('signos vitales')
+      expect(aviso).toHaveTextContent('Glasgow')
+      expect(aviso).toHaveTextContent('diagnóstico')
+      expect(aviso).toHaveTextContent('nota de enfermería')
+    })
+ 
+    it('no deshabilita "Cerrar atención" si todo lo clínico está completo', async () => {
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO)
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+ 
+      renderPagina()
+ 
+      const boton = await screen.findByRole('button', { name: 'Cerrar atención' })
+      expect(boton).not.toBeDisabled()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+ 
+    it('en un traslado medicalizado exige nota médica para cerrar', async () => {
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue({
+        ...FORMATO,
+        nivel_servicio: 'medicalizado',
+        nota_medica: null,
+      })
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'medico', descripcion: null }]),
+      )
+ 
+      renderPagina()
+ 
+      const boton = await screen.findByRole('button', { name: 'Cerrar atención' })
+      expect(boton).toBeDisabled()
+      expect(screen.getByRole('alert')).toHaveTextContent('nota médica')
+    })
+ 
+    it('en un traslado básico no exige nota médica para cerrar', async () => {
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue({
+        ...FORMATO,
+        nivel_servicio: 'basico',
+        nota_medica: null,
+      })
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+ 
+      renderPagina()
+ 
+      const boton = await screen.findByRole('button', { name: 'Cerrar atención' })
+      expect(boton).not.toBeDisabled()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
   })
 })
