@@ -258,20 +258,36 @@ describe('ClinicoTrasladoPage', () => {
   })
  
   it('guarda el valor elegido de Glasgow como número', async () => {
-  it('precarga la hora actual al agregar una medición (issue #52)', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
     vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
- 
+
     renderPagina()
- 
+
     await screen.findByLabelText('Diagnóstico')
     await usuario.selectOptions(screen.getByLabelText('Ocular (1-4)'), '3')
     await usuario.selectOptions(screen.getByLabelText('Verbal (1-5)'), '4')
     await usuario.selectOptions(screen.getByLabelText('Motora (1-6)'), '5')
- 
+
+    await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
+    const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+    expect(datos.glasgow_ocular).toBe(3)
+    expect(datos.glasgow_verbal).toBe(4)
+    expect(datos.glasgow_motora).toBe(5)
+  })
+
+  it('precarga la hora actual al agregar una medición (issue #52)', async () => {
+    const usuario = userEvent.setup()
+    vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+    vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+
+    renderPagina()
+
+    await screen.findByLabelText('Diagnóstico')
     await usuario.click(screen.getByRole('button', { name: '+ Agregar medición' }))
- 
+
     // No se fija la hora exacta del reloj del sistema -- solo que
     // venga precargada con algo (no vacía) y en formato HH:MM, para no
     // perder la fila completa si a alguien se le olvida escribirla a
@@ -279,19 +295,16 @@ describe('ClinicoTrasladoPage', () => {
     // de guardado descartara toda la medición).
     const campoHora = screen.getByLabelText('Hora medición 1') as HTMLInputElement
     expect(campoHora.value).toMatch(/^\d{2}:\d{2}$/)
- 
+
     await usuario.type(screen.getByLabelText('TA medición 1'), '120/80')
     await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
- 
+
     await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
     const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
-    expect(datos.glasgow_ocular).toBe(3)
-    expect(datos.glasgow_verbal).toBe(4)
-    expect(datos.glasgow_motora).toBe(5)
     expect(datos.signos_vitales).toHaveLength(1)
     expect(datos.signos_vitales[0].hora).toMatch(/^\d{2}:\d{2}$/)
   })
- 
+
   it('muestra un error si falla al guardar', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO)
