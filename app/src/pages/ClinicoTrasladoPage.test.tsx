@@ -16,6 +16,7 @@ vi.mock('../lib/pinLocal')
 function perfilCon(
   roles: MeResponse['roles'],
   firmaGuardada: string | null = null,
+  nombreCompleto: string | null = null,
 ): MeResponse {
   return {
     documento: '123456789',
@@ -26,6 +27,7 @@ function perfilCon(
     roles,
     empleado_tipo_vinculacion: firmaGuardada ? 'planta' : null,
     firma_guardada: firmaGuardada,
+    empleado_nombre_completo: nombreCompleto,
   }
 }
  
@@ -425,6 +427,105 @@ describe('ClinicoTrasladoPage', () => {
       await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
       const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
       expect(datos.firma_atendido_por).toBe('data:image/png;base64,DEL-AUXILIAR')
+    })
+
+    it('issue #57: con ambos roles, la firma del médico no se duplica de la del auxiliar', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon(
+          [
+            { id: 1, nombre: 'auxiliar_enfermeria', descripcion: null },
+            { id: 2, nombre: 'medico', descripcion: null },
+          ],
+          'data:image/png;base64,GUARDADA',
+        ),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+
+      renderPagina()
+
+      // El auxiliar sigue viendo su firma guardada como vista previa
+      // automática...
+      expect(await screen.findByAltText('Firma de quien atendió')).toHaveAttribute(
+        'src',
+        'data:image/png;base64,GUARDADA',
+      )
+      // ...pero el médico no ve la misma imagen reusada: se le pide
+      // dibujarla a mano, con una pista de por qué.
+      expect(screen.queryByAltText('Firma de quien evolucionó')).not.toBeInTheDocument()
+      expect(
+        screen.getByText(/ya se usó tu firma guardada como auxiliar/i),
+      ).toBeInTheDocument()
+
+      const canvas = await screen.findByLabelText('Recuadro para firmar')
+      canvas.dispatchEvent(
+        new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),
+      )
+      canvas.dispatchEvent(
+        new PointerEvent('pointermove', { clientX: 20, clientY: 20, bubbles: true }),
+      )
+
+      await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+
+      await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
+      const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+      expect(datos.firma_atendido_por).toBe('data:image/png;base64,GUARDADA')
+      expect(datos.firma_evolucionado_por).toBe(EXPORTADA)
+      expect(datos.firma_evolucionado_por).not.toBe(datos.firma_atendido_por)
+    })
+  })
+
+  describe('autocompletar el nombre de quien atiende/evoluciona (issue #57)', () => {
+    it('auxiliar: precarga "Atendido por" con su propio nombre si está vacío', async () => {
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon(
+          [{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }],
+          null,
+          'Camila Torres',
+        ),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+
+      renderPagina()
+
+      await screen.findByLabelText('Atendido por')
+      await waitFor(() =>
+        expect(screen.getByLabelText('Atendido por')).toHaveValue('Camila Torres'),
+      )
+    })
+
+    it('médico: precarga "Evolucionado por" con su propio nombre si está vacío', async () => {
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'medico', descripcion: null }], null, 'Camila Torres'),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+
+      renderPagina()
+
+      await screen.findByLabelText('Evolucionado por')
+      await waitFor(() =>
+        expect(screen.getByLabelText('Evolucionado por')).toHaveValue('Camila Torres'),
+      )
+    })
+
+    it('no reemplaza el nombre si ya hay uno guardado de un turno anterior', async () => {
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon(
+          [{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }],
+          null,
+          'Camila Torres',
+        ),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue({
+        ...FORMATO,
+        atendido_por: 'Ana Ruiz',
+      })
+
+      renderPagina()
+
+      await screen.findByLabelText('Atendido por')
+      await waitFor(() => expect(screen.getByLabelText('Atendido por')).toHaveValue('Ana Ruiz'))
     })
   })
  

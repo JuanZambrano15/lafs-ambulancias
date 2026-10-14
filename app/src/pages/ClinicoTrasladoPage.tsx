@@ -238,6 +238,9 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const { perfil, tieneRol } = useAuth()
   const tieneRolAuxiliar = tieneRol('auxiliar_enfermeria')
   const tieneRolMedico = tieneRol('medico')
+  // Si la misma persona tiene los dos roles a la vez, no puede firmar
+  // dos veces con la misma firma guardada -- ver FirmaField más abajo.
+  const tieneAmbosRoles = tieneRolAuxiliar && tieneRolMedico
   const firmaAtendidoRef = useRef<FirmaCanvasHandle>(null)
   const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
  
@@ -293,6 +296,36 @@ export function ClinicoTrasladoPage(): JSX.Element {
       })
       .finally(() => setCargando(false))
   }, [id])
+
+  // Issue #57 (comentario) -- "atendido por"/"evolucionó por" se
+  // autocompletan con el nombre de quien está logueado, el mismo
+  // patrón que ya existía para la firma. Solo si el campo
+  // correspondiente sigue vacío (nada guardado todavía, o nadie lo
+  // escribió a mano) -- nunca reemplaza un nombre que ya hubiera,
+  // propio o de otra persona en un turno anterior.
+  //
+  // Ajuste de estado durante el render (no en un efecto): hace falta
+  // reaccionar a dos cosas que resuelven por separado y sin un orden
+  // garantizado -- el perfil (contexto de sesión) y la carga del
+  // formato de esta pantalla -- y un efecto con `setState` directo en
+  // el cuerpo dispara el lint de renders en cascada
+  // (react-hooks/set-state-in-effect). Este es el patrón que React
+  // recomienda en su lugar para "ajustar estado cuando algo externo
+  // cambia" (ver "You Might Not Need An Effect").
+  const [nombrePerfilAplicado, setNombrePerfilAplicado] = useState(false)
+  const nombrePerfil = perfil?.empleado_nombre_completo ?? null
+  if (!nombrePerfilAplicado && !cargando && nombrePerfil) {
+    setNombrePerfilAplicado(true)
+    setCampos((anterior) => ({
+      ...anterior,
+      atendidoPor:
+        tieneRolAuxiliar && anterior.atendidoPor === '' ? nombrePerfil : anterior.atendidoPor,
+      evolucionadoPor:
+        tieneRolMedico && anterior.evolucionadoPor === ''
+          ? nombrePerfil
+          : anterior.evolucionadoPor,
+    }))
+  }
  
   function agregarSignoVital(): void {
     setCampos((anterior) => ({
@@ -388,13 +421,23 @@ export function ClinicoTrasladoPage(): JSX.Element {
         // logueado ahora mismo; si no le corresponde, se reenvía la
         // que ya hubiera (mismo patrón de "reenvío completo" del
         // resto del formato — ver ADR-0006/0007).
+        //
+        // Issue #57 (comentario) -- si la misma persona tiene los dos
+        // roles, no puede "firmar" dos veces con la misma firma
+        // guardada como si fueran dos personas distintas: el auxiliar
+        // sigue autocompletándose con la firma guardada del perfil,
+        // pero la del médico se exige dibujada a mano en ese caso (ver
+        // FirmaField más abajo, que oculta la vista previa guardada
+        // cuando `tieneAmbosRoles`).
         firma_atendido_por: tieneRolAuxiliar
           ? perfil?.firma_guardada ?? firmaAtendidoRef.current?.exportar() ?? null
           : campos.firmaAtendidoExistente,
         nota_medica: campos.notaMedica || null,
         evolucionado_por: campos.evolucionadoPor || null,
         firma_evolucionado_por: tieneRolMedico
-          ? perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
+          ? tieneAmbosRoles
+            ? firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente
+            : perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
           : campos.firmaEvolucionadoExistente,
       }
       await guardarClinicoConRespaldo(id, datos)
@@ -781,7 +824,17 @@ export function ClinicoTrasladoPage(): JSX.Element {
           {tieneRolMedico && (
             <FirmaField
               etiqueta="Firma de quien evolucionó"
-              firmaGuardada={perfil?.firma_guardada ?? null}
+              // Issue #57 -- si la misma persona tiene también el rol
+              // de auxiliar, ya usó su firma guardada arriba como
+              // "quien atendió"; aquí se exige dibujarla a mano para
+              // que no quede la misma imagen duplicada en los dos
+              // campos como si hubieran firmado dos personas.
+              firmaGuardada={tieneAmbosRoles ? null : perfil?.firma_guardada ?? null}
+              pista={
+                tieneAmbosRoles
+                  ? 'Ya se usó tu firma guardada como auxiliar — firma aquí a mano como médico.'
+                  : undefined
+              }
               imagenInicial={campos.firmaEvolucionadoExistente}
               canvasRef={firmaEvolucionadoRef}
             />
@@ -897,15 +950,21 @@ function FirmaField({
   firmaGuardada,
   imagenInicial,
   canvasRef,
+  pista,
 }: {
   etiqueta: string
   firmaGuardada: string | null
   imagenInicial: string | null
   canvasRef: RefObject<FirmaCanvasHandle | null>
+  /** Issue #57 -- aclaración opcional, p.ej. cuando se oculta la
+   * firma guardada a propósito porque la misma persona ya la usó
+   * para el otro rol. */
+  pista?: string
 }): JSX.Element {
   return (
     <div className="mb-4">
       <h3 className="mb-1 block text-sm font-medium text-slate-700">{etiqueta}</h3>
+      {pista && <p className="mb-1 text-xs text-slate-500">{pista}</p>}
       {firmaGuardada ? (
         <img
           src={firmaGuardada}
