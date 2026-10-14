@@ -503,7 +503,7 @@ def _campos_faltantes_para_cerrar(formato: FormatoTraslado) -> list[str]:
     nivel de servicio es `medicalizado` (siempre va un médico); en
     `basico` sigue siendo opcional, igual que antes -- el campo no se
     oculta, solo no se exige.
- 
+
     No se llama si la atención nunca llegó a tener encabezado (ver el
     único `if formato is not None` en `cerrar_atencion`) -- cerrar sin
     haber empezado a llenar nada sigue permitido, para un servicio que
@@ -525,8 +525,8 @@ def _campos_faltantes_para_cerrar(formato: FormatoTraslado) -> list[str]:
     if formato.nivel_servicio == NivelServicioTraslado.medicalizado and not formato.nota_medica:
         faltantes.append("nota médica (obligatoria en traslado medicalizado)")
     return faltantes
- 
- 
+
+
 @router.put(
     "/{atencion_id}/cerrar",
     response_model=AtencionOut,
@@ -553,7 +553,7 @@ def cerrar_atencion(
     datos, así el dispositivo haya "pre-validado" con un hash local
     más liviano (ver ADR-0010) — ese hash local es solo para dar
     feedback rápido sin conexión, nunca la autorización real.
- 
+
     Issue #57 — un traslado con encabezado guardado no se puede cerrar
     si le faltan campos clínicos obligatorios (ver
     `_campos_faltantes_para_cerrar`). Un traslado que nunca llegó a
