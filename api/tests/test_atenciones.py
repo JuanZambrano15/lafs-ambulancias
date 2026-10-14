@@ -450,10 +450,14 @@ def test_listar_conductores_disponibles_excluye_sin_rol_e_inactivos(
  
  
 def _crear_atencion_abierta(
-    client: TestClient, db: Session, headers: dict[str, str]
+    client: TestClient,
+    db: Session,
+    headers: dict[str, str],
+    movil: str = "M-01",
+    cedula: str = "800000001",
 ) -> int:
-    ambulancia = _crear_ambulancia(db)
-    conductor = _crear_conductor(db)
+    ambulancia = _crear_ambulancia(db, movil=movil)
+    conductor = _crear_conductor(db, cedula=cedula)
     response = client.post(
         "/atenciones",
         json={
@@ -465,6 +469,89 @@ def _crear_atencion_abierta(
     )
     assert response.status_code == 201
     return response.json()["id"]
+ 
+ 
+class TestAtencionesEnCurso:
+    """Issue #51: sin este endpoint, salir de la pantalla del clínico
+    sin cerrar la atención la deja sin ninguna forma de retomarla
+    desde la navegación normal, ni de liberar la ambulancia ocupada.
+    """
+ 
+    def test_sin_token_da_401(self, client: TestClient) -> None:
+        response = client.get("/atenciones/en-curso")
+ 
+        assert response.status_code == 401
+ 
+    def test_conductor_no_puede_verla(
+        self, client: TestClient, conductor_headers: dict[str, str]
+    ) -> None:
+        """El conductor nunca es responsable de una atención (issue #8),
+        así que este endpoint le es tan ajeno como el resto de las
+        rutas del formato clínico."""
+        response = client.get("/atenciones/en-curso", headers=conductor_headers)
+ 
+        assert response.status_code == 403
+ 
+    def test_devuelve_solo_las_abiertas_del_responsable_logueado(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        medico_headers: dict[str, str],
+    ) -> None:
+        propia_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        ajena_id = _crear_atencion_abierta(
+            client, db, medico_headers, movil="M-02", cedula="800000002"
+        )
+ 
+        response = client.get("/atenciones/en-curso", headers=auxiliar_headers)
+ 
+        assert response.status_code == 200
+        ids = [atencion["id"] for atencion in response.json()]
+        assert ids == [propia_id]
+        assert ajena_id not in ids
+ 
+    def test_no_incluye_atenciones_ya_cerradas(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        # Configura el PIN y cierra -- igual que TestCerrarAtencion abajo.
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+        cierre = client.put(
+            f"/atenciones/{atencion_id}/cerrar", json={"pin": "1234"}, headers=auxiliar_headers
+        )
+        assert cierre.status_code == 200
+ 
+        response = client.get("/atenciones/en-curso", headers=auxiliar_headers)
+ 
+        assert response.status_code == 200
+        assert response.json() == []
+ 
+    def test_usuario_con_rol_pero_sin_empleado_no_revienta(
+        self, client: TestClient, db: Session
+    ) -> None:
+        """`require_personal_clinico` solo exige el rol, no exige
+        `empleado_id` (igual que en test_usuario_sin_empleado_vinculado_no_puede_crear_atencion
+        más arriba) -- este endpoint debe devolver una lista vacía en
+        vez de un 500 cuando no hay empleado con el cual comparar."""
+        rol = Rol(nombre="medico", descripcion="Rol de prueba")
+        db.add(rol)
+        db.flush()
+        usuario = Usuario(documento="600000002", password_hash=hash_secret("clave-medico"))
+        db.add(usuario)
+        db.flush()
+        db.add(UsuarioRol(usuario_id=usuario.id, rol_id=rol.id))
+        db.commit()
+ 
+        login = client.post(
+            "/auth/login", json={"documento": "600000002", "password": "clave-medico"}
+        )
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+ 
+        response = client.get("/atenciones/en-curso", headers=headers)
+ 
+        assert response.status_code == 200
+        assert response.json() == []
  
  
 class TestCerrarAtencion:
