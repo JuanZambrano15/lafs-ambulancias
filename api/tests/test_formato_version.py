@@ -55,6 +55,12 @@ CLINICO_VALIDO = {
     "glasgow_verbal": 5,
     "glasgow_motora": 6,
     "nota_auxiliar": "Paciente estable durante el traslado.",
+    # ENCABEZADO_VALIDO usa nivel_servicio "medicalizado" -- issue #57
+    # hace obligatoria la nota médica en ese nivel, así que el formato
+    # "válido" de este archivo también debe tenerla o ya no se podría
+    # cerrar (_crear_atencion_cerrada_con_formato, usado por casi todas
+    # las pruebas de aquí).
+    "nota_medica": "Se recomienda TAC de cráneo al ingreso.",
     "atendido_por": "Ana Ruiz",
 }
  
