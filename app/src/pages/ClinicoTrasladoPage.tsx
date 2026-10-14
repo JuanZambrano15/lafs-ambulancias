@@ -47,6 +47,13 @@ import type {
  
 const PIN_VALIDO = /^\d{4}$/
  
+/** "HH:MM" en hora local, el mismo formato que produce un `<input
+ * type="time">` -- issue #52. */
+function horaActual(): string {
+  const ahora = new Date()
+  return `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
+}
+ 
 interface SignoVitalForm {
   hora: string
   ta: string
@@ -224,7 +231,13 @@ export function ClinicoTrasladoPage(): JSX.Element {
   function agregarSignoVital(): void {
     setCampos((anterior) => ({
       ...anterior,
-      signosVitales: [...anterior.signosVitales, { hora: '', ta: '', fc: '', fr: '', spo2: '' }],
+      // La hora se precarga con la hora actual (issue #52) en vez de
+      // dejarla vacía -- al guardar se descarta cualquier medición sin
+      // hora (ver más abajo), así que dejarla en blanco por defecto
+      // hacía que se perdiera la fila completa si a alguien se le
+      // olvidaba escribirla a mano. Sigue siendo editable, por si la
+      // medición se registra después de tomarla.
+      signosVitales: [...anterior.signosVitales, { hora: horaActual(), ta: '', fc: '', fr: '', spo2: '' }],
     }))
   }
  
