@@ -1,6 +1,23 @@
-# Reverse proxy para la API. En local corre en HTTP (puerto 80); en
+# Reverse proxy para la API, y el panel web del administrador (issue
+# #49) servido como estáticos bajo /admin. En local corre en HTTP
+# (puerto 80, mapeado a 81 en el host — ver docker-compose.yml); en
 # producción, apuntando a un dominio real en vez de ":80", Caddy emite
 # y renueva certificados TLS automáticamente sin configuración extra.
 :80 {
-    reverse_proxy api:8000
+    # /srv/admin lo siembra el contenedor `web-build` (ver
+    # docker-compose.yml y web/Dockerfile) — el build de Vite ya usa
+    # `base: '/admin/'`, así que sus assets referencian rutas que
+    # coinciden con este `root`.
+    handle /admin* {
+        root * /srv
+        # Cualquier ruta que no sea un archivo real (las rutas de
+        # react-router, como /admin/usuarios) cae al index del panel,
+        # que decide la pantalla en el navegador.
+        try_files {path} /admin/index.html
+        file_server
+    }
+
+    handle {
+        reverse_proxy api:8000
+    }
 }

@@ -71,3 +71,36 @@ jobs:
       - name: Build
         working-directory: app
         run: npm run build
+
+  frontend-web:
+    name: Panel web (lint + tests, issue #49)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Mismo motivo que el job "App" de arriba: jsdom necesita
+          # Node >=22.22.2.
+          node-version: "22"
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Lint (eslint)
+        working-directory: web
+        run: npm run lint
+
+      - name: Type check (tsc)
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Tests (vitest)
+        working-directory: web
+        run: npm run test
+
+      - name: Build
+        working-directory: web
+        run: npm run build
