@@ -125,6 +125,37 @@ const REFLEJO_OPCIONES: { valor: ReflejoPupilar; etiqueta: string }[] = [
   { valor: 'no_reactiva', etiqueta: 'No reactiva' },
 ]
  
+// Issue #53 -- el backend ya valida estos rangos (glasgow_ocular 1-4,
+// glasgow_verbal 1-5, glasgow_motora 1-6 en
+// api/app/schemas/formato_traslado.py), pero el formulario dejaba
+// escribir cualquier número en un input libre. Son catálogos
+// cerrados -- igual que REFLEJO_OPCIONES arriba -- así que van como
+// <select> con las descripciones estándar de la escala, no solo el
+// número.
+const GLASGOW_OCULAR_OPCIONES: { valor: number; etiqueta: string }[] = [
+  { valor: 4, etiqueta: '4 - Espontánea' },
+  { valor: 3, etiqueta: '3 - Al estímulo verbal' },
+  { valor: 2, etiqueta: '2 - Al dolor' },
+  { valor: 1, etiqueta: '1 - Ninguna' },
+]
+ 
+const GLASGOW_VERBAL_OPCIONES: { valor: number; etiqueta: string }[] = [
+  { valor: 5, etiqueta: '5 - Orientado' },
+  { valor: 4, etiqueta: '4 - Confuso' },
+  { valor: 3, etiqueta: '3 - Palabras inapropiadas' },
+  { valor: 2, etiqueta: '2 - Sonidos incomprensibles' },
+  { valor: 1, etiqueta: '1 - Ninguna' },
+]
+ 
+const GLASGOW_MOTORA_OPCIONES: { valor: number; etiqueta: string }[] = [
+  { valor: 6, etiqueta: '6 - Obedece órdenes' },
+  { valor: 5, etiqueta: '5 - Localiza el dolor' },
+  { valor: 4, etiqueta: '4 - Retirada al dolor' },
+  { valor: 3, etiqueta: '3 - Flexión anormal' },
+  { valor: 2, etiqueta: '2 - Extensión anormal' },
+  { valor: 1, etiqueta: '1 - Ninguna' },
+]
+ 
 const LESION_OPCIONES: { valor: LesionTipo; etiqueta: string }[] = [
   { valor: 'tce', etiqueta: 'TCE' },
   { valor: 'amputacion', etiqueta: 'Amputación' },
@@ -569,49 +600,61 @@ export function ClinicoTrasladoPage(): JSX.Element {
               <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-ocular">
                 Ocular (1-4)
               </label>
-              <input
+              <select
                 id="glasgow-ocular"
-                type="number"
-                min={1}
-                max={4}
                 value={campos.glasgowOcular}
                 onChange={(e) =>
                   setCampos((anterior) => ({ ...anterior, glasgowOcular: e.target.value }))
                 }
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              />
+              >
+                <option value="">Sin registrar</option>
+                {GLASGOW_OCULAR_OPCIONES.map((opcion) => (
+                  <option key={opcion.valor} value={opcion.valor}>
+                    {opcion.etiqueta}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-verbal">
                 Verbal (1-5)
               </label>
-              <input
+              <select
                 id="glasgow-verbal"
-                type="number"
-                min={1}
-                max={5}
                 value={campos.glasgowVerbal}
                 onChange={(e) =>
                   setCampos((anterior) => ({ ...anterior, glasgowVerbal: e.target.value }))
                 }
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              />
+              >
+                <option value="">Sin registrar</option>
+                {GLASGOW_VERBAL_OPCIONES.map((opcion) => (
+                  <option key={opcion.valor} value={opcion.valor}>
+                    {opcion.etiqueta}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-motora">
                 Motora (1-6)
               </label>
-              <input
+              <select
                 id="glasgow-motora"
-                type="number"
-                min={1}
-                max={6}
                 value={campos.glasgowMotora}
                 onChange={(e) =>
                   setCampos((anterior) => ({ ...anterior, glasgowMotora: e.target.value }))
                 }
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              />
+              >
+                <option value="">Sin registrar</option>
+                {GLASGOW_MOTORA_OPCIONES.map((opcion) => (
+                  <option key={opcion.valor} value={opcion.valor}>
+                    {opcion.etiqueta}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <p className="mb-4 text-sm text-slate-500">
