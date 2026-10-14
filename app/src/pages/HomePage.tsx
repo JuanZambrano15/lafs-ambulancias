@@ -12,7 +12,7 @@ import type { JSX } from 'react'
 import { Link } from 'react-router-dom'
  
 import { useAuth } from '../auth/AuthContext'
-import { listarAtencionesEnCurso } from '../lib/api'
+import { listarAtencionesEnCurso, obtenerEncabezadoTraslado } from '../lib/api'
 import type { Atencion, NombreRol } from '../lib/types'
  
 interface Seccion {
@@ -58,24 +58,41 @@ function puedeTenerAtencionesEnCurso(roles: NombreRol[]): boolean {
   return roles.includes('auxiliar_enfermeria') || roles.includes('medico')
 }
  
-/** A dónde manda "Continuar": el formato de traslado siempre arranca
- * por el encabezado (precarga lo que ya haya y de ahí sigue solo al
- * clínico al guardar — ver EncabezadoTrasladoPage), así que no hace
- * falta que este endpoint diga si el encabezado ya existe o no. La
- * atención SOAT (issue #17) todavía no tiene pantalla propia. */
-function rutaParaContinuar(atencion: Atencion): string | null {
-  if (atencion.tipo === 'traslado') return `/atenciones/${atencion.id}/encabezado-traslado`
-  return null
+/** A dónde manda "Continuar": retoma el paso donde se quedó, no
+ * siempre el encabezado. Si ya existe un formato guardado para esta
+ * atención (se guarda desde el primer "Guardar" del encabezado, antes
+ * de poder pasar al clínico), es porque el encabezado ya se llenó y
+ * lo que falta es la parte clínica -- volver al encabezado ahí haría
+ * reescribir algo que ya quedó bien. Si todavía no hay formato, es
+ * que ni siquiera el encabezado se guardó una vez. La atención SOAT
+ * (issue #17) todavía no tiene pantalla propia. */
+async function resolverRutaContinuar(atencion: Atencion): Promise<string | null> {
+  if (atencion.tipo !== 'traslado') return null
+  const formatoExistente = await obtenerEncabezadoTraslado(atencion.id)
+  return formatoExistente
+    ? `/atenciones/${atencion.id}/clinico-traslado`
+    : `/atenciones/${atencion.id}/encabezado-traslado`
 }
  
 export function HomePage(): JSX.Element {
   const { perfil, roles, cerrarSesion } = useAuth()
   const [atencionesEnCurso, setAtencionesEnCurso] = useState<Atencion[]>([])
+  const [rutasContinuar, setRutasContinuar] = useState<Map<number, string | null>>(new Map())
  
   useEffect(() => {
     if (!puedeTenerAtencionesEnCurso(roles)) return
     listarAtencionesEnCurso()
-      .then(setAtencionesEnCurso)
+      .then(async (atenciones) => {
+        const rutas = await Promise.all(
+          atenciones.map(
+            async (atencion) => [atencion.id, await resolverRutaContinuar(atencion)] as const,
+          ),
+        )
+        // Se fijan las dos juntas -- así la tarjeta no aparece primero
+        // con "Sin pantalla todavía" y cambia de golpe a "Continuar".
+        setAtencionesEnCurso(atenciones)
+        setRutasContinuar(new Map(rutas))
+      })
       .catch(() => {
         // Si falla, Home sigue funcionando igual -- no es más grave
         // que no ver el aviso de "servicio en curso" esta vez.
@@ -114,7 +131,7 @@ export function HomePage(): JSX.Element {
         {atencionesEnCurso.length > 0 && (
           <ul className="mb-6 flex flex-col gap-3">
             {atencionesEnCurso.map((atencion) => {
-              const ruta = rutaParaContinuar(atencion)
+              const ruta = rutasContinuar.get(atencion.id) ?? null
               return (
                 <li
                   key={atencion.id}

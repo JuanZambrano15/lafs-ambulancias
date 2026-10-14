@@ -27,7 +27,12 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     // deberían tener que mockear esto explícitamente para no romper
     // con un `undefined.then(...)`.
     listarAtencionesEnCurso: vi.fn().mockResolvedValue([]),
-    obtenerEncabezadoTraslado: vi.fn(),
+    // Default a null ("sin encabezado guardado todavía") -- Home lo usa
+    // para decidir a dónde manda "Continuar" en el aviso de servicio en
+    // curso (issue #51); cada prueba que le importe el valor real lo
+    // sobreescribe (ver ClinicoTrasladoPage.test.tsx y
+    // EncabezadoTrasladoPage.test.tsx).
+    obtenerEncabezadoTraslado: vi.fn().mockResolvedValue(null),
     guardarEncabezadoTraslado: vi.fn(),
     guardarClinicoTraslado: vi.fn(),
     cerrarAtencion: vi.fn(),
