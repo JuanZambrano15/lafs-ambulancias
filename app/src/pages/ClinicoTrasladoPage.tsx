@@ -201,7 +201,7 @@ function alternarEnLista<T>(lista: T[], valor: T): T[] {
 function aNumeroONulo(valor: string): number | null {
   return valor === '' ? null : Number(valor)
 }
- 
+
 /** Issue #57 -- qué le falta a lo clínico para poder cerrar el
  * traslado, calculado en el cliente a partir del estado actual del
  * formulario (sin esperar la respuesta del servidor). Es un espejo
@@ -238,9 +238,6 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const { perfil, tieneRol } = useAuth()
   const tieneRolAuxiliar = tieneRol('auxiliar_enfermeria')
   const tieneRolMedico = tieneRol('medico')
-  // Si la misma persona tiene los dos roles a la vez, no puede firmar
-  // dos veces con la misma firma guardada -- ver FirmaField más abajo.
-  const tieneAmbosRoles = tieneRolAuxiliar && tieneRolMedico
   const firmaAtendidoRef = useRef<FirmaCanvasHandle>(null)
   const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
  
@@ -352,7 +349,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
     campos.glasgowOcular !== '' && campos.glasgowVerbal !== '' && campos.glasgowMotora !== ''
       ? Number(campos.glasgowOcular) + Number(campos.glasgowVerbal) + Number(campos.glasgowMotora)
       : null
- 
+
   // Issue #57 -- qué le falta al formulario para poder cerrar, visto
   // en el cliente antes de intentarlo (el servidor vuelve a validar
   // igual, esto es solo para no hacer a alguien llenar el PIN para
@@ -391,23 +388,13 @@ export function ClinicoTrasladoPage(): JSX.Element {
         // logueado ahora mismo; si no le corresponde, se reenvía la
         // que ya hubiera (mismo patrón de "reenvío completo" del
         // resto del formato — ver ADR-0006/0007).
-        //
-        // Issue #57 (comentario) -- si la misma persona tiene los dos
-        // roles, no puede "firmar" dos veces con la misma firma
-        // guardada como si fueran dos personas distintas: el auxiliar
-        // sigue autocompletándose con la firma guardada del perfil,
-        // pero la del médico se exige dibujada a mano en ese caso (ver
-        // FirmaField más abajo, que oculta la vista previa guardada
-        // cuando `tieneAmbosRoles`).
         firma_atendido_por: tieneRolAuxiliar
           ? perfil?.firma_guardada ?? firmaAtendidoRef.current?.exportar() ?? null
           : campos.firmaAtendidoExistente,
         nota_medica: campos.notaMedica || null,
         evolucionado_por: campos.evolucionadoPor || null,
         firma_evolucionado_por: tieneRolMedico
-          ? tieneAmbosRoles
-            ? firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente
-            : perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
+          ? perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
           : campos.firmaEvolucionadoExistente,
       }
       await guardarClinicoConRespaldo(id, datos)
@@ -794,17 +781,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
           {tieneRolMedico && (
             <FirmaField
               etiqueta="Firma de quien evolucionó"
-              // Issue #57 -- si la misma persona tiene también el rol
-              // de auxiliar, ya usó su firma guardada arriba como
-              // "quien atendió"; aquí se exige dibujarla a mano para
-              // que no quede la misma imagen duplicada en los dos
-              // campos como si hubieran firmado dos personas.
-              firmaGuardada={tieneAmbosRoles ? null : perfil?.firma_guardada ?? null}
-              pista={
-                tieneAmbosRoles
-                  ? 'Ya se usó tu firma guardada como auxiliar — firma aquí a mano como médico.'
-                  : undefined
-              }
+              firmaGuardada={perfil?.firma_guardada ?? null}
               imagenInicial={campos.firmaEvolucionadoExistente}
               canvasRef={firmaEvolucionadoRef}
             />
@@ -920,21 +897,15 @@ function FirmaField({
   firmaGuardada,
   imagenInicial,
   canvasRef,
-  pista,
 }: {
   etiqueta: string
   firmaGuardada: string | null
   imagenInicial: string | null
   canvasRef: RefObject<FirmaCanvasHandle | null>
-  /** Issue #57 -- aclaración opcional, p.ej. cuando se oculta la
-   * firma guardada a propósito porque la misma persona ya la usó
-   * para el otro rol. */
-  pista?: string
 }): JSX.Element {
   return (
     <div className="mb-4">
       <h3 className="mb-1 block text-sm font-medium text-slate-700">{etiqueta}</h3>
-      {pista && <p className="mb-1 text-xs text-slate-500">{pista}</p>}
       {firmaGuardada ? (
         <img
           src={firmaGuardada}

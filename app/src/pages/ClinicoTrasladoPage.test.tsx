@@ -261,33 +261,33 @@ describe('ClinicoTrasladoPage', () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
     vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
- 
+
     renderPagina()
- 
+
     await screen.findByLabelText('Diagnóstico')
     await usuario.selectOptions(screen.getByLabelText('Ocular (1-4)'), '3')
     await usuario.selectOptions(screen.getByLabelText('Verbal (1-5)'), '4')
     await usuario.selectOptions(screen.getByLabelText('Motora (1-6)'), '5')
- 
+
     await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
- 
+
     await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
     const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
     expect(datos.glasgow_ocular).toBe(3)
     expect(datos.glasgow_verbal).toBe(4)
     expect(datos.glasgow_motora).toBe(5)
   })
- 
+
   it('precarga la hora actual al agregar una medición (issue #52)', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
     vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
- 
+
     renderPagina()
- 
+
     await screen.findByLabelText('Diagnóstico')
     await usuario.click(screen.getByRole('button', { name: '+ Agregar medición' }))
- 
+
     // No se fija la hora exacta del reloj del sistema -- solo que
     // venga precargada con algo (no vacía) y en formato HH:MM, para no
     // perder la fila completa si a alguien se le olvida escribirla a
@@ -295,16 +295,16 @@ describe('ClinicoTrasladoPage', () => {
     // de guardado descartara toda la medición).
     const campoHora = screen.getByLabelText('Hora medición 1') as HTMLInputElement
     expect(campoHora.value).toMatch(/^\d{2}:\d{2}$/)
- 
+
     await usuario.type(screen.getByLabelText('TA medición 1'), '120/80')
     await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
- 
+
     await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
     const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
     expect(datos.signos_vitales).toHaveLength(1)
     expect(datos.signos_vitales[0].hora).toMatch(/^\d{2}:\d{2}$/)
   })
- 
+
   it('muestra un error si falla al guardar', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO)
@@ -426,52 +426,6 @@ describe('ClinicoTrasladoPage', () => {
       const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
       expect(datos.firma_atendido_por).toBe('data:image/png;base64,DEL-AUXILIAR')
     })
- 
-    it('issue #57: con ambos roles, la firma del médico no se duplica de la del auxiliar', async () => {
-      const usuario = userEvent.setup()
-      vi.mocked(api.obtenerPerfil).mockResolvedValue(
-        perfilCon(
-          [
-            { id: 1, nombre: 'auxiliar_enfermeria', descripcion: null },
-            { id: 2, nombre: 'medico', descripcion: null },
-          ],
-          'data:image/png;base64,GUARDADA',
-        ),
-      )
-      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
-      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
- 
-      renderPagina()
- 
-      // El auxiliar sigue viendo su firma guardada como vista previa
-      // automática...
-      expect(await screen.findByAltText('Firma de quien atendió')).toHaveAttribute(
-        'src',
-        'data:image/png;base64,GUARDADA',
-      )
-      // ...pero el médico no ve la misma imagen reusada: se le pide
-      // dibujarla a mano, con una pista de por qué.
-      expect(screen.queryByAltText('Firma de quien evolucionó')).not.toBeInTheDocument()
-      expect(
-        screen.getByText(/ya se usó tu firma guardada como auxiliar/i),
-      ).toBeInTheDocument()
- 
-      const canvas = await screen.findByLabelText('Recuadro para firmar')
-      canvas.dispatchEvent(
-        new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),
-      )
-      canvas.dispatchEvent(
-        new PointerEvent('pointermove', { clientX: 20, clientY: 20, bubbles: true }),
-      )
- 
-      await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
- 
-      await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
-      const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
-      expect(datos.firma_atendido_por).toBe('data:image/png;base64,GUARDADA')
-      expect(datos.firma_evolucionado_por).toBe(EXPORTADA)
-      expect(datos.firma_evolucionado_por).not.toBe(datos.firma_atendido_por)
-    })
   })
  
   describe('cerrar atención (issue #12)', () => {
@@ -560,16 +514,16 @@ describe('ClinicoTrasladoPage', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent('PIN incorrecto')
     })
   })
- 
+
   describe('aviso de campos faltantes antes de cerrar (issue #57)', () => {
     it('deshabilita "Cerrar atención" y lista lo que falta si el formato está vacío', async () => {
       vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
       vi.mocked(api.obtenerPerfil).mockResolvedValue(
         perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
       )
- 
+
       renderPagina()
- 
+
       const boton = await screen.findByRole('button', { name: 'Cerrar atención' })
       expect(boton).toBeDisabled()
       const aviso = screen.getByRole('alert')
@@ -578,20 +532,20 @@ describe('ClinicoTrasladoPage', () => {
       expect(aviso).toHaveTextContent('diagnóstico')
       expect(aviso).toHaveTextContent('nota de enfermería')
     })
- 
+
     it('no deshabilita "Cerrar atención" si todo lo clínico está completo', async () => {
       vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO)
       vi.mocked(api.obtenerPerfil).mockResolvedValue(
         perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
       )
- 
+
       renderPagina()
- 
+
       const boton = await screen.findByRole('button', { name: 'Cerrar atención' })
       expect(boton).not.toBeDisabled()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
- 
+
     it('en un traslado medicalizado exige nota médica para cerrar', async () => {
       vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue({
         ...FORMATO,
@@ -601,14 +555,14 @@ describe('ClinicoTrasladoPage', () => {
       vi.mocked(api.obtenerPerfil).mockResolvedValue(
         perfilCon([{ id: 1, nombre: 'medico', descripcion: null }]),
       )
- 
+
       renderPagina()
- 
+
       const boton = await screen.findByRole('button', { name: 'Cerrar atención' })
       expect(boton).toBeDisabled()
       expect(screen.getByRole('alert')).toHaveTextContent('nota médica')
     })
- 
+
     it('en un traslado básico no exige nota médica para cerrar', async () => {
       vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue({
         ...FORMATO,
@@ -618,9 +572,9 @@ describe('ClinicoTrasladoPage', () => {
       vi.mocked(api.obtenerPerfil).mockResolvedValue(
         perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
       )
- 
+
       renderPagina()
- 
+
       const boton = await screen.findByRole('button', { name: 'Cerrar atención' })
       expect(boton).not.toBeDisabled()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
