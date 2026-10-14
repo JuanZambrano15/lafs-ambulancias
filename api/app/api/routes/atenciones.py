@@ -126,6 +126,46 @@ def listar_conductores_disponibles(db: DbSession) -> list[Empleado]:
     return list(query.order_by(Empleado.apellidos, Empleado.nombres).all())
  
  
+@router.get(
+    "/en-curso",
+    response_model=list[AtencionOut],
+    dependencies=[Depends(require_personal_clinico)],
+)
+def listar_atenciones_en_curso(usuario: CurrentUser, db: DbSession) -> list[Atencion]:
+    """Atenciones abiertas donde el usuario logueado es el responsable
+    (issue #51).
+ 
+    Sin esto, salir de la pantalla del formato clínico sin cerrar la
+    atención (se va la señal, se cierra el navegador, se le olvida)
+    la deja sin ninguna forma de retomarla desde la navegación normal
+    — ni de liberar la ambulancia/conductor que quedaron "ocupados"
+    (ver `_ambulancias_con_atencion_abierta` arriba). Home usa este
+    endpoint para ofrecer "continuar" en vez de obligar a escribir la
+    URL de la atención a mano.
+    """
+    if usuario.empleado_id is None:
+        return []
+    atenciones = (
+        db.execute(
+            select(Atencion)
+            .options(
+                joinedload(Atencion.ambulancia),
+                joinedload(Atencion.conductor),
+                joinedload(Atencion.responsable),
+            )
+            .where(
+                Atencion.estado == EstadoAtencion.abierto,
+                Atencion.responsable_id == usuario.empleado_id,
+            )
+            .order_by(Atencion.abierta_en)
+        )
+        .unique()
+        .scalars()
+        .all()
+    )
+    return list(atenciones)
+ 
+ 
 def _atencion_por_client_id(client_id: str, db: DbSession) -> Atencion | None:
     return db.execute(
         select(Atencion).where(Atencion.client_id == client_id)
