@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -196,9 +196,9 @@ describe('ClinicoTrasladoPage', () => {
     await usuario.type(await screen.findByLabelText('Diagnóstico'), 'TCE leve')
     await usuario.click(screen.getByLabelText('Oxígeno'))
     await usuario.selectOptions(screen.getByLabelText('Derecha'), 'isocorica')
-    await usuario.type(screen.getByLabelText('Ocular (1-4)'), '4')
-    await usuario.type(screen.getByLabelText('Verbal (1-5)'), '5')
-    await usuario.type(screen.getByLabelText('Motora (1-6)'), '6')
+    await usuario.selectOptions(screen.getByLabelText('Ocular (1-4)'), '4')
+    await usuario.selectOptions(screen.getByLabelText('Verbal (1-5)'), '5')
+    await usuario.selectOptions(screen.getByLabelText('Motora (1-6)'), '6')
  
     await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
  
@@ -238,16 +238,56 @@ describe('ClinicoTrasladoPage', () => {
     expect(datos.signos_vitales).toEqual([{ hora: '08:05', ta: '120/80', fc: 88, fr: null, spo2: null }])
   })
  
+  it('la escala de Glasgow solo ofrece los valores válidos de cada componente (issue #53)', async () => {
+    renderPagina()
+ 
+    await screen.findByLabelText('Diagnóstico')
+ 
+    // El backend valida ocular 1-4, verbal 1-5 y motora 1-6 -- cada
+    // <select> debe tener exactamente esas opciones (más "Sin
+    // registrar"), no un rango libre.
+    const opcionesDe = (etiqueta: string): string[] =>
+      within(screen.getByLabelText(etiqueta))
+        .getAllByRole('option')
+        .map((opcion) => opcion.textContent)
+        .filter((texto): texto is string => texto !== null && texto !== 'Sin registrar')
+ 
+    expect(opcionesDe('Ocular (1-4)')).toHaveLength(4)
+    expect(opcionesDe('Verbal (1-5)')).toHaveLength(5)
+    expect(opcionesDe('Motora (1-6)')).toHaveLength(6)
+  })
+ 
+  it('guarda el valor elegido de Glasgow como número', async () => {
+    const usuario = userEvent.setup()
+    vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+    vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+
+    renderPagina()
+
+    await screen.findByLabelText('Diagnóstico')
+    await usuario.selectOptions(screen.getByLabelText('Ocular (1-4)'), '3')
+    await usuario.selectOptions(screen.getByLabelText('Verbal (1-5)'), '4')
+    await usuario.selectOptions(screen.getByLabelText('Motora (1-6)'), '5')
+
+    await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
+    const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+    expect(datos.glasgow_ocular).toBe(3)
+    expect(datos.glasgow_verbal).toBe(4)
+    expect(datos.glasgow_motora).toBe(5)
+  })
+
   it('precarga la hora actual al agregar una medición (issue #52)', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
     vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
- 
+
     renderPagina()
- 
+
     await screen.findByLabelText('Diagnóstico')
     await usuario.click(screen.getByRole('button', { name: '+ Agregar medición' }))
- 
+
     // No se fija la hora exacta del reloj del sistema -- solo que
     // venga precargada con algo (no vacía) y en formato HH:MM, para no
     // perder la fila completa si a alguien se le olvida escribirla a
@@ -255,16 +295,16 @@ describe('ClinicoTrasladoPage', () => {
     // de guardado descartara toda la medición).
     const campoHora = screen.getByLabelText('Hora medición 1') as HTMLInputElement
     expect(campoHora.value).toMatch(/^\d{2}:\d{2}$/)
- 
+
     await usuario.type(screen.getByLabelText('TA medición 1'), '120/80')
     await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
- 
+
     await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
     const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
     expect(datos.signos_vitales).toHaveLength(1)
     expect(datos.signos_vitales[0].hora).toMatch(/^\d{2}:\d{2}$/)
   })
- 
+
   it('muestra un error si falla al guardar', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO)
