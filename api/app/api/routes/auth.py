@@ -89,6 +89,9 @@ def obtener_perfil(usuario: CurrentUser, db: DbSession) -> MeResponse:
         roles=[RolOut.model_validate(asignacion.rol) for asignacion in usuario.roles],
         empleado_tipo_vinculacion=empleado.tipo_vinculacion if empleado is not None else None,
         firma_guardada=empleado.firma_guardada if empleado is not None else None,
+        empleado_nombre_completo=(
+            f"{empleado.nombres} {empleado.apellidos}" if empleado is not None else None
+        ),
     )
  
  

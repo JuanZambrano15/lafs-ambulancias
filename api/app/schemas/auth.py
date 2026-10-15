@@ -76,3 +76,8 @@ class MeResponse(BaseModel):
     # que pedirla con otra llamada aparte.
     empleado_tipo_vinculacion: TipoVinculacion | None
     firma_guardada: str | None
+    # Issue #57 (comentario) -- el frontend lo usa para autocompletar
+    # "atendido por"/"evolucionó por" con el nombre de quien está
+    # logueado, igual que ya hace con la firma -- sin esto, cada quien
+    # tenía que escribir su propio nombre a mano cada vez.
+    empleado_nombre_completo: str | None
