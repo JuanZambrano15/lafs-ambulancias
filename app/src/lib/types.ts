@@ -35,6 +35,12 @@ export interface MeResponse {
   /** Data URL en base64 de la firma reutilizable, o `null` si todavía
    * no la configuró (o si es personal ocasional, que nunca la guarda). */
   firma_guardada: string | null
+  /** `null` si no hay empleado vinculado -- igual que
+   * `empleado_tipo_vinculacion`. Issue #57 (comentario): se usa para
+   * autocompletar "atendido por"/"evolucionó por" con el nombre de
+   * quien está logueado, el mismo patrón que ya existe para la
+   * firma. */
+  empleado_nombre_completo: string | null
 }
  
 /** Nombres de rol tal como los siembra la migración del backend. */

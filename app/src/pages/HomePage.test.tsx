@@ -23,6 +23,7 @@ function perfilCon(
     roles,
     empleado_tipo_vinculacion: tipoVinculacion,
     firma_guardada: null,
+    empleado_nombre_completo: null,
   }
 }
  

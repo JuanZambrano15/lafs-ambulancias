@@ -19,6 +19,7 @@ const perfilAdmin: MeResponse = {
   roles: [{ id: 1, nombre: 'administrador', descripcion: null }],
   empleado_tipo_vinculacion: null,
   firma_guardada: null,
+  empleado_nombre_completo: null,
 }
  
 const tokens: TokenResponse = {
