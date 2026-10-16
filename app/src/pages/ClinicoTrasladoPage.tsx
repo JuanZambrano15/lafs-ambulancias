@@ -314,6 +314,14 @@ export function ClinicoTrasladoPage(): JSX.Element {
   // cambia" (ver "You Might Not Need An Effect").
   const [nombrePerfilAplicado, setNombrePerfilAplicado] = useState(false)
   const nombrePerfil = perfil?.empleado_nombre_completo ?? null
+  console.log('DEBUG autocompletar', {
+  nombrePerfilAplicado,
+  cargando,
+  nombrePerfil,
+  tieneRolAuxiliar,
+  tieneRolMedico,
+  atendidoPorActual: campos.atendidoPor,
+})
   if (!nombrePerfilAplicado && !cargando && nombrePerfil) {
     setNombrePerfilAplicado(true)
     setCampos((anterior) => ({
