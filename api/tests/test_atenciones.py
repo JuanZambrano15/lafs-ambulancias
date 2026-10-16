@@ -449,6 +449,62 @@ def test_listar_conductores_disponibles_excluye_sin_rol_e_inactivos(
     assert cedulas == [disponible.cedula]
  
  
+def _dar_rol_conductor_al_usuario(db: Session, documento: str) -> None:
+    """Agrega el rol "conductor" a un usuario que ya tiene otro rol —
+    simula el caso de roles mixtos (issue #62): alguien que es
+    auxiliar/médico y también conductor, pero no puede desempeñar los
+    dos papeles en la misma atención.
+    """
+    usuario = db.query(Usuario).filter(Usuario.documento == documento).one()
+    rol = db.query(Rol).filter(Rol.nombre == "conductor").first()
+    if rol is None:
+        rol = Rol(nombre="conductor", descripcion="Rol de prueba")
+        db.add(rol)
+        db.flush()
+    db.add(UsuarioRol(usuario_id=usuario.id, rol_id=rol.id))
+    db.commit()
+ 
+ 
+def test_listar_conductores_disponibles_excluye_al_usuario_logueado(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    """Issue #62: aunque el auxiliar logueado también tenga el rol de
+    conductor (roles mixtos), la lista no se ofrece a sí mismo — él es
+    el responsable de la atención que está por crear, no su propio
+    conductor.
+    """
+    _dar_rol_conductor_al_usuario(db, "700000001")
+    otro_conductor = _crear_conductor(db, cedula="800000001")
+ 
+    response = client.get(
+        "/atenciones/conductores-disponibles", headers=auxiliar_headers
+    )
+ 
+    assert response.status_code == 200
+    cedulas = [c["cedula"] for c in response.json()]
+    assert cedulas == [otro_conductor.cedula]
+ 
+ 
+def test_crear_atencion_no_permite_elegirse_a_si_mismo_como_conductor(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    """Issue #62: aunque el auxiliar logueado (el responsable) tenga
+    también el rol de conductor, no puede quedar como conductor de su
+    propia atención.
+    """
+    _dar_rol_conductor_al_usuario(db, "700000001")
+    ambulancia = _crear_ambulancia(db)
+    # El `empleado_id` del auxiliar logueado es 1 (es el primer y único
+    # empleado creado por el fixture `auxiliar_headers`).
+    response = client.post(
+        "/atenciones",
+        json={"tipo": "traslado", "ambulancia_id": ambulancia.id, "conductor_id": 1},
+        headers=auxiliar_headers,
+    )
+ 
+    assert response.status_code == 409
+ 
+ 
 def _crear_atencion_abierta(
     client: TestClient,
     db: Session,
@@ -723,8 +779,8 @@ class TestCerrarAtencion:
         )
  
         assert response.status_code == 409
-
-
+ 
+ 
 ENCABEZADO_PARA_CIERRE = {
     "paciente_tipo_documento": "cc",
     "paciente_numero_documento": "123456789",
@@ -754,7 +810,7 @@ ENCABEZADO_PARA_CIERRE = {
     "nivel_servicio": "medicalizado",
     "modalidad": "sencillo",
 }
-
+ 
 CLINICO_COMPLETO_PARA_CIERRE = {
     "diagnostico": "Trauma craneoencefálico leve por caída de altura",
     "signos_vitales": [{"hora": "08:05", "ta": "120/80", "fc": 88, "fr": 18, "spo2": 97}],
@@ -765,8 +821,8 @@ CLINICO_COMPLETO_PARA_CIERRE = {
     "nota_medica": "Se recomienda TAC de cráneo al ingreso.",
     "atendido_por": "Ana Ruiz",
 }
-
-
+ 
+ 
 def _guardar_encabezado_para_cierre(
     client: TestClient,
     atencion_id: int,
@@ -779,8 +835,8 @@ def _guardar_encabezado_para_cierre(
         headers=headers,
     )
     assert response.status_code == 200
-
-
+ 
+ 
 def _guardar_clinico_para_cierre(
     client: TestClient, atencion_id: int, headers: dict[str, str], **overrides: object
 ) -> None:
@@ -790,8 +846,8 @@ def _guardar_clinico_para_cierre(
         headers=headers,
     )
     assert response.status_code == 200
-
-
+ 
+ 
 class TestCerrarAtencionValidaCamposClinicos:
     """Issue #57: con encabezado guardado, el cierre de un traslado
     exige que lo clínico esté completo (nota médica obligatoria solo
@@ -799,7 +855,7 @@ class TestCerrarAtencionValidaCamposClinicos:
     haya guardado un encabezado sigue sin restricciones -- eso ya lo
     cubre `TestCerrarAtencion` con `_crear_atencion_abierta`, que nunca
     guarda formato."""
-
+ 
     def test_cierra_sin_problema_si_todo_esta_completo(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:
@@ -807,15 +863,15 @@ class TestCerrarAtencionValidaCamposClinicos:
         _guardar_encabezado_para_cierre(client, atencion_id, auxiliar_headers)
         _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers)
         client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
-
+ 
         response = client.put(
             f"/atenciones/{atencion_id}/cerrar",
             json={"pin": "1234"},
             headers=auxiliar_headers,
         )
-
+ 
         assert response.status_code == 200
-
+ 
     def test_no_cierra_sin_signos_vitales(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:
@@ -823,16 +879,16 @@ class TestCerrarAtencionValidaCamposClinicos:
         _guardar_encabezado_para_cierre(client, atencion_id, auxiliar_headers)
         _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, signos_vitales=[])
         client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
-
+ 
         response = client.put(
             f"/atenciones/{atencion_id}/cerrar",
             json={"pin": "1234"},
             headers=auxiliar_headers,
         )
-
+ 
         assert response.status_code == 409
         assert "signos vitales" in response.json()["detail"]
-
+ 
     def test_no_cierra_con_glasgow_incompleto(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:
@@ -840,16 +896,16 @@ class TestCerrarAtencionValidaCamposClinicos:
         _guardar_encabezado_para_cierre(client, atencion_id, auxiliar_headers)
         _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, glasgow_motora=None)
         client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
-
+ 
         response = client.put(
             f"/atenciones/{atencion_id}/cerrar",
             json={"pin": "1234"},
             headers=auxiliar_headers,
         )
-
+ 
         assert response.status_code == 409
         assert "Glasgow" in response.json()["detail"]
-
+ 
     def test_no_cierra_sin_glasgow_en_absoluto(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:
@@ -864,16 +920,16 @@ class TestCerrarAtencionValidaCamposClinicos:
             glasgow_motora=None,
         )
         client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
-
+ 
         response = client.put(
             f"/atenciones/{atencion_id}/cerrar",
             json={"pin": "1234"},
             headers=auxiliar_headers,
         )
-
+ 
         assert response.status_code == 409
         assert "Glasgow" in response.json()["detail"]
-
+ 
     def test_no_cierra_sin_diagnostico(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:
@@ -881,16 +937,16 @@ class TestCerrarAtencionValidaCamposClinicos:
         _guardar_encabezado_para_cierre(client, atencion_id, auxiliar_headers)
         _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, diagnostico=None)
         client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
-
+ 
         response = client.put(
             f"/atenciones/{atencion_id}/cerrar",
             json={"pin": "1234"},
             headers=auxiliar_headers,
         )
-
+ 
         assert response.status_code == 409
         assert "diagnóstico" in response.json()["detail"]
-
+ 
     def test_no_cierra_sin_nota_de_enfermeria(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:
@@ -898,16 +954,16 @@ class TestCerrarAtencionValidaCamposClinicos:
         _guardar_encabezado_para_cierre(client, atencion_id, auxiliar_headers)
         _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, nota_auxiliar=None)
         client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
-
+ 
         response = client.put(
             f"/atenciones/{atencion_id}/cerrar",
             json={"pin": "1234"},
             headers=auxiliar_headers,
         )
-
+ 
         assert response.status_code == 409
         assert "nota de enfermería" in response.json()["detail"]
-
+ 
     def test_medicalizado_no_cierra_sin_nota_medica(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:
@@ -917,16 +973,16 @@ class TestCerrarAtencionValidaCamposClinicos:
         )
         _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, nota_medica=None)
         client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
-
+ 
         response = client.put(
             f"/atenciones/{atencion_id}/cerrar",
             json={"pin": "1234"},
             headers=auxiliar_headers,
         )
-
+ 
         assert response.status_code == 409
         assert "nota médica" in response.json()["detail"]
-
+ 
     def test_basico_si_cierra_sin_nota_medica(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:
@@ -938,15 +994,15 @@ class TestCerrarAtencionValidaCamposClinicos:
         )
         _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, nota_medica=None)
         client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
-
+ 
         response = client.put(
             f"/atenciones/{atencion_id}/cerrar",
             json={"pin": "1234"},
             headers=auxiliar_headers,
         )
-
+ 
         assert response.status_code == 200
-
+ 
     def test_cierra_sin_restricciones_si_nunca_hubo_encabezado(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:
@@ -954,11 +1010,11 @@ class TestCerrarAtencionValidaCamposClinicos:
         cerrar sin haber guardado nada sigue permitido."""
         atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
         client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
-
+ 
         response = client.put(
             f"/atenciones/{atencion_id}/cerrar",
             json={"pin": "1234"},
             headers=auxiliar_headers,
         )
-
+ 
         assert response.status_code == 200

@@ -105,9 +105,16 @@ def listar_ambulancias_disponibles(db: DbSession) -> list[Ambulancia]:
     response_model=list[EmpleadoOut],
     dependencies=[Depends(require_personal_operativo)],
 )
-def listar_conductores_disponibles(db: DbSession) -> list[Empleado]:
+def listar_conductores_disponibles(usuario: CurrentUser, db: DbSession) -> list[Empleado]:
     """Empleados activos cuyo usuario tiene el rol "conductor", y que
     no están ya manejando otra atención abierta.
+ 
+    Issue #62: tampoco se ofrece a quien está logueado, aunque tenga
+    el rol de conductor además del suyo (roles mixtos) — quien inicia
+    la atención es el responsable, y el responsable no puede ser
+    también el conductor de su propia atención. Ver la validación
+    equivalente en `crear_atencion`, que es la que de verdad lo
+    impide; este filtro es solo para que la lista no lo ofrezca.
     """
     ocupados = _conductores_con_atencion_abierta(db)
     query = (
@@ -123,6 +130,8 @@ def listar_conductores_disponibles(db: DbSession) -> list[Empleado]:
     )
     if ocupados:
         query = query.filter(Empleado.id.notin_(ocupados))
+    if usuario.empleado_id is not None:
+        query = query.filter(Empleado.id != usuario.empleado_id)
     return list(query.order_by(Empleado.apellidos, Empleado.nombres).all())
  
  
@@ -222,6 +231,18 @@ def crear_atencion(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Ese conductor ya tiene una atención abierta",
+        )
+    # Issue #62: quien inicia la atención (el responsable) no puede
+    # ser también su propio conductor, aunque tenga ambos roles — los
+    # roles mixtos existen (ver ADR-0005), pero en una misma atención
+    # cada uno desempeña un solo papel. El filtro de
+    # `listar_conductores_disponibles` ya lo oculta de la lista; esta
+    # es la validación real, por si el cliente manda el id de todos
+    # modos.
+    if conductor.id == responsable.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No puedes ser el conductor de tu propia atención",
         )
  
     atencion = Atencion(
@@ -503,7 +524,7 @@ def _campos_faltantes_para_cerrar(formato: FormatoTraslado) -> list[str]:
     nivel de servicio es `medicalizado` (siempre va un médico); en
     `basico` sigue siendo opcional, igual que antes -- el campo no se
     oculta, solo no se exige.
-
+ 
     No se llama si la atención nunca llegó a tener encabezado (ver el
     único `if formato is not None` en `cerrar_atencion`) -- cerrar sin
     haber empezado a llenar nada sigue permitido, para un servicio que
@@ -525,8 +546,8 @@ def _campos_faltantes_para_cerrar(formato: FormatoTraslado) -> list[str]:
     if formato.nivel_servicio == NivelServicioTraslado.medicalizado and not formato.nota_medica:
         faltantes.append("nota médica (obligatoria en traslado medicalizado)")
     return faltantes
-
-
+ 
+ 
 @router.put(
     "/{atencion_id}/cerrar",
     response_model=AtencionOut,
@@ -553,7 +574,7 @@ def cerrar_atencion(
     datos, así el dispositivo haya "pre-validado" con un hash local
     más liviano (ver ADR-0010) — ese hash local es solo para dar
     feedback rápido sin conexión, nunca la autorización real.
-
+ 
     Issue #57 — un traslado con encabezado guardado no se puede cerrar
     si le faltan campos clínicos obligatorios (ver
     `_campos_faltantes_para_cerrar`). Un traslado que nunca llegó a
