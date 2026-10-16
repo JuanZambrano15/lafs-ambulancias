@@ -41,6 +41,7 @@ import {
 import type {
   FormatoTrasladoClinico,
   LesionTipo,
+  NivelServicioTraslado,
   ReflejoPupilar,
   TratamientoAplicado,
 } from '../lib/types'
@@ -201,6 +202,35 @@ function aNumeroONulo(valor: string): number | null {
   return valor === '' ? null : Number(valor)
 }
  
+/** Issue #57 -- qué le falta a lo clínico para poder cerrar el
+ * traslado, calculado en el cliente a partir del estado actual del
+ * formulario (sin esperar la respuesta del servidor). Es un espejo
+ * de `_campos_faltantes_para_cerrar` en el backend -- la nota médica
+ * solo es obligatoria si el nivel de servicio del encabezado es
+ * "medicalizado". */
+function camposFaltantesParaCerrar(
+  campos: EstadoClinico,
+  nivelServicio: NivelServicioTraslado | null,
+): string[] {
+  const faltantes: string[] = []
+  if (campos.signosVitales.filter((signo) => signo.hora.trim() !== '').length === 0) {
+    faltantes.push('signos vitales')
+  }
+  if (campos.glasgowOcular === '' || campos.glasgowVerbal === '' || campos.glasgowMotora === '') {
+    faltantes.push('escala de Glasgow')
+  }
+  if (campos.diagnostico.trim() === '') {
+    faltantes.push('diagnóstico')
+  }
+  if (campos.notaAuxiliar.trim() === '') {
+    faltantes.push('nota de enfermería')
+  }
+  if (nivelServicio === 'medicalizado' && campos.notaMedica.trim() === '') {
+    faltantes.push('nota médica (obligatoria en traslado medicalizado)')
+  }
+  return faltantes
+}
+ 
 export function ClinicoTrasladoPage(): JSX.Element {
   const navigate = useNavigate()
   const { atencionId } = useParams<{ atencionId: string }>()
@@ -208,10 +238,17 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const { perfil, tieneRol } = useAuth()
   const tieneRolAuxiliar = tieneRol('auxiliar_enfermeria')
   const tieneRolMedico = tieneRol('medico')
+  // Si la misma persona tiene los dos roles a la vez, no puede firmar
+  // dos veces con la misma firma guardada -- ver FirmaField más abajo.
+  const tieneAmbosRoles = tieneRolAuxiliar && tieneRolMedico
   const firmaAtendidoRef = useRef<FirmaCanvasHandle>(null)
   const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
  
   const [campos, setCampos] = useState<EstadoClinico>(ESTADO_VACIO)
+  // Nivel de servicio del encabezado (issue #57) -- decide si la nota
+  // médica es obligatoria para poder cerrar. `null` mientras carga o
+  // si todavía no existe encabezado.
+  const [nivelServicio, setNivelServicio] = useState<NivelServicioTraslado | null>(null)
   const [cargando, setCargando] = useState(true)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -223,9 +260,29 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const [errorCierre, setErrorCierre] = useState<string | null>(null)
  
   useEffect(() => {
+    // Issue #57 (comentario) -- "atendido por"/"evolucionó por" se
+    // autocompletan con el nombre de quien está logueado, el mismo
+    // patrón que ya existía para la firma. Va aquí mismo, en el único
+    // setCampos() que ya carga lo existente, en vez de un efecto o un
+    // ajuste de estado aparte: con dos setCampos separados para el
+    // mismo montaje, el de StrictMode (que en desarrollo invoca el
+    // render dos veces) puede terminar aplicando uno de los dos solo
+    // en la pasada que React descarta -- el estado se ve bien en los
+    // logs, pero no llega al DOM. Un único cálculo sin estado
+    // intermedio no tiene ese problema.
+    const nombrePerfil = perfil?.empleado_nombre_completo ?? null
     obtenerFormatoConRespaldo(id)
       .then((existente) => {
-        if (existente === null) return
+        if (existente === null) {
+          if (nombrePerfil) {
+            setCampos((anterior) => ({
+              ...anterior,
+              atendidoPor: tieneRolAuxiliar ? nombrePerfil : anterior.atendidoPor,
+              evolucionadoPor: tieneRolMedico ? nombrePerfil : anterior.evolucionadoPor,
+            }))
+          }
+          return
+        }
         setCampos({
           diagnostico: existente.diagnostico ?? '',
           tratamiento: existente.tratamiento,
@@ -246,18 +303,24 @@ export function ClinicoTrasladoPage(): JSX.Element {
           glasgowMotora: existente.glasgow_motora === null ? '' : String(existente.glasgow_motora),
           insumos: existente.insumos_entregados,
           notaAuxiliar: existente.nota_auxiliar ?? '',
-          atendidoPor: existente.atendido_por ?? '',
+          // Nunca reemplaza un nombre que ya hubiera quedado guardado
+          // -- propio o de otra persona en un turno anterior -- solo
+          // precarga cuando el backend no tiene nada todavía.
+          atendidoPor:
+            existente.atendido_por ?? (tieneRolAuxiliar && nombrePerfil ? nombrePerfil : ''),
           firmaAtendidoExistente: existente.firma_atendido_por,
           notaMedica: existente.nota_medica ?? '',
-          evolucionadoPor: existente.evolucionado_por ?? '',
+          evolucionadoPor:
+            existente.evolucionado_por ?? (tieneRolMedico && nombrePerfil ? nombrePerfil : ''),
           firmaEvolucionadoExistente: existente.firma_evolucionado_por,
         })
+        setNivelServicio(existente.nivel_servicio)
       })
       .catch((err: unknown) => {
         setErrorCarga(err instanceof ApiError ? err.message : 'No se pudo cargar lo clínico')
       })
       .finally(() => setCargando(false))
-  }, [id])
+  }, [id, perfil?.empleado_nombre_completo, tieneRolAuxiliar, tieneRolMedico])
  
   function agregarSignoVital(): void {
     setCampos((anterior) => ({
@@ -315,6 +378,12 @@ export function ClinicoTrasladoPage(): JSX.Element {
       ? Number(campos.glasgowOcular) + Number(campos.glasgowVerbal) + Number(campos.glasgowMotora)
       : null
  
+  // Issue #57 -- qué le falta al formulario para poder cerrar, visto
+  // en el cliente antes de intentarlo (el servidor vuelve a validar
+  // igual, esto es solo para no hacer a alguien llenar el PIN para
+  // enterarse recién ahí de que falta algo).
+  const faltantesParaCerrar = camposFaltantesParaCerrar(campos, nivelServicio)
+ 
   async function manejarEnvio(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setError(null)
@@ -347,13 +416,23 @@ export function ClinicoTrasladoPage(): JSX.Element {
         // logueado ahora mismo; si no le corresponde, se reenvía la
         // que ya hubiera (mismo patrón de "reenvío completo" del
         // resto del formato — ver ADR-0006/0007).
+        //
+        // Issue #57 (comentario) -- si la misma persona tiene los dos
+        // roles, no puede "firmar" dos veces con la misma firma
+        // guardada como si fueran dos personas distintas: el auxiliar
+        // sigue autocompletándose con la firma guardada del perfil,
+        // pero la del médico se exige dibujada a mano en ese caso (ver
+        // FirmaField más abajo, que oculta la vista previa guardada
+        // cuando `tieneAmbosRoles`).
         firma_atendido_por: tieneRolAuxiliar
           ? perfil?.firma_guardada ?? firmaAtendidoRef.current?.exportar() ?? null
           : campos.firmaAtendidoExistente,
         nota_medica: campos.notaMedica || null,
         evolucionado_por: campos.evolucionadoPor || null,
         firma_evolucionado_por: tieneRolMedico
-          ? perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
+          ? tieneAmbosRoles
+            ? firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente
+            : perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
           : campos.firmaEvolucionadoExistente,
       }
       await guardarClinicoConRespaldo(id, datos)
@@ -740,7 +819,17 @@ export function ClinicoTrasladoPage(): JSX.Element {
           {tieneRolMedico && (
             <FirmaField
               etiqueta="Firma de quien evolucionó"
-              firmaGuardada={perfil?.firma_guardada ?? null}
+              // Issue #57 -- si la misma persona tiene también el rol
+              // de auxiliar, ya usó su firma guardada arriba como
+              // "quien atendió"; aquí se exige dibujarla a mano para
+              // que no quede la misma imagen duplicada en los dos
+              // campos como si hubieran firmado dos personas.
+              firmaGuardada={tieneAmbosRoles ? null : perfil?.firma_guardada ?? null}
+              pista={
+                tieneAmbosRoles
+                  ? 'Ya se usó tu firma guardada como auxiliar — firma aquí a mano como médico.'
+                  : undefined
+              }
               imagenInicial={campos.firmaEvolucionadoExistente}
               canvasRef={firmaEvolucionadoRef}
             />
@@ -763,11 +852,25 @@ export function ClinicoTrasladoPage(): JSX.Element {
  
         {(tieneRolAuxiliar || tieneRolMedico) && (
           <div className="mt-4 rounded-xl bg-white p-6 shadow-sm">
+            {faltantesParaCerrar.length > 0 && (
+              <div
+                role="alert"
+                className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800"
+              >
+                <p className="font-medium">Falta diligenciar antes de poder cerrar:</p>
+                <ul className="mt-1 list-inside list-disc">
+                  {faltantesParaCerrar.map((campo) => (
+                    <li key={campo}>{campo}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {!mostrarCierre ? (
               <button
                 type="button"
                 onClick={() => setMostrarCierre(true)}
-                className="w-full rounded-lg border border-red-300 py-3 text-base font-medium text-red-600"
+                disabled={faltantesParaCerrar.length > 0}
+                className="w-full rounded-lg border border-red-300 py-3 text-base font-medium text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cerrar atención
               </button>
@@ -814,7 +917,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
                   </button>
                   <button
                     type="submit"
-                    disabled={cerrando}
+                    disabled={cerrando || faltantesParaCerrar.length > 0}
                     className="flex-1 rounded-lg bg-red-600 py-3 text-base font-medium text-white disabled:opacity-60"
                   >
                     {cerrando ? 'Cerrando…' : 'Confirmar cierre'}
@@ -842,15 +945,21 @@ function FirmaField({
   firmaGuardada,
   imagenInicial,
   canvasRef,
+  pista,
 }: {
   etiqueta: string
   firmaGuardada: string | null
   imagenInicial: string | null
   canvasRef: RefObject<FirmaCanvasHandle | null>
+  /** Issue #57 -- aclaración opcional, p.ej. cuando se oculta la
+   * firma guardada a propósito porque la misma persona ya la usó
+   * para el otro rol. */
+  pista?: string
 }): JSX.Element {
   return (
     <div className="mb-4">
       <h3 className="mb-1 block text-sm font-medium text-slate-700">{etiqueta}</h3>
+      {pista && <p className="mb-1 text-xs text-slate-500">{pista}</p>}
       {firmaGuardada ? (
         <img
           src={firmaGuardada}

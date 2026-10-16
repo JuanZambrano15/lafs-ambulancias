@@ -723,3 +723,242 @@ class TestCerrarAtencion:
         )
  
         assert response.status_code == 409
+
+
+ENCABEZADO_PARA_CIERRE = {
+    "paciente_tipo_documento": "cc",
+    "paciente_numero_documento": "123456789",
+    "paciente_eps": "Nueva EPS",
+    "paciente_nombres": "Pepito",
+    "paciente_apellidos": "Pérez",
+    "paciente_edad": 45,
+    "paciente_sexo": "m",
+    "paciente_direccion_residencial": "Calle 1",
+    "paciente_ciudad": "Cúcuta",
+    "paciente_telefono": None,
+    "acompanante_nombres_apellidos": None,
+    "acompanante_parentesco": None,
+    "acompanante_telefono": None,
+    "recepcion_fecha": "2027-01-01",
+    "recepcion_hora": "08:00:00",
+    "recepcion_ciudad": "Cúcuta",
+    "recepcion_ips": "Clínica Norte",
+    "recepcion_servicio": "Urgencias",
+    "entrega_fecha": "2027-01-01",
+    "entrega_hora": "09:00:00",
+    "entrega_ciudad": "Cúcuta",
+    "entrega_ips": "Hospital",
+    "entrega_servicio": "UCI",
+    "complejidad": "alta",
+    "categoria_paciente": "adulto",
+    "nivel_servicio": "medicalizado",
+    "modalidad": "sencillo",
+}
+
+CLINICO_COMPLETO_PARA_CIERRE = {
+    "diagnostico": "Trauma craneoencefálico leve por caída de altura",
+    "signos_vitales": [{"hora": "08:05", "ta": "120/80", "fc": 88, "fr": 18, "spo2": 97}],
+    "glasgow_ocular": 4,
+    "glasgow_verbal": 5,
+    "glasgow_motora": 6,
+    "nota_auxiliar": "Paciente estable durante el traslado.",
+    "nota_medica": "Se recomienda TAC de cráneo al ingreso.",
+    "atendido_por": "Ana Ruiz",
+}
+
+
+def _guardar_encabezado_para_cierre(
+    client: TestClient,
+    atencion_id: int,
+    headers: dict[str, str],
+    nivel_servicio: str = "medicalizado",
+) -> None:
+    response = client.put(
+        f"/atenciones/{atencion_id}/formato-traslado",
+        json={**ENCABEZADO_PARA_CIERRE, "nivel_servicio": nivel_servicio},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+
+def _guardar_clinico_para_cierre(
+    client: TestClient, atencion_id: int, headers: dict[str, str], **overrides: object
+) -> None:
+    response = client.put(
+        f"/atenciones/{atencion_id}/formato-traslado/clinico",
+        json={**CLINICO_COMPLETO_PARA_CIERRE, **overrides},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+
+class TestCerrarAtencionValidaCamposClinicos:
+    """Issue #57: con encabezado guardado, el cierre de un traslado
+    exige que lo clínico esté completo (nota médica obligatoria solo
+    si el nivel de servicio es medicalizado). Cerrar sin que nunca se
+    haya guardado un encabezado sigue sin restricciones -- eso ya lo
+    cubre `TestCerrarAtencion` con `_crear_atencion_abierta`, que nunca
+    guarda formato."""
+
+    def test_cierra_sin_problema_si_todo_esta_completo(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_para_cierre(client, atencion_id, auxiliar_headers)
+        _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 200
+
+    def test_no_cierra_sin_signos_vitales(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_para_cierre(client, atencion_id, auxiliar_headers)
+        _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, signos_vitales=[])
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "signos vitales" in response.json()["detail"]
+
+    def test_no_cierra_con_glasgow_incompleto(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_para_cierre(client, atencion_id, auxiliar_headers)
+        _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, glasgow_motora=None)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "Glasgow" in response.json()["detail"]
+
+    def test_no_cierra_sin_glasgow_en_absoluto(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_para_cierre(client, atencion_id, auxiliar_headers)
+        _guardar_clinico_para_cierre(
+            client,
+            atencion_id,
+            auxiliar_headers,
+            glasgow_ocular=None,
+            glasgow_verbal=None,
+            glasgow_motora=None,
+        )
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "Glasgow" in response.json()["detail"]
+
+    def test_no_cierra_sin_diagnostico(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_para_cierre(client, atencion_id, auxiliar_headers)
+        _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, diagnostico=None)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "diagnóstico" in response.json()["detail"]
+
+    def test_no_cierra_sin_nota_de_enfermeria(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_para_cierre(client, atencion_id, auxiliar_headers)
+        _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, nota_auxiliar=None)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "nota de enfermería" in response.json()["detail"]
+
+    def test_medicalizado_no_cierra_sin_nota_medica(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_para_cierre(
+            client, atencion_id, auxiliar_headers, nivel_servicio="medicalizado"
+        )
+        _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, nota_medica=None)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "nota médica" in response.json()["detail"]
+
+    def test_basico_si_cierra_sin_nota_medica(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        """En un traslado básico la nota médica sigue siendo opcional
+        -- puede que no haya médico a bordo."""
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_para_cierre(
+            client, atencion_id, auxiliar_headers, nivel_servicio="basico"
+        )
+        _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers, nota_medica=None)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 200
+
+    def test_cierra_sin_restricciones_si_nunca_hubo_encabezado(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        """Servicio cancelado antes de atender a nadie (ADR-0002):
+        cerrar sin haber guardado nada sigue permitido."""
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 200

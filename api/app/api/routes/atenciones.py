@@ -27,7 +27,7 @@ from app.core.security import verify_secret
 from app.models.ambulancia import Ambulancia
 from app.models.atencion import Atencion, EstadoAtencion, TipoAtencion
 from app.models.empleado import Empleado
-from app.models.formato_traslado import FormatoTraslado
+from app.models.formato_traslado import FormatoTraslado, NivelServicioTraslado
 from app.models.formato_version import FormatoVersion
 from app.models.rol import Rol
 from app.models.usuario import Usuario
@@ -497,6 +497,36 @@ def guardar_clinico_traslado(
     return formato
  
  
+def _campos_faltantes_para_cerrar(formato: FormatoTraslado) -> list[str]:
+    """Issue #57 -- qué le falta al formato clínico de un traslado
+    para poder cerrarlo. `nota_medica` solo es obligatoria si el
+    nivel de servicio es `medicalizado` (siempre va un médico); en
+    `basico` sigue siendo opcional, igual que antes -- el campo no se
+    oculta, solo no se exige.
+
+    No se llama si la atención nunca llegó a tener encabezado (ver el
+    único `if formato is not None` en `cerrar_atencion`) -- cerrar sin
+    haber empezado a llenar nada sigue permitido, para un servicio que
+    se cancela antes de atender a nadie.
+    """
+    faltantes: list[str] = []
+    if not formato.signos_vitales:
+        faltantes.append("signos vitales")
+    if (
+        formato.glasgow_ocular is None
+        or formato.glasgow_verbal is None
+        or formato.glasgow_motora is None
+    ):
+        faltantes.append("escala de Glasgow")
+    if not formato.diagnostico:
+        faltantes.append("diagnóstico")
+    if not formato.nota_auxiliar:
+        faltantes.append("nota de enfermería")
+    if formato.nivel_servicio == NivelServicioTraslado.medicalizado and not formato.nota_medica:
+        faltantes.append("nota médica (obligatoria en traslado medicalizado)")
+    return faltantes
+
+
 @router.put(
     "/{atencion_id}/cerrar",
     response_model=AtencionOut,
@@ -523,6 +553,13 @@ def cerrar_atencion(
     datos, así el dispositivo haya "pre-validado" con un hash local
     más liviano (ver ADR-0010) — ese hash local es solo para dar
     feedback rápido sin conexión, nunca la autorización real.
+
+    Issue #57 — un traslado con encabezado guardado no se puede cerrar
+    si le faltan campos clínicos obligatorios (ver
+    `_campos_faltantes_para_cerrar`). Un traslado que nunca llegó a
+    tener encabezado se puede cerrar igual (servicio cancelado antes
+    de atender a nadie, ver ADR-0002) y una atención SOAT no entra en
+    esta validación — su formato (issue #17) todavía no existe.
     """
     atencion = db.get(Atencion, atencion_id)
     if atencion is None:
@@ -533,6 +570,15 @@ def cerrar_atencion(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Esta atención ya está cerrada"
         )
+    if atencion.tipo == TipoAtencion.traslado:
+        formato_actual = db.get(FormatoTraslado, atencion_id)
+        if formato_actual is not None:
+            faltantes = _campos_faltantes_para_cerrar(formato_actual)
+            if faltantes:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Faltan campos obligatorios para cerrar: {', '.join(faltantes)}",
+                )
     if usuario.pin_hash is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

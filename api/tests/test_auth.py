@@ -170,6 +170,18 @@ def test_me_devuelve_perfil_y_roles(client: TestClient, admin_headers: dict[str,
     # El admin de pruebas no tiene empleado vinculado (issue #11).
     assert body["empleado_tipo_vinculacion"] is None
     assert body["firma_guardada"] is None
+    assert body["empleado_nombre_completo"] is None
+
+
+def test_me_incluye_el_nombre_completo_del_empleado_vinculado(
+    client: TestClient, auxiliar_headers: dict[str, str]
+) -> None:
+    """Issue #57 (comentario) -- el frontend lo usa para autocompletar
+    "atendido por"/"evolucionó por", igual que ya hace con la firma."""
+    response = client.get("/auth/me", headers=auxiliar_headers)
+
+    assert response.status_code == 200
+    assert response.json()["empleado_nombre_completo"] == "Ana Ruiz"
  
  
 def test_me_sin_token_da_401(client: TestClient) -> None:

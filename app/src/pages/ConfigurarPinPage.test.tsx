@@ -23,6 +23,7 @@ function perfilCon(pinConfigurado: boolean): MeResponse {
     roles: [],
     empleado_tipo_vinculacion: null,
     firma_guardada: null,
+    empleado_nombre_completo: null,
   }
 }
  
