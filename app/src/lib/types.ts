@@ -216,3 +216,64 @@ export interface FormatoTraslado extends FormatoTrasladoEncabezado, FormatoTrasl
   atencion_id: number
   glasgow_total: number | null
 }
+
+/** Issue #17: formato de atención de accidentes SOAT (AA-LAFS-005) --
+ * mismo criterio que el formato de traslado de arriba (encabezado +
+ * parte clínica en el mismo registro), con varias casillas que
+ * reutilizan los mismos tipos (`TratamientoAplicado`, `ReflejoPupilar`,
+ * `LesionTipo`, `SignoVitalItem`) porque son el mismo check-list que
+ * usa la empresa en los dos documentos de papel. */
+export type RolVictima = 'conductor' | 'pasajero' | 'parrillero' | 'peaton' | 'otro'
+export type TriageNivel = 'i' | 'ii' | 'iii'
+
+export interface FormatoAccidenteSoatEncabezado {
+  fecha_atencion: string
+  hora_atencion: string
+  hora_entrega: string | null
+  /** Paciente NN (ADR-0002): mientras sea `false`, los demás campos de
+   * identidad quedan en blanco -- a diferencia del formato de
+   * traslado, donde el paciente siempre se identifica de entrada. */
+  identificado: boolean
+  paciente_tipo_documento: TipoDocumentoPaciente | null
+  paciente_numero_documento: string | null
+  paciente_documento_expedido_en: string | null
+  paciente_aseguradora: string | null
+  paciente_nombres: string | null
+  paciente_apellidos: string | null
+  paciente_edad: number | null
+  paciente_sexo: SexoPaciente | null
+  lugar_ocurrencia: string
+  ciudad: string
+  telefono_contacto: string | null
+  rol_victima: RolVictima
+  poliza_vigente_desde: string | null
+  poliza_vigente_hasta: string | null
+  vehiculo_placa: string
+  vehiculo_tipo: string
+  vehiculo_marca: string
+  numero_poliza: string
+}
+
+export interface FormatoAccidenteSoatClinico {
+  tratamiento: TratamientoAplicado[]
+  tratamiento_otro: string | null
+  pupila_derecha: ReflejoPupilar | null
+  pupila_izquierda: ReflejoPupilar | null
+  signos_vitales: SignoVitalItem[]
+  lesiones: LesionTipo[]
+  lesion_otro: string | null
+  glasgow_ocular: number | null
+  glasgow_verbal: number | null
+  glasgow_motora: number | null
+  triage: TriageNivel | null
+  descripcion: string | null
+  profesional_recibe_nombre: string | null
+  profesional_recibe_cedula: string | null
+}
+
+export interface FormatoAccidenteSoat
+  extends FormatoAccidenteSoatEncabezado,
+    FormatoAccidenteSoatClinico {
+  atencion_id: number
+  glasgow_total: number | null
+}

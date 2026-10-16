@@ -35,8 +35,8 @@ import { ApiError, listarMedicosDisponibles } from '../lib/api'
 import { pinLocalValido } from '../lib/pinLocal'
 import {
   cerrarAtencionConRespaldo,
-  guardarClinicoConRespaldo,
-  obtenerFormatoConRespaldo,
+  guardarClinicoTrasladoConRespaldo,
+  obtenerFormatoTrasladoConRespaldo,
 } from '../lib/trasladoOffline'
 import type {
   Empleado,
@@ -290,7 +290,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
     // logs, pero no llega al DOM. Un único cálculo sin estado
     // intermedio no tiene ese problema.
     const nombrePerfil = perfil?.empleado_nombre_completo ?? null
-    obtenerFormatoConRespaldo(id)
+    obtenerFormatoTrasladoConRespaldo(id)
       .then((existente) => {
         if (existente === null) {
           if (nombrePerfil) {
@@ -489,7 +489,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
     setError(null)
     setGuardando(true)
     try {
-      await guardarClinicoConRespaldo(id, construirDatosClinico())
+      await guardarClinicoTrasladoConRespaldo(id, construirDatosClinico())
       navigate('/', { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar lo clínico')
@@ -534,7 +534,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
         return
       }
  
-      await guardarClinicoConRespaldo(id, construirDatosClinico())
+      await guardarClinicoTrasladoConRespaldo(id, construirDatosClinico())
       await cerrarAtencionConRespaldo(id, pinCierre)
       navigate('/', { replace: true })
     } catch (err) {

@@ -1087,3 +1087,258 @@ class TestCerrarAtencionValidaCamposClinicos:
         )
  
         assert response.status_code == 200
+
+
+ENCABEZADO_SOAT_PARA_CIERRE = {
+    "fecha_atencion": "2027-01-01",
+    "hora_atencion": "08:00:00",
+    "hora_entrega": None,
+    "identificado": True,
+    "paciente_tipo_documento": "cc",
+    "paciente_numero_documento": "123456789",
+    "paciente_documento_expedido_en": "Cúcuta",
+    "paciente_aseguradora": "SOAT Seguros XYZ",
+    "paciente_nombres": "Pepito",
+    "paciente_apellidos": "Pérez",
+    "paciente_edad": 45,
+    "paciente_sexo": "m",
+    "lugar_ocurrencia": "Av. Gran Colombia con calle 10",
+    "ciudad": "Cúcuta",
+    "telefono_contacto": "3001234567",
+    "rol_victima": "conductor",
+    "poliza_vigente_desde": "2026-01-01",
+    "poliza_vigente_hasta": "2027-01-01",
+    "vehiculo_placa": "ABC123",
+    "vehiculo_tipo": "Motocicleta",
+    "vehiculo_marca": "Yamaha",
+    "numero_poliza": "SOAT-0001",
+}
+
+CLINICO_SOAT_COMPLETO_PARA_CIERRE = {
+    "signos_vitales": [{"hora": "08:05", "ta": "120/80", "fc": 88, "fr": 18, "spo2": 97}],
+    "glasgow_ocular": 4,
+    "glasgow_verbal": 5,
+    "glasgow_motora": 6,
+    "triage": "ii",
+    "descripcion": "Paciente víctima de accidente de tránsito, trasladado estable.",
+}
+
+
+def _crear_atencion_soat_abierta(
+    client: TestClient,
+    db: Session,
+    headers: dict[str, str],
+    movil: str = "M-soatcierre",
+    cedula: str = "800000701",
+) -> int:
+    ambulancia = _crear_ambulancia(db, movil=movil)
+    conductor = _crear_conductor(db, cedula=cedula)
+    response = client.post(
+        "/atenciones",
+        json={
+            "tipo": "atencion_soat",
+            "ambulancia_id": ambulancia.id,
+            "conductor_id": conductor.id,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+def _guardar_encabezado_soat_para_cierre(
+    client: TestClient, atencion_id: int, headers: dict[str, str], **overrides: object
+) -> None:
+    response = client.put(
+        f"/atenciones/{atencion_id}/formato-accidente-soat",
+        json={**ENCABEZADO_SOAT_PARA_CIERRE, **overrides},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+
+def _guardar_clinico_soat_para_cierre(
+    client: TestClient, atencion_id: int, headers: dict[str, str], **overrides: object
+) -> None:
+    response = client.put(
+        f"/atenciones/{atencion_id}/formato-accidente-soat/clinico",
+        json={**CLINICO_SOAT_COMPLETO_PARA_CIERRE, **overrides},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+
+class TestCerrarAtencionSoatValidaCamposClinicos:
+    """Issue #17: misma validación de cierre que un traslado (issue
+    #57), con su propia lista de campos obligatorios -- ver
+    `_campos_faltantes_para_cerrar_soat`. Un paciente NN sin
+    identificar al momento del cierre no bloquea el cierre (ADR-0002);
+    uno marcado `identificado=True` sin sus datos de identidad sí.
+    """
+
+    def test_cierra_sin_problema_si_todo_esta_completo(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_soat_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_soat_para_cierre(client, atencion_id, auxiliar_headers)
+        _guardar_clinico_soat_para_cierre(client, atencion_id, auxiliar_headers)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 200
+
+    def test_no_cierra_sin_signos_vitales(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_soat_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_soat_para_cierre(client, atencion_id, auxiliar_headers)
+        _guardar_clinico_soat_para_cierre(
+            client, atencion_id, auxiliar_headers, signos_vitales=[]
+        )
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "signos vitales" in response.json()["detail"]
+
+    def test_no_cierra_sin_glasgow_en_absoluto(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_soat_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_soat_para_cierre(client, atencion_id, auxiliar_headers)
+        _guardar_clinico_soat_para_cierre(
+            client,
+            atencion_id,
+            auxiliar_headers,
+            glasgow_ocular=None,
+            glasgow_verbal=None,
+            glasgow_motora=None,
+        )
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "Glasgow" in response.json()["detail"]
+
+    def test_no_cierra_sin_triage(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_soat_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_soat_para_cierre(client, atencion_id, auxiliar_headers)
+        _guardar_clinico_soat_para_cierre(client, atencion_id, auxiliar_headers, triage=None)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "triage" in response.json()["detail"]
+
+    def test_no_cierra_sin_descripcion(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_soat_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_soat_para_cierre(client, atencion_id, auxiliar_headers)
+        _guardar_clinico_soat_para_cierre(client, atencion_id, auxiliar_headers, descripcion=None)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "descripción" in response.json()["detail"]
+
+    def test_nn_sin_identificar_cierra_sin_problema(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        """Un paciente que sigue siendo NN al momento del cierre no
+        bloquea el cierre -- completar su identidad después es una
+        corrección post-cierre más (ADR-0002)."""
+        atencion_id = _crear_atencion_soat_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_soat_para_cierre(
+            client,
+            atencion_id,
+            auxiliar_headers,
+            identificado=False,
+            paciente_tipo_documento=None,
+            paciente_numero_documento=None,
+            paciente_documento_expedido_en=None,
+            paciente_aseguradora=None,
+            paciente_nombres=None,
+            paciente_apellidos=None,
+            paciente_edad=None,
+            paciente_sexo=None,
+        )
+        _guardar_clinico_soat_para_cierre(client, atencion_id, auxiliar_headers)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 200
+
+    def test_identificado_sin_nombre_no_cierra(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        """A diferencia de un NN genuino, un paciente marcado
+        `identificado=True` sin sus datos de identidad sí bloquea el
+        cierre -- ya no hay razón para dejarlos en blanco."""
+        atencion_id = _crear_atencion_soat_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_soat_para_cierre(
+            client,
+            atencion_id,
+            auxiliar_headers,
+            identificado=True,
+            paciente_nombres=None,
+            paciente_apellidos=None,
+            paciente_numero_documento=None,
+        )
+        _guardar_clinico_soat_para_cierre(client, atencion_id, auxiliar_headers)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "identidad" in response.json()["detail"]
+
+    def test_cierra_sin_restricciones_si_nunca_hubo_encabezado(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_soat_abierta(client, db, auxiliar_headers)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 200

@@ -14,7 +14,7 @@ import type { FormEvent, JSX } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
  
 import { ApiError } from '../lib/api'
-import { guardarEncabezadoConRespaldo, obtenerFormatoConRespaldo } from '../lib/trasladoOffline'
+import { guardarEncabezadoTrasladoConRespaldo, obtenerFormatoTrasladoConRespaldo } from '../lib/trasladoOffline'
 import type {
   CategoriaPaciente,
   ComplejidadTraslado,
@@ -123,7 +123,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
   const [guardando, setGuardando] = useState(false)
  
   useEffect(() => {
-    obtenerFormatoConRespaldo(id)
+    obtenerFormatoTrasladoConRespaldo(id)
       .then((existente) => {
         if (existente === null) return
         setCampos({
@@ -179,7 +179,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
         acompanante_parentesco: campos.acompanante_parentesco || null,
         acompanante_telefono: campos.acompanante_telefono || null,
       }
-      await guardarEncabezadoConRespaldo(id, datos)
+      await guardarEncabezadoTrasladoConRespaldo(id, datos)
       // La parte clínica (issue #9) se llena después, durante el
       // traslado — no en esta misma pantalla, que es solo la
       // recepción del paciente.
