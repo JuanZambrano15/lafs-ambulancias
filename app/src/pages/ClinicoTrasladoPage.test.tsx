@@ -551,6 +551,265 @@ describe('ClinicoTrasladoPage', () => {
     })
   })
  
+  describe('selector de médico en lo clínico (issue #63)', () => {
+    const MEDICO_PLANTA: Empleado = {
+      id: 2,
+      nombres: 'Laura',
+      apellidos: 'Páez',
+      cedula: '900000001',
+      telefono: null,
+      tipo_vinculacion: 'planta',
+      activo: true,
+    }
+    const EXPORTADA = 'data:image/png;base64,FIRMA-MEDICO-EN-VIVO'
+ 
+    class ImagenFalsa {
+      onload: (() => void) | null = null
+      set src(_valor: string) {
+        setTimeout(() => this.onload?.(), 0)
+      }
+    }
+ 
+    beforeEach(() => {
+      vi.stubGlobal('Image', ImagenFalsa)
+      const ctxFalso = {
+        scale: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        stroke: vi.fn(),
+        clearRect: vi.fn(),
+        drawImage: vi.fn(),
+        lineWidth: 0,
+        lineCap: '',
+        strokeStyle: '',
+      }
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+        ctxFalso as unknown as CanvasRenderingContext2D,
+      )
+      vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(EXPORTADA)
+      HTMLCanvasElement.prototype.setPointerCapture = vi.fn()
+      HTMLCanvasElement.prototype.releasePointerCapture = vi.fn()
+    })
+ 
+    it('auxiliar: ofrece un selector de médicos de planta, no un campo libre', async () => {
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([MEDICO_PLANTA])
+ 
+      renderPagina()
+ 
+      const selector = await screen.findByLabelText('Médico que evolucionó')
+      expect(await within(selector).findByText('Laura Páez')).toBeInTheDocument()
+      expect(within(selector).getByText('Otro (escribir el nombre)')).toBeInTheDocument()
+      expect(screen.queryByLabelText('Evolucionado por')).not.toBeInTheDocument()
+    })
+ 
+    it('elegir un médico de la lista completa el nombre y exige la firma a mano', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        // Firma guardada propia (de planta) para el auxiliar, para que
+        // "quien atendió" se muestre como vista previa (<img>) y no
+        // deje dos canvas de firma en pantalla -- lo que aquí interesa
+        // probar es el canvas de "quien evolucionó" (el médico).
+        perfilCon(
+          [{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }],
+          'data:image/png;base64,GUARDADA-AUXILIAR',
+        ),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([MEDICO_PLANTA])
+      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+ 
+      renderPagina()
+ 
+      const selector = await screen.findByLabelText('Médico que evolucionó')
+      await screen.findByText('Laura Páez')
+      await usuario.selectOptions(selector, '2')
+      // La firma del médico elegido nunca se autocompleta sola -- se
+      // dibuja aquí mismo, en el dispositivo (issue #63).
+      expect(screen.queryByAltText('Firma de quien evolucionó')).not.toBeInTheDocument()
+      const canvas = await screen.findByLabelText('Recuadro para firmar')
+      canvas.dispatchEvent(
+        new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),
+      )
+      canvas.dispatchEvent(
+        new PointerEvent('pointermove', { clientX: 20, clientY: 20, bubbles: true }),
+      )
+ 
+      await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+ 
+      await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
+      const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+      expect(datos.evolucionado_por).toBe('Laura Páez')
+      expect(datos.firma_evolucionado_por).toBe(EXPORTADA)
+    })
+ 
+    it('"Otro" revela un campo de texto para el médico que no está de planta', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([MEDICO_PLANTA])
+      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+ 
+      renderPagina()
+ 
+      const selector = await screen.findByLabelText('Médico que evolucionó')
+      await screen.findByText('Laura Páez')
+      await usuario.selectOptions(selector, 'otro')
+      await usuario.type(screen.getByLabelText('Nombre del médico'), 'Carlos Mora')
+ 
+      await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+ 
+      await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
+      const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+      expect(datos.evolucionado_por).toBe('Carlos Mora')
+    })
+ 
+    it('traslado básico: también ofrece el selector de médicos de planta, y el canvas para firmar', async () => {
+      // Pedido explícito del usuario: antes el selector solo salía en
+      // medicalizado y en básico el nombre quedaba como campo libre.
+      // En básico el médico también puede ir (es opcional, no
+      // obligatorio como en medicalizado), y elegirlo de una lista es
+      // más fácil que escribirlo a mano -- así que el selector se
+      // ofrece igual en los dos casos.
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue({
+        ...FORMATO_SIN_CLINICO,
+        nivel_servicio: 'basico',
+      })
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([MEDICO_PLANTA])
+ 
+      renderPagina()
+ 
+      const selector = await screen.findByLabelText('Médico que evolucionó')
+      expect(await within(selector).findByText('Laura Páez')).toBeInTheDocument()
+      expect(within(selector).getByText('Otro (escribir el nombre)')).toBeInTheDocument()
+      expect(screen.queryByLabelText('Evolucionado por')).not.toBeInTheDocument()
+      // Bug encontrado en pruebas manuales: en básico el médico es
+      // opcional, pero si va, igual hay que poder capturar su firma --
+      // antes el canvas solo aparecía si quien estaba logueado era el
+      // médico, así que un auxiliar llenando un básico no tenía dónde
+      // ponerla aunque el médico sí hubiera ido ese día. (Dos
+      // recuadros en total: el propio, de "quien atendió", y este de
+      // "quien evolucionó" -- de ahí `findAllBy` en vez de `findBy`.)
+      expect(await screen.findAllByLabelText('Recuadro para firmar')).toHaveLength(2)
+    })
+ 
+    it('traslado básico: si el médico fue y firma, la firma se manda; si no, se manda null', async () => {
+      const usuario = userEvent.setup()
+      const EXPORTADA = 'data:image/png;base64,FIRMA-MEDICO-BASICO'
+      class ImagenFalsa {
+        onload: (() => void) | null = null
+        set src(_valor: string) {
+          setTimeout(() => this.onload?.(), 0)
+        }
+      }
+      vi.stubGlobal('Image', ImagenFalsa)
+      const ctxFalso = {
+        scale: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        stroke: vi.fn(),
+        clearRect: vi.fn(),
+        drawImage: vi.fn(),
+        lineWidth: 0,
+        lineCap: '',
+        strokeStyle: '',
+      }
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+        ctxFalso as unknown as CanvasRenderingContext2D,
+      )
+      vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(EXPORTADA)
+      HTMLCanvasElement.prototype.setPointerCapture = vi.fn()
+      HTMLCanvasElement.prototype.releasePointerCapture = vi.fn()
+ 
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        // Firma guardada propia (de planta) para el auxiliar, para que
+        // "quien atendió" se muestre como vista previa (<img>) y no
+        // deje dos canvas de firma en pantalla -- aquí interesa
+        // probar solo el canvas de "quien evolucionó" (el médico).
+        perfilCon(
+          [{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }],
+          'data:image/png;base64,GUARDADA-AUXILIAR',
+        ),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue({
+        ...FORMATO_SIN_CLINICO,
+        nivel_servicio: 'basico',
+      })
+      // Sin médicos de planta registrados -- este médico no está de
+      // planta, así que se usa "Otro" para escribir el nombre a mano.
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([])
+      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+ 
+      renderPagina()
+ 
+      const selector = await screen.findByLabelText('Médico que evolucionó')
+      await screen.findByText('No hay médicos de planta registrados')
+      await usuario.selectOptions(selector, 'otro')
+      await usuario.type(screen.getByLabelText('Nombre del médico'), 'Carlos Mora')
+      const canvas = await screen.findByLabelText('Recuadro para firmar')
+      canvas.dispatchEvent(
+        new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),
+      )
+      canvas.dispatchEvent(
+        new PointerEvent('pointermove', { clientX: 20, clientY: 20, bubbles: true }),
+      )
+ 
+      await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+ 
+      await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
+      const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+      expect(datos.evolucionado_por).toBe('Carlos Mora')
+      expect(datos.firma_evolucionado_por).toBe(EXPORTADA)
+    })
+ 
+    it('traslado básico: si nadie dibuja nada en el canvas del médico, se manda null', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue({
+        ...FORMATO_SIN_CLINICO,
+        nivel_servicio: 'basico',
+      })
+      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+ 
+      renderPagina()
+ 
+      await screen.findByLabelText('Diagnóstico')
+      await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+ 
+      await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
+      const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+      expect(datos.firma_evolucionado_por).toBeNull()
+    })
+ 
+    it('médico logueado: sigue viendo el campo libre de siempre, no el selector', async () => {
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'medico', descripcion: null }], null, 'Laura Páez'),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+ 
+      renderPagina()
+ 
+      await screen.findByLabelText('Diagnóstico')
+      expect(screen.queryByLabelText('Médico que evolucionó')).not.toBeInTheDocument()
+      await waitFor(() =>
+        expect(screen.getByLabelText('Evolucionado por')).toHaveValue('Laura Páez'),
+      )
+      expect(api.listarMedicosDisponibles).not.toHaveBeenCalled()
+    })
+  })
+ 
   describe('cerrar atención (issue #12)', () => {
     beforeEach(() => {
       // Issue #57 agrega una validación de completitud al cerrar --
@@ -600,6 +859,49 @@ describe('ClinicoTrasladoPage', () => {
       await usuario.click(screen.getByRole('button', { name: 'Confirmar cierre' }))
  
       await waitFor(() => expect(api.cerrarAtencion).toHaveBeenCalledWith(1, '1234'))
+      expect(await screen.findByText('pantalla principal')).toBeInTheDocument()
+    })
+ 
+    it('issue #63: guarda lo que hay en pantalla antes de cerrar, sin exigir un "Guardar" aparte primero', async () => {
+      // Antes de este fix, cerrar mandaba el PIN directo al servidor
+      // sin guardar primero lo que estuviera en pantalla: el aviso de
+      // "qué falta" antes de cerrar solo mira el estado en pantalla,
+      // no lo que ya quedó guardado en el servidor, así que si
+      // alguien editaba algo y le daba "Cerrar atención" sin haber
+      // pasado antes por "Guardar", esa edición se perdía (el
+      // servidor seguía viendo el valor viejo). Esta prueba arranca
+      // de un formato ya completo (nada deshabilita "Cerrar
+      // atención") y solo cambia el diagnóstico a mano, para aislar
+      // justo el comportamiento que se arregla: que cerrar guarde la
+      // edición antes de pedir el PIN, en el mismo clic.
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+      vi.mocked(pinLocal.pinLocalValido).mockResolvedValue(true)
+      vi.mocked(api.cerrarAtencion).mockResolvedValue(ATENCION_CERRADA)
+ 
+      renderPagina()
+ 
+      const diagnostico = await screen.findByLabelText('Diagnóstico')
+      await usuario.clear(diagnostico)
+      await usuario.type(diagnostico, 'TCE moderado, revalorado')
+ 
+      await usuario.click(await screen.findByRole('button', { name: 'Cerrar atención' }))
+      await usuario.type(screen.getByLabelText('PIN'), '1234')
+      await usuario.click(screen.getByRole('button', { name: 'Confirmar cierre' }))
+ 
+      await waitFor(() => expect(api.cerrarAtencion).toHaveBeenCalledWith(1, '1234'))
+      expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1)
+      // Se guardó antes de cerrar (no después, ni en paralelo sin
+      // garantía de orden) y con el valor que se acababa de escribir
+      // -- no el que había al cargar la página.
+      const ordenGuardar = vi.mocked(api.guardarClinicoTraslado).mock.invocationCallOrder[0]
+      const ordenCerrar = vi.mocked(api.cerrarAtencion).mock.invocationCallOrder[0]
+      expect(ordenGuardar).toBeLessThan(ordenCerrar)
+      const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+      expect(datos.diagnostico).toBe('TCE moderado, revalorado')
       expect(await screen.findByText('pantalla principal')).toBeInTheDocument()
     })
  
