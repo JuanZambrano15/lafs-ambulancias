@@ -12,13 +12,14 @@ from __future__ import annotations
  
 from datetime import UTC, datetime
  
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
  
 from app.api.deps import (
     CurrentUser,
     DbSession,
+    require_admin,
     require_personal_clinico,
     require_personal_clinico_o_admin,
     require_personal_operativo,
@@ -34,7 +35,7 @@ from app.models.usuario import Usuario
 from app.models.usuario_rol import UsuarioRol
 from app.pdf.formato_traslado import generar_pdf_formato_traslado
 from app.schemas.ambulancia import AmbulanciaOut
-from app.schemas.atencion import AtencionCreate, AtencionOut
+from app.schemas.atencion import AtencionCerradaOut, AtencionCreate, AtencionOut
 from app.schemas.auth import PinRequest
 from app.schemas.empleado import EmpleadoOut
 from app.schemas.formato_traslado import (
@@ -207,6 +208,117 @@ def listar_atenciones_en_curso(usuario: CurrentUser, db: DbSession) -> list[Aten
         .all()
     )
     return list(atenciones)
+ 
+ 
+@router.get(
+    "/pendientes",
+    response_model=list[AtencionOut],
+    dependencies=[Depends(require_admin)],
+)
+def listar_atenciones_pendientes(db: DbSession) -> list[Atencion]:
+    """Atenciones de traslado todavía abiertas, para el panel del
+    administrador (issue #15) -- a diferencia de `/en-curso`, aquí no
+    se filtra por responsable: el administrador necesita ver TODAS
+    las que estén abiertas, no solo las suyas (de hecho nunca tiene
+    `empleado_id`, así que `/en-curso` siempre le daría una lista
+    vacía). Ordenadas de más antigua a más reciente -- la alerta
+    básica del issue ("lleva mucho tiempo abierta") se calcula en el
+    panel a partir de `abierta_en`, no acá, así que conviene que las
+    más urgentes queden primero.
+ 
+    Solo atenciones de traslado: el formato de accidentes SOAT
+    (issue #17) todavía no existe, así que no hay "parte 1" que
+    mostrar como pendiente para ese tipo.
+    """
+    atenciones = (
+        db.execute(
+            select(Atencion)
+            .options(
+                joinedload(Atencion.ambulancia),
+                joinedload(Atencion.conductor),
+                joinedload(Atencion.responsable),
+            )
+            .where(
+                Atencion.estado == EstadoAtencion.abierto,
+                Atencion.tipo == TipoAtencion.traslado,
+            )
+            .order_by(Atencion.abierta_en)
+        )
+        .unique()
+        .scalars()
+        .all()
+    )
+    return list(atenciones)
+ 
+ 
+@router.get(
+    "/cerradas",
+    response_model=list[AtencionCerradaOut],
+    dependencies=[Depends(require_admin)],
+)
+def listar_atenciones_cerradas(
+    db: DbSession,
+    q: str | None = Query(default=None),
+    limit: int = Query(default=30, ge=1, le=100),
+) -> list[AtencionCerradaOut]:
+    """Atenciones de traslado ya cerradas, para que el administrador
+    encuentre un formato puntual y descargue su PDF (issue #15) -- no
+    hay otra forma de listarlas: `GET
+    /atenciones/{id}/formato-traslado` sirve para consultar una ya
+    sabiendo su id, no para buscarla.
+ 
+    `q` busca coincidencia parcial, sin distinguir mayúsculas, en
+    nombres, apellidos o número de documento del paciente. Sin `q`,
+    simplemente trae las más recientes. `limit` (30 por defecto, tope
+    100) evita traer de una vez un historial que solo va a crecer --
+    no hay paginación todavía, solo "las más recientes que
+    coincidan".
+ 
+    Solo trae atenciones que ya tienen `FormatoTraslado` (join, no
+    left join): sin encabezado no hay datos de paciente que mostrar
+    ni PDF que descargar, así que no hay nada útil que listar ahí.
+    """
+    consulta = (
+        select(Atencion, FormatoTraslado)
+        .join(FormatoTraslado, FormatoTraslado.atencion_id == Atencion.id)
+        .options(
+            joinedload(Atencion.ambulancia),
+            joinedload(Atencion.conductor),
+            joinedload(Atencion.responsable),
+        )
+        .where(
+            Atencion.estado == EstadoAtencion.cerrado,
+            Atencion.tipo == TipoAtencion.traslado,
+        )
+    )
+    if q:
+        patron = f"%{q.strip().lower()}%"
+        consulta = consulta.where(
+            func.lower(FormatoTraslado.paciente_nombres).like(patron)
+            | func.lower(FormatoTraslado.paciente_apellidos).like(patron)
+            | func.lower(FormatoTraslado.paciente_numero_documento).like(patron)
+        )
+    filas = (
+        db.execute(consulta.order_by(Atencion.cerrada_en.desc()).limit(limit))
+        .unique()
+        .all()
+    )
+    return [
+        AtencionCerradaOut(
+            id=atencion.id,
+            estado=atencion.estado,
+            abierta_en=atencion.abierta_en,
+            cerrada_en=atencion.cerrada_en,
+            ambulancia=AmbulanciaOut.model_validate(atencion.ambulancia),
+            conductor=EmpleadoOut.model_validate(atencion.conductor),
+            responsable=EmpleadoOut.model_validate(atencion.responsable),
+            paciente_nombres=formato.paciente_nombres,
+            paciente_apellidos=formato.paciente_apellidos,
+            paciente_numero_documento=formato.paciente_numero_documento,
+            tiene_pdf=formato.pdf_generado is not None,
+        )
+        for atencion, formato in filas
+    ]
  
  
 def _atencion_por_client_id(client_id: str, db: DbSession) -> Atencion | None:

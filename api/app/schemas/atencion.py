@@ -43,3 +43,28 @@ class AtencionOut(BaseModel):
     ambulancia: AmbulanciaOut
     conductor: EmpleadoOut
     responsable: EmpleadoOut
+ 
+ 
+class AtencionCerradaOut(BaseModel):
+    """Para `GET /atenciones/cerradas` (issue #15, panel del
+    administrador): a diferencia de `AtencionOut`, agrega los datos
+    del paciente (para que el administrador pueda buscar/identificar
+    el formato que busca) y si tiene un PDF para descargar -- ninguno
+    de los dos vive en `Atencion`, sino en `FormatoTraslado`, así que
+    no se puede construir con `from_attributes` directo sobre el
+    modelo y el endpoint arma cada fila a mano.
+    """
+ 
+    model_config = ConfigDict(from_attributes=True)
+ 
+    id: int
+    estado: EstadoAtencion
+    abierta_en: datetime
+    cerrada_en: datetime | None
+    ambulancia: AmbulanciaOut
+    conductor: EmpleadoOut
+    responsable: EmpleadoOut
+    paciente_nombres: str
+    paciente_apellidos: str
+    paciente_numero_documento: str
+    tiene_pdf: bool

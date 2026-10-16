@@ -8,9 +8,9 @@
  * — ver los archivos de prueba para el uso exacto. Mismo patrón que
  * `app/src/test/mockApi.ts`.
  */
-
+ 
 import { vi } from 'vitest'
-
+ 
 export async function construirMockApi(): Promise<Record<string, unknown>> {
   const real = await vi.importActual<typeof import('../lib/api')>('../lib/api')
   return {
@@ -32,5 +32,11 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     crearRol: vi.fn(),
     actualizarRol: vi.fn(),
     eliminarRol: vi.fn(),
+    // Issue #15 -- se mockean con `[]` por defecto (no `undefined`)
+    // para que un test que no las toca a propósito (p. ej. uno de
+    // otra página) no rompa por un render que las espera resueltas.
+    listarAtencionesPendientes: vi.fn().mockResolvedValue([]),
+    listarAtencionesCerradas: vi.fn().mockResolvedValue([]),
+    descargarPdfFormatoTraslado: vi.fn(),
   }
 }
