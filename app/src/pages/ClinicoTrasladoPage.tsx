@@ -406,70 +406,90 @@ export function ClinicoTrasladoPage(): JSX.Element {
   // Issue #63 -- en un medicalizado, si quien está logueado no es el
   // médico, el nombre se elige del selector de médicos de planta, o
   // se escribe a mano con "Otro" (si no está en la lista, o ya había
-  // algo guardado de un turno anterior que no vino del selector).
+  // algo guardado de un turno anterior que no vino del selector). En
+  // básico el médico sigue siendo opcional y el nombre sigue siendo
+  // libre -- no hay selector -- pero la firma (ver más abajo) se
+  // ofrece igual en los dos casos: el médico puede ir también en un
+  // básico si quiere, y si va, alguien tiene que poder capturar su
+  // firma aunque quien esté logueado sea el auxiliar.
   const mostrarSelectorMedico = nivelServicio === 'medicalizado' && !tieneRolMedico
   const modoOtroMedico =
     mostrarSelectorMedico && (medicoId === 'otro' || (medicoId === '' && campos.evolucionadoPor !== ''))
+ 
+  /**
+   * Arma el payload de lo clínico a partir del estado actual del
+   * formulario -- lo usan tanto "Guardar" como "Cerrar atención"
+   * (issue #63, comentario): antes, cerrar mandaba directo al
+   * servidor sin guardar primero lo que hubiera en pantalla, así que
+   * si alguien llenaba todo y le daba "Cerrar atención" sin pasar por
+   * "Guardar" antes, el servidor rechazaba el cierre por "faltan
+   * todos los datos" -- el chequeo del lado del cliente veía lo que
+   * había en pantalla, pero el servidor solo conoce lo que ya se le
+   * mandó. Compartir esta función hace que cerrar guarde lo mismo que
+   * vería "Guardar", en el mismo clic.
+   */
+  function construirDatosClinico(): FormatoTrasladoClinico {
+    return {
+      diagnostico: campos.diagnostico || null,
+      tratamiento: campos.tratamiento,
+      tratamiento_otro: campos.tratamientoOtro || null,
+      pupila_derecha: campos.pupilaDerecha || null,
+      pupila_izquierda: campos.pupilaIzquierda || null,
+      signos_vitales: campos.signosVitales
+        .filter((signo) => signo.hora.trim() !== '')
+        .map((signo) => ({
+          hora: signo.hora,
+          ta: signo.ta || null,
+          fc: aNumeroONulo(signo.fc),
+          fr: aNumeroONulo(signo.fr),
+          spo2: aNumeroONulo(signo.spo2),
+        })),
+      lesiones: campos.lesiones,
+      lesion_otro: campos.lesionOtro || null,
+      glasgow_ocular: aNumeroONulo(campos.glasgowOcular),
+      glasgow_verbal: aNumeroONulo(campos.glasgowVerbal),
+      glasgow_motora: aNumeroONulo(campos.glasgowMotora),
+      insumos_entregados: campos.insumos.filter((insumo) => insumo.trim() !== ''),
+      nota_auxiliar: campos.notaAuxiliar || null,
+      atendido_por: campos.atendidoPor || null,
+      // La firma solo se recalcula para el rol de quien está logueado
+      // ahora mismo; si no le corresponde, se reenvía la que ya
+      // hubiera (mismo patrón de "reenvío completo" del resto del
+      // formato — ver ADR-0006/0007).
+      //
+      // Issue #57 (comentario) -- si la misma persona tiene los dos
+      // roles, no puede "firmar" dos veces con la misma firma guardada
+      // como si fueran dos personas distintas: el auxiliar sigue
+      // autocompletándose con la firma guardada del perfil, pero la
+      // del médico se exige dibujada a mano en ese caso (ver
+      // FirmaField más abajo, que oculta la vista previa guardada
+      // cuando `tieneAmbosRoles`).
+      firma_atendido_por: tieneRolAuxiliar
+        ? perfil?.firma_guardada ?? firmaAtendidoRef.current?.exportar() ?? null
+        : campos.firmaAtendidoExistente,
+      nota_medica: campos.notaMedica || null,
+      evolucionado_por: campos.evolucionadoPor || null,
+      // Issue #63 -- si quien está logueado no es el médico (básico o
+      // medicalizado), la firma de "quien evolucionó" siempre se
+      // dibuja a mano en el dispositivo -- nunca se autocompleta con
+      // la firma guardada de la cuenta de ningún médico. Si nadie
+      // dibujó nada (el médico no participó en este traslado, lo
+      // normal en un básico), `exportar()` da `null` y se reenvía lo
+      // que ya hubiera.
+      firma_evolucionado_por: tieneRolMedico
+        ? tieneAmbosRoles
+          ? firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente
+          : perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
+        : firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente,
+    }
+  }
  
   async function manejarEnvio(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setError(null)
     setGuardando(true)
     try {
-      const datos: FormatoTrasladoClinico = {
-        diagnostico: campos.diagnostico || null,
-        tratamiento: campos.tratamiento,
-        tratamiento_otro: campos.tratamientoOtro || null,
-        pupila_derecha: campos.pupilaDerecha || null,
-        pupila_izquierda: campos.pupilaIzquierda || null,
-        signos_vitales: campos.signosVitales
-          .filter((signo) => signo.hora.trim() !== '')
-          .map((signo) => ({
-            hora: signo.hora,
-            ta: signo.ta || null,
-            fc: aNumeroONulo(signo.fc),
-            fr: aNumeroONulo(signo.fr),
-            spo2: aNumeroONulo(signo.spo2),
-          })),
-        lesiones: campos.lesiones,
-        lesion_otro: campos.lesionOtro || null,
-        glasgow_ocular: aNumeroONulo(campos.glasgowOcular),
-        glasgow_verbal: aNumeroONulo(campos.glasgowVerbal),
-        glasgow_motora: aNumeroONulo(campos.glasgowMotora),
-        insumos_entregados: campos.insumos.filter((insumo) => insumo.trim() !== ''),
-        nota_auxiliar: campos.notaAuxiliar || null,
-        atendido_por: campos.atendidoPor || null,
-        // La firma solo se recalcula para el rol de quien está
-        // logueado ahora mismo; si no le corresponde, se reenvía la
-        // que ya hubiera (mismo patrón de "reenvío completo" del
-        // resto del formato — ver ADR-0006/0007).
-        //
-        // Issue #57 (comentario) -- si la misma persona tiene los dos
-        // roles, no puede "firmar" dos veces con la misma firma
-        // guardada como si fueran dos personas distintas: el auxiliar
-        // sigue autocompletándose con la firma guardada del perfil,
-        // pero la del médico se exige dibujada a mano en ese caso (ver
-        // FirmaField más abajo, que oculta la vista previa guardada
-        // cuando `tieneAmbosRoles`).
-        firma_atendido_por: tieneRolAuxiliar
-          ? perfil?.firma_guardada ?? firmaAtendidoRef.current?.exportar() ?? null
-          : campos.firmaAtendidoExistente,
-        nota_medica: campos.notaMedica || null,
-        evolucionado_por: campos.evolucionadoPor || null,
-        // Issue #63 -- cuando quien diligencia es el auxiliar en un
-        // medicalizado (selector de médico visible), la firma también
-        // se dibuja a mano en el dispositivo: nunca se autocompleta
-        // con la firma guardada de la cuenta del médico elegido, aunque
-        // esté de planta -- ver el porqué en `FirmaField` más abajo.
-        firma_evolucionado_por: tieneRolMedico
-          ? tieneAmbosRoles
-            ? firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente
-            : perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
-          : mostrarSelectorMedico
-            ? firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente
-            : campos.firmaEvolucionadoExistente,
-      }
-      await guardarClinicoConRespaldo(id, datos)
+      await guardarClinicoConRespaldo(id, construirDatosClinico())
       navigate('/', { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar lo clínico')
@@ -485,6 +505,17 @@ export function ClinicoTrasladoPage(): JSX.Element {
    * (dispositivo nuevo, o nunca se guardó), se manda al servidor —
    * que es quien de verdad autoriza, en línea o encolado sin
    * conexión — y él tiene la última palabra en cualquier caso.
+   *
+   * Issue #63 (comentario) -- guarda lo clínico primero, con lo que
+   * haya en pantalla ahora mismo, antes de pedir el cierre: antes
+   * cerrar e ir a "Guardar" eran dos pasos separados, y el aviso de
+   * "falta esto" antes de cerrar solo mira el estado en pantalla, no
+   * lo que ya quedó guardado en el servidor -- así que si alguien
+   * llenaba todo y le daba "Cerrar atención" directo, sin haber usado
+   * antes el botón de "Guardar", el servidor rechazaba el cierre
+   * diciendo que faltaba todo, porque de hecho nada de eso se le
+   * había mandado todavía. Guardar como parte del mismo clic de
+   * cerrar quita ese paso manual.
    */
   async function manejarCierre(evento: FormEvent): Promise<void> {
     evento.preventDefault()
@@ -503,6 +534,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
         return
       }
  
+      await guardarClinicoConRespaldo(id, construirDatosClinico())
       await cerrarAtencionConRespaldo(id, pinCierre)
       navigate('/', { replace: true })
     } catch (err) {
@@ -892,46 +924,46 @@ export function ClinicoTrasladoPage(): JSX.Element {
                 campoTexto('Nombre del médico', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
                   setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
                 )}
-              <FirmaField
-                etiqueta="Firma de quien evolucionó"
-                // Issue #63 -- quien está logueado es el auxiliar, no
-                // el médico elegido arriba: su firma nunca se
-                // autocompleta con la que tenga guardada en su propia
-                // cuenta (si la tiene), aunque esté de planta — la
-                // dibuja aquí mismo, en el dispositivo, él mismo. Ver
-                // la justificación completa donde se discutió el
-                // issue: autocompletarla antes de que revise lo
-                // escrito le quitaría valor probatorio a la firma.
-                firmaGuardada={null}
-                pista="El médico firma aquí, en el dispositivo — no se completa sola aunque esté de planta."
-                imagenInicial={campos.firmaEvolucionadoExistente}
-                canvasRef={firmaEvolucionadoRef}
-              />
             </>
           ) : (
-            <>
-              {campoTexto('Evolucionado por', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
-                setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
-              )}
-              {tieneRolMedico && (
-                <FirmaField
-                  etiqueta="Firma de quien evolucionó"
-                  // Issue #57 -- si la misma persona tiene también el rol
-                  // de auxiliar, ya usó su firma guardada arriba como
-                  // "quien atendió"; aquí se exige dibujarla a mano para
-                  // que no quede la misma imagen duplicada en los dos
-                  // campos como si hubieran firmado dos personas.
-                  firmaGuardada={tieneAmbosRoles ? null : perfil?.firma_guardada ?? null}
-                  pista={
-                    tieneAmbosRoles
-                      ? 'Ya se usó tu firma guardada como auxiliar — firma aquí a mano como médico.'
-                      : undefined
-                  }
-                  imagenInicial={campos.firmaEvolucionadoExistente}
-                  canvasRef={firmaEvolucionadoRef}
-                />
-              )}
-            </>
+            campoTexto('Evolucionado por', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
+              setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
+            )
+          )}
+          {tieneRolMedico ? (
+            <FirmaField
+              etiqueta="Firma de quien evolucionó"
+              // Issue #57 -- si la misma persona tiene también el rol
+              // de auxiliar, ya usó su firma guardada arriba como
+              // "quien atendió"; aquí se exige dibujarla a mano para
+              // que no quede la misma imagen duplicada en los dos
+              // campos como si hubieran firmado dos personas.
+              firmaGuardada={tieneAmbosRoles ? null : perfil?.firma_guardada ?? null}
+              pista={
+                tieneAmbosRoles
+                  ? 'Ya se usó tu firma guardada como auxiliar — firma aquí a mano como médico.'
+                  : undefined
+              }
+              imagenInicial={campos.firmaEvolucionadoExistente}
+              canvasRef={firmaEvolucionadoRef}
+            />
+          ) : (
+            <FirmaField
+              etiqueta="Firma de quien evolucionó"
+              // Issue #63 -- quien está logueado es el auxiliar, no el
+              // médico: su firma nunca se autocompleta con la que
+              // tenga guardada en su propia cuenta (si la tiene),
+              // aunque esté de planta -- la dibuja aquí mismo, en el
+              // dispositivo, él mismo. Se ofrece en básico igual que
+              // en medicalizado: el médico puede ir en los dos, y si
+              // nadie dibuja nada aquí (no fue en este traslado),
+              // `exportar()` da `null` y no pasa nada -- el campo es
+              // tan opcional como el nombre de arriba.
+              firmaGuardada={null}
+              pista="El médico firma aquí, en el dispositivo, si participó en este traslado — no se completa sola aunque esté de planta."
+              imagenInicial={campos.firmaEvolucionadoExistente}
+              canvasRef={firmaEvolucionadoRef}
+            />
           )}
  
           {error && (
