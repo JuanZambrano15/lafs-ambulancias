@@ -1,37 +1,37 @@
 /**
- * Marco común de las pantallas protegidas: barra lateral con los tres
- * CRUD de este issue (usuarios, empleados, roles) y botón de cerrar
- * sesión. Las pantallas de pendientes/alertas (issue #15) se agregan
- * acá cuando se construyan.
+ * Marco común de las pantallas protegidas: barra lateral con
+ * pendientes (issue #15) y los tres CRUD del issue #49 (usuarios,
+ * empleados, roles), y botón de cerrar sesión.
  */
-
+ 
 import type { JSX, ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-
+ 
 import { useAuth } from '../auth/AuthContext'
-
+ 
 const ENLACES = [
+  { to: '/', etiqueta: 'Pendientes' },
   { to: '/usuarios', etiqueta: 'Usuarios' },
   { to: '/empleados', etiqueta: 'Empleados' },
   { to: '/roles', etiqueta: 'Roles' },
 ]
-
+ 
 function claseEnlace({ isActive }: { isActive: boolean }): string {
   return [
     'block rounded-lg px-4 py-2 text-sm font-medium transition-colors',
     isActive ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100',
   ].join(' ')
 }
-
+ 
 export function Layout({ children }: { children: ReactNode }): JSX.Element {
   const { perfil, cerrarSesion } = useAuth()
   const navigate = useNavigate()
-
+ 
   function manejarCerrarSesion(): void {
     cerrarSesion()
     navigate('/login', { replace: true })
   }
-
+ 
   return (
     <div className="flex min-h-screen bg-slate-50">
       <aside className="flex w-56 flex-col justify-between border-r border-slate-200 bg-white p-4">
@@ -39,7 +39,11 @@ export function Layout({ children }: { children: ReactNode }): JSX.Element {
           <h1 className="mb-6 px-4 text-lg font-semibold text-slate-900">L.A.F.S. Admin</h1>
           <nav className="space-y-1">
             {ENLACES.map((enlace) => (
-              <NavLink key={enlace.to} to={enlace.to} className={claseEnlace}>
+              // `end` en "/" evita que NavLink lo marque "activo" en
+              // cualquier otra ruta -- sin esto, al no ser exacto por
+              // defecto, "Pendientes" se vería resaltado también en
+              // Usuarios/Empleados/Roles.
+              <NavLink key={enlace.to} to={enlace.to} end={enlace.to === '/'} className={claseEnlace}>
                 {enlace.etiqueta}
               </NavLink>
             ))}
