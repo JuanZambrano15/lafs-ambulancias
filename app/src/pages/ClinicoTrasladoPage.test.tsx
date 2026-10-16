@@ -551,6 +551,158 @@ describe('ClinicoTrasladoPage', () => {
     })
   })
  
+  describe('selector de médico en traslado medicalizado (issue #63)', () => {
+    const MEDICO_PLANTA: Empleado = {
+      id: 2,
+      nombres: 'Laura',
+      apellidos: 'Páez',
+      cedula: '900000001',
+      telefono: null,
+      tipo_vinculacion: 'planta',
+      activo: true,
+    }
+    const EXPORTADA = 'data:image/png;base64,FIRMA-MEDICO-EN-VIVO'
+ 
+    class ImagenFalsa {
+      onload: (() => void) | null = null
+      set src(_valor: string) {
+        setTimeout(() => this.onload?.(), 0)
+      }
+    }
+ 
+    beforeEach(() => {
+      vi.stubGlobal('Image', ImagenFalsa)
+      const ctxFalso = {
+        scale: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        stroke: vi.fn(),
+        clearRect: vi.fn(),
+        drawImage: vi.fn(),
+        lineWidth: 0,
+        lineCap: '',
+        strokeStyle: '',
+      }
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+        ctxFalso as unknown as CanvasRenderingContext2D,
+      )
+      vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(EXPORTADA)
+      HTMLCanvasElement.prototype.setPointerCapture = vi.fn()
+      HTMLCanvasElement.prototype.releasePointerCapture = vi.fn()
+    })
+ 
+    it('auxiliar en medicalizado: ofrece un selector de médicos de planta, no un campo libre', async () => {
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([MEDICO_PLANTA])
+ 
+      renderPagina()
+ 
+      const selector = await screen.findByLabelText('Médico que evolucionó')
+      expect(await within(selector).findByText('Laura Páez')).toBeInTheDocument()
+      expect(within(selector).getByText('Otro (escribir el nombre)')).toBeInTheDocument()
+      expect(screen.queryByLabelText('Evolucionado por')).not.toBeInTheDocument()
+    })
+ 
+    it('elegir un médico de la lista completa el nombre y exige la firma a mano', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        // Firma guardada propia (de planta) para el auxiliar, para que
+        // "quien atendió" se muestre como vista previa (<img>) y no
+        // deje dos canvas de firma en pantalla -- lo que aquí interesa
+        // probar es el canvas de "quien evolucionó" (el médico).
+        perfilCon(
+          [{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }],
+          'data:image/png;base64,GUARDADA-AUXILIAR',
+        ),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([MEDICO_PLANTA])
+      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+ 
+      renderPagina()
+ 
+      const selector = await screen.findByLabelText('Médico que evolucionó')
+      await screen.findByText('Laura Páez')
+      await usuario.selectOptions(selector, '2')
+      // La firma del médico elegido nunca se autocompleta sola -- se
+      // dibuja aquí mismo, en el dispositivo (issue #63).
+      expect(screen.queryByAltText('Firma de quien evolucionó')).not.toBeInTheDocument()
+      const canvas = await screen.findByLabelText('Recuadro para firmar')
+      canvas.dispatchEvent(
+        new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),
+      )
+      canvas.dispatchEvent(
+        new PointerEvent('pointermove', { clientX: 20, clientY: 20, bubbles: true }),
+      )
+ 
+      await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+ 
+      await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
+      const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+      expect(datos.evolucionado_por).toBe('Laura Páez')
+      expect(datos.firma_evolucionado_por).toBe(EXPORTADA)
+    })
+ 
+    it('"Otro" revela un campo de texto para el médico que no está de planta', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([MEDICO_PLANTA])
+      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+ 
+      renderPagina()
+ 
+      const selector = await screen.findByLabelText('Médico que evolucionó')
+      await screen.findByText('Laura Páez')
+      await usuario.selectOptions(selector, 'otro')
+      await usuario.type(screen.getByLabelText('Nombre del médico'), 'Carlos Mora')
+ 
+      await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+ 
+      await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
+      const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+      expect(datos.evolucionado_por).toBe('Carlos Mora')
+    })
+ 
+    it('traslado básico: no muestra el selector, sigue siendo un campo libre', async () => {
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue({
+        ...FORMATO_SIN_CLINICO,
+        nivel_servicio: 'basico',
+      })
+ 
+      renderPagina()
+ 
+      await screen.findByLabelText('Diagnóstico')
+      expect(screen.queryByLabelText('Médico que evolucionó')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Evolucionado por')).toBeInTheDocument()
+    })
+ 
+    it('médico logueado: sigue viendo el campo libre de siempre, no el selector', async () => {
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'medico', descripcion: null }], null, 'Laura Páez'),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+ 
+      renderPagina()
+ 
+      await screen.findByLabelText('Diagnóstico')
+      expect(screen.queryByLabelText('Médico que evolucionó')).not.toBeInTheDocument()
+      await waitFor(() =>
+        expect(screen.getByLabelText('Evolucionado por')).toHaveValue('Laura Páez'),
+      )
+      expect(api.listarMedicosDisponibles).not.toHaveBeenCalled()
+    })
+  })
+ 
   describe('cerrar atención (issue #12)', () => {
     beforeEach(() => {
       // Issue #57 agrega una validación de completitud al cerrar --

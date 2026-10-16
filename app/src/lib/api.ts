@@ -166,6 +166,13 @@ export async function listarConductoresDisponibles(): Promise<Empleado[]> {
   return apiFetch<Empleado[]>('/atenciones/conductores-disponibles')
 }
  
+/** Issue #63 -- médicos de planta activos, para el selector que se
+ * muestra en lo clínico de un traslado medicalizado cuando quien está
+ * logueado no es el médico. */
+export async function listarMedicosDisponibles(): Promise<Empleado[]> {
+  return apiFetch<Empleado[]>('/atenciones/medicos-disponibles')
+}
+ 
 export async function crearAtencion(datos: AtencionCreate): Promise<Atencion> {
   return apiFetch<Atencion>('/atenciones', {
     method: 'POST',

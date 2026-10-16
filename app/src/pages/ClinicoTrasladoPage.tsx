@@ -31,7 +31,7 @@ import { useNavigate, useParams } from 'react-router-dom'
  
 import { useAuth } from '../auth/AuthContext'
 import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
-import { ApiError } from '../lib/api'
+import { ApiError, listarMedicosDisponibles } from '../lib/api'
 import { pinLocalValido } from '../lib/pinLocal'
 import {
   cerrarAtencionConRespaldo,
@@ -39,6 +39,7 @@ import {
   obtenerFormatoConRespaldo,
 } from '../lib/trasladoOffline'
 import type {
+  Empleado,
   FormatoTrasladoClinico,
   LesionTipo,
   NivelServicioTraslado,
@@ -259,6 +260,24 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const [cerrando, setCerrando] = useState(false)
   const [errorCierre, setErrorCierre] = useState<string | null>(null)
  
+  // Issue #63 -- selector de médico para cuando quien diligencia lo
+  // clínico de un medicalizado es el auxiliar (no el médico): lista de
+  // médicos de planta para elegir, más "otro" para escribir el nombre
+  // a mano si no está en la lista. `null` mientras carga.
+  const [medicos, setMedicos] = useState<Empleado[] | null>(null)
+  const [medicoId, setMedicoId] = useState('')
+ 
+  useEffect(() => {
+    // `perfil === undefined` mientras se restaura la sesión guardada
+    // (ver AuthContext) -- se espera a que se resuelva para no pedir
+    // la lista de médicos de más si quien está logueado termina
+    // siendo el médico mismo (nunca la necesita).
+    if (perfil === undefined || tieneRolMedico) return
+    listarMedicosDisponibles()
+      .then(setMedicos)
+      .catch(() => setMedicos([]))
+  }, [perfil, tieneRolMedico])
+ 
   useEffect(() => {
     // Issue #57 (comentario) -- "atendido por"/"evolucionó por" se
     // autocompletan con el nombre de quien está logueado, el mismo
@@ -384,6 +403,14 @@ export function ClinicoTrasladoPage(): JSX.Element {
   // enterarse recién ahí de que falta algo).
   const faltantesParaCerrar = camposFaltantesParaCerrar(campos, nivelServicio)
  
+  // Issue #63 -- en un medicalizado, si quien está logueado no es el
+  // médico, el nombre se elige del selector de médicos de planta, o
+  // se escribe a mano con "Otro" (si no está en la lista, o ya había
+  // algo guardado de un turno anterior que no vino del selector).
+  const mostrarSelectorMedico = nivelServicio === 'medicalizado' && !tieneRolMedico
+  const modoOtroMedico =
+    mostrarSelectorMedico && (medicoId === 'otro' || (medicoId === '' && campos.evolucionadoPor !== ''))
+ 
   async function manejarEnvio(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setError(null)
@@ -429,11 +456,18 @@ export function ClinicoTrasladoPage(): JSX.Element {
           : campos.firmaAtendidoExistente,
         nota_medica: campos.notaMedica || null,
         evolucionado_por: campos.evolucionadoPor || null,
+        // Issue #63 -- cuando quien diligencia es el auxiliar en un
+        // medicalizado (selector de médico visible), la firma también
+        // se dibuja a mano en el dispositivo: nunca se autocompleta
+        // con la firma guardada de la cuenta del médico elegido, aunque
+        // esté de planta -- ver el porqué en `FirmaField` más abajo.
         firma_evolucionado_por: tieneRolMedico
           ? tieneAmbosRoles
             ? firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente
             : perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
-          : campos.firmaEvolucionadoExistente,
+          : mostrarSelectorMedico
+            ? firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente
+            : campos.firmaEvolucionadoExistente,
       }
       await guardarClinicoConRespaldo(id, datos)
       navigate('/', { replace: true })
@@ -813,26 +847,91 @@ export function ClinicoTrasladoPage(): JSX.Element {
             rows={4}
             className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
           />
-          {campoTexto('Evolucionado por', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
-            setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
-          )}
-          {tieneRolMedico && (
-            <FirmaField
-              etiqueta="Firma de quien evolucionó"
-              // Issue #57 -- si la misma persona tiene también el rol
-              // de auxiliar, ya usó su firma guardada arriba como
-              // "quien atendió"; aquí se exige dibujarla a mano para
-              // que no quede la misma imagen duplicada en los dos
-              // campos como si hubieran firmado dos personas.
-              firmaGuardada={tieneAmbosRoles ? null : perfil?.firma_guardada ?? null}
-              pista={
-                tieneAmbosRoles
-                  ? 'Ya se usó tu firma guardada como auxiliar — firma aquí a mano como médico.'
-                  : undefined
-              }
-              imagenInicial={campos.firmaEvolucionadoExistente}
-              canvasRef={firmaEvolucionadoRef}
-            />
+          {mostrarSelectorMedico ? (
+            <>
+              <div className="mb-4">
+                <label
+                  className="mb-1 block text-sm font-medium text-slate-700"
+                  htmlFor="medico-evoluciono"
+                >
+                  Médico que evolucionó
+                </label>
+                <select
+                  id="medico-evoluciono"
+                  value={medicoId}
+                  onChange={(e) => {
+                    const valor = e.target.value
+                    setMedicoId(valor)
+                    if (valor === '' || valor === 'otro') return
+                    const medico = medicos?.find((m) => String(m.id) === valor)
+                    if (medico) {
+                      setCampos((anterior) => ({
+                        ...anterior,
+                        evolucionadoPor: `${medico.nombres} ${medico.apellidos}`,
+                      }))
+                    }
+                  }}
+                  className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="">
+                    {medicos === null
+                      ? 'Cargando médicos…'
+                      : medicos.length === 0
+                        ? 'No hay médicos de planta registrados'
+                        : 'Elige un médico de planta'}
+                  </option>
+                  {medicos?.map((medico) => (
+                    <option key={medico.id} value={medico.id}>
+                      {medico.nombres} {medico.apellidos}
+                    </option>
+                  ))}
+                  <option value="otro">Otro (escribir el nombre)</option>
+                </select>
+              </div>
+              {modoOtroMedico &&
+                campoTexto('Nombre del médico', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
+                  setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
+                )}
+              <FirmaField
+                etiqueta="Firma de quien evolucionó"
+                // Issue #63 -- quien está logueado es el auxiliar, no
+                // el médico elegido arriba: su firma nunca se
+                // autocompleta con la que tenga guardada en su propia
+                // cuenta (si la tiene), aunque esté de planta — la
+                // dibuja aquí mismo, en el dispositivo, él mismo. Ver
+                // la justificación completa donde se discutió el
+                // issue: autocompletarla antes de que revise lo
+                // escrito le quitaría valor probatorio a la firma.
+                firmaGuardada={null}
+                pista="El médico firma aquí, en el dispositivo — no se completa sola aunque esté de planta."
+                imagenInicial={campos.firmaEvolucionadoExistente}
+                canvasRef={firmaEvolucionadoRef}
+              />
+            </>
+          ) : (
+            <>
+              {campoTexto('Evolucionado por', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
+                setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
+              )}
+              {tieneRolMedico && (
+                <FirmaField
+                  etiqueta="Firma de quien evolucionó"
+                  // Issue #57 -- si la misma persona tiene también el rol
+                  // de auxiliar, ya usó su firma guardada arriba como
+                  // "quien atendió"; aquí se exige dibujarla a mano para
+                  // que no quede la misma imagen duplicada en los dos
+                  // campos como si hubieran firmado dos personas.
+                  firmaGuardada={tieneAmbosRoles ? null : perfil?.firma_guardada ?? null}
+                  pista={
+                    tieneAmbosRoles
+                      ? 'Ya se usó tu firma guardada como auxiliar — firma aquí a mano como médico.'
+                      : undefined
+                  }
+                  imagenInicial={campos.firmaEvolucionadoExistente}
+                  canvasRef={firmaEvolucionadoRef}
+                />
+              )}
+            </>
           )}
  
           {error && (
