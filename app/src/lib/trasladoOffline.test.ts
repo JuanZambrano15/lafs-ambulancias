@@ -296,6 +296,114 @@ describe('sincronizarPendientes', () => {
   })
 })
  
+describe('sincronización de varios pendientes acumulados de una vez (issue #16)', () => {
+  it('crea 3 traslados sin conexión, cada uno con su propio client_id generado en el dispositivo', async () => {
+    const restaurar = conEstadoDeRed(false)
+    const primero = await crearAtencionConRespaldo({ tipo: 'traslado', ambulancia_id: 1, conductor_id: 2 })
+    const segundo = await crearAtencionConRespaldo({ tipo: 'traslado', ambulancia_id: 1, conductor_id: 2 })
+    const tercero = await crearAtencionConRespaldo({ tipo: 'traslado', ambulancia_id: 1, conductor_id: 2 })
+    restaurar()
+ 
+    expect(await contarPendientes()).toBe(3)
+    // Son tres UUID generados por `crypto.randomUUID()`, uno por cada
+    // traslado acumulado -- si se repitiera uno (ADR-0008 ya reconoce
+    // esto como un riesgo teórico, aunque estadísticamente
+    // irrelevante), dos traslados distintos terminarían compartiendo
+    // identidad al sincronizar.
+    const idsLocales = new Set([primero.atencionId, segundo.atencionId, tercero.atencionId])
+    expect(idsLocales.size).toBe(3)
+  })
+ 
+  it('sincroniza los 3 pendientes acumulados en una sola pasada, cada uno con su propia atención, sin duplicar', async () => {
+    const restaurar = conEstadoDeRed(false)
+    await crearAtencionConRespaldo({ tipo: 'traslado', ambulancia_id: 1, conductor_id: 2 })
+    await crearAtencionConRespaldo({ tipo: 'traslado', ambulancia_id: 1, conductor_id: 2 })
+    await crearAtencionConRespaldo({ tipo: 'traslado', ambulancia_id: 1, conductor_id: 2 })
+    restaurar()
+ 
+    let siguienteId = 400
+    vi.mocked(api.crearAtencion).mockImplementation(async () => atencionDeServidor((siguienteId += 1)))
+ 
+    const resultado = await sincronizarPendientes()
+ 
+    expect(resultado).toEqual({ sincronizados: 3, fallidos: 0 })
+    expect(api.crearAtencion).toHaveBeenCalledTimes(3)
+    // Cada una de las 3 llamadas a `POST /atenciones` debe llevar un
+    // `client_id` distinto -- si dos pendientes mandaran el mismo, el
+    // backend (idempotente por diseño, ver #16) devolvería la misma
+    // atención para ambos y uno de los tres traslados "desaparecería"
+    // en vez de sincronizarse como uno propio.
+    const clientIdsEnviados = vi
+      .mocked(api.crearAtencion)
+      .mock.calls.map(([datos]) => datos.client_id)
+    expect(new Set(clientIdsEnviados).size).toBe(3)
+    expect(await listarPendientes()).toHaveLength(0)
+    expect(await contarPendientes()).toBe(0)
+  })
+ 
+  it('una segunda sincronización, sin nada nuevo acumulado, no reenvía lo que ya se sincronizó', async () => {
+    const restaurar = conEstadoDeRed(false)
+    await crearAtencionConRespaldo({ tipo: 'traslado', ambulancia_id: 1, conductor_id: 2 })
+    await crearAtencionConRespaldo({ tipo: 'traslado', ambulancia_id: 1, conductor_id: 2 })
+    restaurar()
+ 
+    vi.mocked(api.crearAtencion)
+      .mockResolvedValueOnce(atencionDeServidor(501))
+      .mockResolvedValueOnce(atencionDeServidor(502))
+ 
+    const primeraPasada = await sincronizarPendientes()
+    expect(primeraPasada).toEqual({ sincronizados: 2, fallidos: 0 })
+    expect(api.crearAtencion).toHaveBeenCalledTimes(2)
+ 
+    // Simula llegar otra vez al garaje (segundo evento `online`) sin
+    // haber creado nada nuevo entre medio -- la cola ya está vacía, así
+    // que no debería volver a llamar al backend por los dos que ya
+    // quedaron sincronizados.
+    const segundaPasada = await sincronizarPendientes()
+    expect(segundaPasada).toEqual({ sincronizados: 0, fallidos: 0 })
+    expect(api.crearAtencion).toHaveBeenCalledTimes(2)
+  })
+ 
+  it('al reintentar tras un fallo parcial, solo reenvía el que quedó pendiente -- no duplica el que ya sincronizó', async () => {
+    const restaurar = conEstadoDeRed(false)
+    const primero = await crearAtencionConRespaldo({ tipo: 'traslado', ambulancia_id: 1, conductor_id: 2 })
+    const segundo = await crearAtencionConRespaldo({ tipo: 'traslado', ambulancia_id: 1, conductor_id: 2 })
+    restaurar()
+ 
+    const clientIdSegundo = segundo.atencionId.replace('local-', '')
+ 
+    // En la primera pasada el backend rechaza uno de los dos (p. ej.
+    // la ambulancia ya tiene otra atención abierta) -- el otro sí se
+    // sincroniza y debe salir de la cola.
+    vi.mocked(api.crearAtencion).mockImplementation(async (datos) => {
+      if (datos.client_id === clientIdSegundo) {
+        throw new api.ApiError(409, 'Esa ambulancia ya tiene una atención abierta')
+      }
+      return atencionDeServidor(601)
+    })
+ 
+    const primeraPasada = await sincronizarPendientes()
+    expect(primeraPasada).toEqual({ sincronizados: 1, fallidos: 1 })
+    expect(await contarPendientes()).toBe(1)
+ 
+    // Al reintentar (p. ej. tras liberar la ambulancia), solo debe
+    // reenviarse el que falló -- el primero, ya sincronizado, no debe
+    // volver a crearse con un id nuevo.
+    vi.mocked(api.crearAtencion).mockImplementation(async () => atencionDeServidor(602))
+    const segundaPasada = await sincronizarPendientes()
+ 
+    expect(segundaPasada).toEqual({ sincronizados: 1, fallidos: 0 })
+    expect(api.crearAtencion).toHaveBeenCalledTimes(3)
+    expect(await contarPendientes()).toBe(0)
+ 
+    const primerClientId = primero.atencionId.replace('local-', '')
+    const clientIdsEnviados = vi
+      .mocked(api.crearAtencion)
+      .mock.calls.map(([datos]) => datos.client_id)
+    expect(clientIdsEnviados.filter((id) => id === primerClientId)).toHaveLength(1)
+  })
+})
+ 
 describe('cerrarAtencionConRespaldo', () => {
   it('cierra en línea cuando hay conexión y el backend responde', async () => {
     const restaurar = conEstadoDeRed(true)
