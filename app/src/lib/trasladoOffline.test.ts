@@ -7,9 +7,9 @@ import {
   contarPendientes,
   crearAtencionConRespaldo,
   esIdLocal,
-  guardarClinicoConRespaldo,
-  guardarEncabezadoConRespaldo,
-  obtenerFormatoConRespaldo,
+  guardarClinicoTrasladoConRespaldo,
+  guardarEncabezadoTrasladoConRespaldo,
+  obtenerFormatoTrasladoConRespaldo,
   sincronizarPendientes,
 } from './trasladoOffline'
 import type { Ambulancia, Atencion, Empleado, FormatoTrasladoClinico, FormatoTrasladoEncabezado } from './types'
@@ -184,23 +184,23 @@ describe('flujo local completo (sin conexión)', () => {
       conductor_id: 2,
     })
  
-    expect(await obtenerFormatoConRespaldo(atencionId)).toBeNull()
+    expect(await obtenerFormatoTrasladoConRespaldo(atencionId)).toBeNull()
  
-    await guardarEncabezadoConRespaldo(atencionId, ENCABEZADO)
-    const soloEncabezado = await obtenerFormatoConRespaldo(atencionId)
+    await guardarEncabezadoTrasladoConRespaldo(atencionId, ENCABEZADO)
+    const soloEncabezado = await obtenerFormatoTrasladoConRespaldo(atencionId)
     expect(soloEncabezado?.paciente_nombres).toBe('Juan')
     expect(soloEncabezado?.glasgow_ocular).toBeNull()
  
-    await guardarClinicoConRespaldo(atencionId, CLINICO)
-    const completo = await obtenerFormatoConRespaldo(atencionId)
+    await guardarClinicoTrasladoConRespaldo(atencionId, CLINICO)
+    const completo = await obtenerFormatoTrasladoConRespaldo(atencionId)
     expect(completo?.paciente_nombres).toBe('Juan')
     expect(completo?.diagnostico).toBe('Dolor torácico')
  
     restaurar()
   })
  
-  it('guardarEncabezadoConRespaldo lanza error si el registro local no existe', async () => {
-    await expect(guardarEncabezadoConRespaldo('local-no-existe', ENCABEZADO)).rejects.toThrow()
+  it('guardarEncabezadoTrasladoConRespaldo lanza error si el registro local no existe', async () => {
+    await expect(guardarEncabezadoTrasladoConRespaldo('local-no-existe', ENCABEZADO)).rejects.toThrow()
   })
 })
  
@@ -212,8 +212,8 @@ describe('sincronizarPendientes', () => {
       ambulancia_id: 1,
       conductor_id: 2,
     })
-    await guardarEncabezadoConRespaldo(atencionId, ENCABEZADO)
-    await guardarClinicoConRespaldo(atencionId, CLINICO)
+    await guardarEncabezadoTrasladoConRespaldo(atencionId, ENCABEZADO)
+    await guardarClinicoTrasladoConRespaldo(atencionId, CLINICO)
     restaurar()
  
     vi.mocked(api.crearAtencion).mockResolvedValue(atencionDeServidor(9))

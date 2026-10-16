@@ -15,7 +15,13 @@
  * traslado, solo el PIN y el id real de la atención.
  */
  
-import type { AtencionCreate, FormatoTrasladoClinico, FormatoTrasladoEncabezado } from './types'
+import type {
+  AtencionCreate,
+  FormatoAccidenteSoatClinico,
+  FormatoAccidenteSoatEncabezado,
+  FormatoTrasladoClinico,
+  FormatoTrasladoEncabezado,
+} from './types'
  
 export interface TrasladoPendiente {
   /** UUID generado en el dispositivo — llave de la fila y también lo
@@ -25,8 +31,11 @@ export interface TrasladoPendiente {
   atencion: AtencionCreate
   /** `null` hasta que `POST /atenciones` se confirma contra el backend. */
   atencionId: number | null
-  encabezado: FormatoTrasladoEncabezado | null
-  clinico: FormatoTrasladoClinico | null
+  /** Issue #17: esta cola tambien acumula atenciones SOAT pendientes -- `atencion.tipo` dice
+   * cual de los dos formatos aplica, asi que en cualquier fila dada solo uno de los dos tipos
+   * tiene sentido (ver `trasladoOffline.ts`, que es quien decide cual). */
+  encabezado: FormatoTrasladoEncabezado | FormatoAccidenteSoatEncabezado | null
+  clinico: FormatoTrasladoClinico | FormatoAccidenteSoatClinico | null
   /** Cierre pedido mientras la atención seguía sin sincronizar (issue
    * #12) — se manda después de encabezado y clínico, en ese orden. */
   cierre: { pin: string } | null

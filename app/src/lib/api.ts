@@ -14,6 +14,9 @@ import type {
   Atencion,
   AtencionCreate,
   Empleado,
+  FormatoAccidenteSoat,
+  FormatoAccidenteSoatClinico,
+  FormatoAccidenteSoatEncabezado,
   FormatoTraslado,
   FormatoTrasladoClinico,
   FormatoTrasladoEncabezado,
@@ -230,4 +233,42 @@ export async function cerrarAtencion(atencionId: number, pin: string): Promise<A
     method: 'PUT',
     body: { pin },
   })
+}
+
+/** Issue #17 — mismo patrón que `obtenerEncabezadoTraslado`, pero para
+ * el formato de accidente SOAT. */
+export async function obtenerEncabezadoAccidenteSoat(
+  atencionId: number,
+): Promise<FormatoAccidenteSoat | null> {
+  try {
+    return await apiFetch<FormatoAccidenteSoat>(
+      `/atenciones/${atencionId}/formato-accidente-soat`,
+    )
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null
+    throw err
+  }
+}
+
+export async function guardarEncabezadoAccidenteSoat(
+  atencionId: number,
+  datos: FormatoAccidenteSoatEncabezado,
+): Promise<FormatoAccidenteSoat> {
+  return apiFetch<FormatoAccidenteSoat>(`/atenciones/${atencionId}/formato-accidente-soat`, {
+    method: 'PUT',
+    body: datos,
+  })
+}
+
+export async function guardarClinicoAccidenteSoat(
+  atencionId: number,
+  datos: FormatoAccidenteSoatClinico,
+): Promise<FormatoAccidenteSoat> {
+  return apiFetch<FormatoAccidenteSoat>(
+    `/atenciones/${atencionId}/formato-accidente-soat/clinico`,
+    {
+      method: 'PUT',
+      body: datos,
+    },
+  )
 }
