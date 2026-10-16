@@ -201,7 +201,7 @@ function alternarEnLista<T>(lista: T[], valor: T): T[] {
 function aNumeroONulo(valor: string): number | null {
   return valor === '' ? null : Number(valor)
 }
-
+ 
 /** Issue #57 -- qué le falta a lo clínico para poder cerrar el
  * traslado, calculado en el cliente a partir del estado actual del
  * formulario (sin esperar la respuesta del servidor). Es un espejo
@@ -260,9 +260,29 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const [errorCierre, setErrorCierre] = useState<string | null>(null)
  
   useEffect(() => {
+    // Issue #57 (comentario) -- "atendido por"/"evolucionó por" se
+    // autocompletan con el nombre de quien está logueado, el mismo
+    // patrón que ya existía para la firma. Va aquí mismo, en el único
+    // setCampos() que ya carga lo existente, en vez de un efecto o un
+    // ajuste de estado aparte: con dos setCampos separados para el
+    // mismo montaje, el de StrictMode (que en desarrollo invoca el
+    // render dos veces) puede terminar aplicando uno de los dos solo
+    // en la pasada que React descarta -- el estado se ve bien en los
+    // logs, pero no llega al DOM. Un único cálculo sin estado
+    // intermedio no tiene ese problema.
+    const nombrePerfil = perfil?.empleado_nombre_completo ?? null
     obtenerFormatoConRespaldo(id)
       .then((existente) => {
-        if (existente === null) return
+        if (existente === null) {
+          if (nombrePerfil) {
+            setCampos((anterior) => ({
+              ...anterior,
+              atendidoPor: tieneRolAuxiliar ? nombrePerfil : anterior.atendidoPor,
+              evolucionadoPor: tieneRolMedico ? nombrePerfil : anterior.evolucionadoPor,
+            }))
+          }
+          return
+        }
         setCampos({
           diagnostico: existente.diagnostico ?? '',
           tratamiento: existente.tratamiento,
@@ -283,10 +303,15 @@ export function ClinicoTrasladoPage(): JSX.Element {
           glasgowMotora: existente.glasgow_motora === null ? '' : String(existente.glasgow_motora),
           insumos: existente.insumos_entregados,
           notaAuxiliar: existente.nota_auxiliar ?? '',
-          atendidoPor: existente.atendido_por ?? '',
+          // Nunca reemplaza un nombre que ya hubiera quedado guardado
+          // -- propio o de otra persona en un turno anterior -- solo
+          // precarga cuando el backend no tiene nada todavía.
+          atendidoPor:
+            existente.atendido_por ?? (tieneRolAuxiliar && nombrePerfil ? nombrePerfil : ''),
           firmaAtendidoExistente: existente.firma_atendido_por,
           notaMedica: existente.nota_medica ?? '',
-          evolucionadoPor: existente.evolucionado_por ?? '',
+          evolucionadoPor:
+            existente.evolucionado_por ?? (tieneRolMedico && nombrePerfil ? nombrePerfil : ''),
           firmaEvolucionadoExistente: existente.firma_evolucionado_por,
         })
         setNivelServicio(existente.nivel_servicio)
@@ -295,45 +320,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
         setErrorCarga(err instanceof ApiError ? err.message : 'No se pudo cargar lo clínico')
       })
       .finally(() => setCargando(false))
-  }, [id])
-
-  // Issue #57 (comentario) -- "atendido por"/"evolucionó por" se
-  // autocompletan con el nombre de quien está logueado, el mismo
-  // patrón que ya existía para la firma. Solo si el campo
-  // correspondiente sigue vacío (nada guardado todavía, o nadie lo
-  // escribió a mano) -- nunca reemplaza un nombre que ya hubiera,
-  // propio o de otra persona en un turno anterior.
-  //
-  // Ajuste de estado durante el render (no en un efecto): hace falta
-  // reaccionar a dos cosas que resuelven por separado y sin un orden
-  // garantizado -- el perfil (contexto de sesión) y la carga del
-  // formato de esta pantalla -- y un efecto con `setState` directo en
-  // el cuerpo dispara el lint de renders en cascada
-  // (react-hooks/set-state-in-effect). Este es el patrón que React
-  // recomienda en su lugar para "ajustar estado cuando algo externo
-  // cambia" (ver "You Might Not Need An Effect").
-  const [nombrePerfilAplicado, setNombrePerfilAplicado] = useState(false)
-  const nombrePerfil = perfil?.empleado_nombre_completo ?? null
-  console.log('DEBUG autocompletar', {
-  nombrePerfilAplicado,
-  cargando,
-  nombrePerfil,
-  tieneRolAuxiliar,
-  tieneRolMedico,
-  atendidoPorActual: campos.atendidoPor,
-})
-  if (!nombrePerfilAplicado && !cargando && nombrePerfil) {
-    setNombrePerfilAplicado(true)
-    setCampos((anterior) => ({
-      ...anterior,
-      atendidoPor:
-        tieneRolAuxiliar && anterior.atendidoPor === '' ? nombrePerfil : anterior.atendidoPor,
-      evolucionadoPor:
-        tieneRolMedico && anterior.evolucionadoPor === ''
-          ? nombrePerfil
-          : anterior.evolucionadoPor,
-    }))
-  }
+  }, [id, perfil?.empleado_nombre_completo, tieneRolAuxiliar, tieneRolMedico])
  
   function agregarSignoVital(): void {
     setCampos((anterior) => ({
@@ -390,7 +377,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
     campos.glasgowOcular !== '' && campos.glasgowVerbal !== '' && campos.glasgowMotora !== ''
       ? Number(campos.glasgowOcular) + Number(campos.glasgowVerbal) + Number(campos.glasgowMotora)
       : null
-
+ 
   // Issue #57 -- qué le falta al formulario para poder cerrar, visto
   // en el cliente antes de intentarlo (el servidor vuelve a validar
   // igual, esto es solo para no hacer a alguien llenar el PIN para
