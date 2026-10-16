@@ -551,7 +551,7 @@ describe('ClinicoTrasladoPage', () => {
     })
   })
  
-  describe('selector de médico en traslado medicalizado (issue #63)', () => {
+  describe('selector de médico en lo clínico (issue #63)', () => {
     const MEDICO_PLANTA: Empleado = {
       id: 2,
       nombres: 'Laura',
@@ -592,7 +592,7 @@ describe('ClinicoTrasladoPage', () => {
       HTMLCanvasElement.prototype.releasePointerCapture = vi.fn()
     })
  
-    it('auxiliar en medicalizado: ofrece un selector de médicos de planta, no un campo libre', async () => {
+    it('auxiliar: ofrece un selector de médicos de planta, no un campo libre', async () => {
       vi.mocked(api.obtenerPerfil).mockResolvedValue(
         perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
       )
@@ -670,7 +670,13 @@ describe('ClinicoTrasladoPage', () => {
       expect(datos.evolucionado_por).toBe('Carlos Mora')
     })
  
-    it('traslado básico: no muestra el selector, sigue siendo un campo libre -- pero sí ofrece firmar', async () => {
+    it('traslado básico: también ofrece el selector de médicos de planta, y el canvas para firmar', async () => {
+      // Pedido explícito del usuario: antes el selector solo salía en
+      // medicalizado y en básico el nombre quedaba como campo libre.
+      // En básico el médico también puede ir (es opcional, no
+      // obligatorio como en medicalizado), y elegirlo de una lista es
+      // más fácil que escribirlo a mano -- así que el selector se
+      // ofrece igual en los dos casos.
       vi.mocked(api.obtenerPerfil).mockResolvedValue(
         perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
       )
@@ -678,12 +684,14 @@ describe('ClinicoTrasladoPage', () => {
         ...FORMATO_SIN_CLINICO,
         nivel_servicio: 'basico',
       })
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([MEDICO_PLANTA])
  
       renderPagina()
  
-      await screen.findByLabelText('Diagnóstico')
-      expect(screen.queryByLabelText('Médico que evolucionó')).not.toBeInTheDocument()
-      expect(screen.getByLabelText('Evolucionado por')).toBeInTheDocument()
+      const selector = await screen.findByLabelText('Médico que evolucionó')
+      expect(await within(selector).findByText('Laura Páez')).toBeInTheDocument()
+      expect(within(selector).getByText('Otro (escribir el nombre)')).toBeInTheDocument()
+      expect(screen.queryByLabelText('Evolucionado por')).not.toBeInTheDocument()
       // Bug encontrado en pruebas manuales: en básico el médico es
       // opcional, pero si va, igual hay que poder capturar su firma --
       // antes el canvas solo aparecía si quien estaba logueado era el
@@ -737,11 +745,17 @@ describe('ClinicoTrasladoPage', () => {
         ...FORMATO_SIN_CLINICO,
         nivel_servicio: 'basico',
       })
+      // Sin médicos de planta registrados -- este médico no está de
+      // planta, así que se usa "Otro" para escribir el nombre a mano.
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([])
       vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
  
       renderPagina()
  
-      await usuario.type(await screen.findByLabelText('Evolucionado por'), 'Carlos Mora')
+      const selector = await screen.findByLabelText('Médico que evolucionó')
+      await screen.findByText('No hay médicos de planta registrados')
+      await usuario.selectOptions(selector, 'otro')
+      await usuario.type(screen.getByLabelText('Nombre del médico'), 'Carlos Mora')
       const canvas = await screen.findByLabelText('Recuadro para firmar')
       canvas.dispatchEvent(
         new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),

@@ -403,16 +403,16 @@ export function ClinicoTrasladoPage(): JSX.Element {
   // enterarse recién ahí de que falta algo).
   const faltantesParaCerrar = camposFaltantesParaCerrar(campos, nivelServicio)
  
-  // Issue #63 -- en un medicalizado, si quien está logueado no es el
-  // médico, el nombre se elige del selector de médicos de planta, o
+  // Issue #63 -- si quien está logueado no es el médico, el nombre de
+  // "quien evolucionó" se elige del selector de médicos de planta, o
   // se escribe a mano con "Otro" (si no está en la lista, o ya había
-  // algo guardado de un turno anterior que no vino del selector). En
-  // básico el médico sigue siendo opcional y el nombre sigue siendo
-  // libre -- no hay selector -- pero la firma (ver más abajo) se
-  // ofrece igual en los dos casos: el médico puede ir también en un
-  // básico si quiere, y si va, alguien tiene que poder capturar su
-  // firma aunque quien esté logueado sea el auxiliar.
-  const mostrarSelectorMedico = nivelServicio === 'medicalizado' && !tieneRolMedico
+  // algo guardado de un turno anterior que no vino del selector). Se
+  // ofrece igual en básico y en medicalizado -- el médico puede ir en
+  // los dos (en básico es opcional, en medicalizado obligatorio por
+  // ley), y elegirlo de una lista es más fácil que escribirlo a mano
+  // en cualquiera de los dos casos. La firma (ver más abajo) sigue el
+  // mismo criterio: se ofrece igual en los dos.
+  const mostrarSelectorMedico = !tieneRolMedico
   const modoOtroMedico =
     mostrarSelectorMedico && (medicoId === 'otro' || (medicoId === '' && campos.evolucionadoPor !== ''))
  
