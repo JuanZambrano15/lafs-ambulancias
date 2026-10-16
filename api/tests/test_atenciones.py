@@ -58,6 +58,37 @@ def _crear_conductor(
     return empleado
  
  
+def _crear_medico(
+    db: Session, cedula: str = "900000001", activo: bool = True, con_rol: bool = True
+) -> Empleado:
+    empleado = Empleado(
+        nombres="Laura", apellidos="Páez", cedula=cedula, activo=activo
+    )
+    db.add(empleado)
+    db.flush()
+ 
+    if con_rol:
+        rol = db.query(Rol).filter(Rol.nombre == "medico").first()
+        if rol is None:
+            rol = Rol(nombre="medico", descripcion="Rol de prueba")
+            db.add(rol)
+            db.flush()
+ 
+        usuario = Usuario(
+            documento=cedula,
+            password_hash=hash_secret("clave-medico"),
+            empleado_id=empleado.id,
+            activo=activo,
+        )
+        db.add(usuario)
+        db.flush()
+        db.add(UsuarioRol(usuario_id=usuario.id, rol_id=rol.id))
+ 
+    db.commit()
+    db.refresh(empleado)
+    return empleado
+ 
+ 
 def test_crear_atencion_sin_token_da_401(client: TestClient) -> None:
     response = client.post(
         "/atenciones", json={"tipo": "traslado", "ambulancia_id": 1, "conductor_id": 1}
@@ -503,6 +534,44 @@ def test_crear_atencion_no_permite_elegirse_a_si_mismo_como_conductor(
     )
  
     assert response.status_code == 409
+ 
+ 
+def test_listar_medicos_disponibles_excluye_sin_rol_e_inactivos(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    """Issue #63: la lista que alimenta el selector de médico en lo
+    clínico de un traslado medicalizado solo trae médicos de planta
+    activos -- igual que `conductores-disponibles`, pero sin el
+    concepto de "ocupado" (eso es propio del conductor por móvil) ni
+    de autoexclusión del logueado (aquí no aplica la regla del issue
+    #62: el auxiliar que consulta esta lista no es quien se estaría
+    eligiendo).
+    """
+    disponible = _crear_medico(db, cedula="900000001")
+    _crear_medico(db, cedula="900000002", con_rol=False)
+    _crear_medico(db, cedula="900000003", activo=False)
+ 
+    response = client.get(
+        "/atenciones/medicos-disponibles", headers=auxiliar_headers
+    )
+ 
+    assert response.status_code == 200
+    cedulas = [m["cedula"] for m in response.json()]
+    assert cedulas == [disponible.cedula]
+ 
+ 
+def test_listar_medicos_disponibles_da_403_a_conductor(
+    client: TestClient, db: Session, conductor_headers: dict[str, str]
+) -> None:
+    """Solo personal clínico (auxiliar o médico) diligencia lo clínico
+    de un traslado -- igual que el resto de ese flujo, un conductor no
+    tiene por qué consultar esta lista.
+    """
+    response = client.get(
+        "/atenciones/medicos-disponibles", headers=conductor_headers
+    )
+ 
+    assert response.status_code == 403
  
  
 def _crear_atencion_abierta(

@@ -136,6 +136,40 @@ def listar_conductores_disponibles(usuario: CurrentUser, db: DbSession) -> list[
  
  
 @router.get(
+    "/medicos-disponibles",
+    response_model=list[EmpleadoOut],
+    dependencies=[Depends(require_personal_clinico)],
+)
+def listar_medicos_disponibles(db: DbSession) -> list[Empleado]:
+    """Empleados activos cuyo usuario tiene el rol "medico" -- para que
+    quien diligencia lo clínico de un traslado medicalizado (issue
+    #63) pueda elegir, de una lista, al médico que va en la ambulancia
+    cuando quien está logueado es el auxiliar y no el médico.
+ 
+    A diferencia de `listar_conductores_disponibles`, aquí no aplica
+    el concepto de "ocupado" (eso es propio de un conductor por
+    ambulancia) ni el de autoexclusión del usuario logueado (issue
+    #62 es una regla de responsable/conductor en la misma atención;
+    un médico sí puede, perfectamente, elegirse a sí mismo en esta
+    lista si está de planta -- aunque en la práctica, si el médico es
+    quien está logueado, el formulario ya le autocompleta su propio
+    nombre y no necesita usar este selector).
+    """
+    query = (
+        db.query(Empleado)
+        .join(Usuario, Usuario.empleado_id == Empleado.id)
+        .join(UsuarioRol, UsuarioRol.usuario_id == Usuario.id)
+        .join(Rol, Rol.id == UsuarioRol.rol_id)
+        .filter(
+            Empleado.activo.is_(True),
+            Usuario.activo.is_(True),
+            Rol.nombre == "medico",
+        )
+    )
+    return list(query.order_by(Empleado.apellidos, Empleado.nombres).all())
+ 
+ 
+@router.get(
     "/en-curso",
     response_model=list[AtencionOut],
     dependencies=[Depends(require_personal_clinico)],
