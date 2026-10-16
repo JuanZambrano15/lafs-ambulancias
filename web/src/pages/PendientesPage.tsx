@@ -180,7 +180,16 @@ export function PendientesPage(): JSX.Element {
       </section>
  
       <section>
-        <h2 className="mb-6 text-2xl font-semibold text-slate-900">Formatos cerrados</h2>
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-2xl font-semibold text-slate-900">Formatos cerrados</h2>
+          <button
+            type="button"
+            onClick={() => void cargarCerradas(busqueda || undefined)}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          >
+            Actualizar
+          </button>
+        </div>
  
         <form onSubmit={manejarBuscar} className="mb-4 flex max-w-md gap-2">
           <label className="sr-only" htmlFor="buscar-cerradas">

@@ -106,14 +106,34 @@ describe('PendientesPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Error raro')
   })
  
-  it('el botón Actualizar vuelve a pedir las pendientes', async () => {
+  it('el botón Actualizar de Pendientes vuelve a pedir las pendientes', async () => {
     const usuario = userEvent.setup()
     render(<PendientesPage />)
     await screen.findByText('No hay atenciones abiertas en este momento.')
  
-    await usuario.click(screen.getByRole('button', { name: 'Actualizar' }))
+    // Hay un "Actualizar" por sección (issue #15: un formato recién
+    // cerrado no aparecía en Cerradas hasta recargar toda la página
+    // porque este botón, el único visible, solo refrescaba
+    // Pendientes) -- este test es del primero, el de Pendientes.
+    const [actualizarPendientes] = screen.getAllByRole('button', { name: 'Actualizar' })
+    await usuario.click(actualizarPendientes)
  
     await waitFor(() => expect(api.listarAtencionesPendientes).toHaveBeenCalledTimes(2))
+  })
+ 
+  it('el botón Actualizar de Formatos cerrados vuelve a pedir las cerradas con la búsqueda actual', async () => {
+    const usuario = userEvent.setup()
+    render(<PendientesPage />)
+    await screen.findByText('No se encontraron formatos cerrados.')
+ 
+    await usuario.type(
+      screen.getByLabelText('Buscar por nombre, apellido o documento del paciente'),
+      'pepito',
+    )
+    const [, actualizarCerradas] = screen.getAllByRole('button', { name: 'Actualizar' })
+    await usuario.click(actualizarCerradas)
+ 
+    await waitFor(() => expect(api.listarAtencionesCerradas).toHaveBeenLastCalledWith('pepito'))
   })
  
   it('lista los formatos cerrados con botón de descargar', async () => {
