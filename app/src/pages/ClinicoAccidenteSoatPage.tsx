@@ -3,21 +3,36 @@
  * #17, AA-LAFS-005): tratamiento, pupilas, signos vitales, lesiones,
  * escala de Glasgow, triage y descripción de la atención — mismo
  * patrón que `ClinicoTrasladoPage` (issue #9), adaptado a este
- * formato (sin firma: `FormatoAccidenteSoatClinico` no tiene campos
- * de firma, a diferencia del traslado).
+ * formato.
  *
- * Issue #70 (QA de la primera versión de estas pantallas): la hora de
- * entrega y los datos de quién recibe al paciente (`profesional_recibe_*`,
- * ya existentes en el esquema clínico) se piden acá, pero no en el
- * formulario principal -- se piden al cerrar la atención, en el paso
- * "Cerrar atención" de más abajo, junto con el PIN. Es el último dato
- * que se conoce: quien atiende no sabe a qué hora ni a quién va a
- * entregar el paciente mientras todavía está en camino, así que
- * pedirlo de entrada bloqueaba el flujo sin necesidad.
+ * Issue #70 (QA de la primera versión de estas pantallas, corregido
+ * dos veces): la primera versión pedía "profesional que recibe"
+ * (nombre/cédula) al cerrar, un campo que en ese momento se creía
+ * inventado -- resultó que sí existe en el papel real, solo que mal
+ * ubicado (no va al cerrar) y le faltaba su firma. Lo que el papel sí
+ * pide, y antes faltaba del todo, es la identificación y firma del
+ * auxiliar que atiende ("atendido por"/firma, issue #11, mismo patrón
+ * que `ClinicoTrasladoPage`): se autocompleta con el nombre de quien
+ * está logueado y reusa su firma guardada si ya tiene una (personal
+ * de planta), o se dibuja en pantalla si no. Opcionalmente, si
+ * participó un médico, también queda su nombre y firma ("evolucionado
+ * por") — este formato no tiene la noción de "medicalizado" que sí
+ * tiene traslado, así que el médico siempre es opcional.
  *
- * La hora de entrega vive en el encabezado (`hora_entrega`, issue
- * #17/#70), no en lo clínico -- y el PUT del encabezado reemplaza el
- * registro completo, no solo los campos que se manden. Por eso este
+ * Después de esas dos secciones va "Profesional que recibe" en la
+ * IPS/ESE -- nombre, cédula y firma, siempre escritos/dibujados en
+ * pantalla (es un tercero ajeno a la app, nunca se autocompleta de
+ * ningún perfil ni se reusa una firma guardada). El sello físico que
+ * lo acompaña en el papel no se captura acá. La firma del conductor
+ * tampoco se diligencia en ninguna pantalla — queda para el PDF que
+ * se genera en un issue aparte (ver
+ * `app/app/models/formato_accidente_soat.py`).
+ *
+ * La hora de entrega sigue pidiéndose al cerrar, no en el formulario
+ * principal: es el último dato que se conoce, quien atiende no sabe a
+ * qué hora va a entregar el paciente mientras todavía está en camino.
+ * Vive en el encabezado (`hora_entrega`), no en lo clínico -- y el
+ * PUT del encabezado reemplaza el registro completo. Por eso este
  * componente guarda el encabezado completo que cargó al entrar
  * (`encabezadoCargado`) y, al cerrar, lo reenvía entero con
  * `hora_entrega` ya puesto, en vez de mandar solo ese campo.
@@ -29,21 +44,21 @@
  * incluyendo la regla de que un paciente marcado como identificado en
  * el encabezado necesita su identidad completa para poder cerrarse --
  * un NN sin identificar, en cambio, no bloquea el cierre (ADR-0002).
- * La hora de entrega y quién recibe no son parte de esa validación
- * del backend, pero sí hacen falta para poder *confirmar* el cierre
- * desde esta pantalla (ver el formulario de cierre más abajo).
+ * La hora de entrega no es parte de esa validación del backend, pero
+ * sí hace falta para poder *confirmar* el cierre desde esta pantalla.
  *
  * "Cerrar atención" (issue #12, ADR-0010) funciona igual que en
  * traslado: pide el PIN de firma, lo valida localmente si hay un hash
  * en este dispositivo y manda el cierre, en línea o encolado.
  */
  
-import { useEffect, useState } from 'react'
-import type { FormEvent, JSX } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { FormEvent, JSX, RefObject } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
  
 import { useAuth } from '../auth/AuthContext'
-import { ApiError } from '../lib/api'
+import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
+import { ApiError, listarMedicosDisponibles } from '../lib/api'
 import { pinLocalValido } from '../lib/pinLocal'
 import {
   cerrarAtencionConRespaldo,
@@ -52,6 +67,7 @@ import {
   obtenerFormatoAccidenteSoatConRespaldo,
 } from '../lib/trasladoOffline'
 import type {
+  Empleado,
   FormatoAccidenteSoatClinico,
   FormatoAccidenteSoatEncabezado,
   LesionTipo,
@@ -90,6 +106,16 @@ interface EstadoClinico {
   glasgowMotora: string
   triage: TriageNivel | ''
   descripcion: string
+  atendidoPor: string
+  /** Lo que ya estaba guardado para este formato -- se precarga en el
+   * canvas para no perderlo si quien firma no vuelve a dibujar nada
+   * en una visita posterior (issue #11). */
+  firmaAtendidoExistente: string | null
+  evolucionadoPor: string
+  firmaEvolucionadoExistente: string | null
+  profesionalRecibeNombre: string
+  profesionalRecibeCedula: string
+  firmaProfesionalRecibeExistente: string | null
 }
  
 const ESTADO_VACIO: EstadoClinico = {
@@ -105,6 +131,13 @@ const ESTADO_VACIO: EstadoClinico = {
   glasgowMotora: '',
   triage: '',
   descripcion: '',
+  atendidoPor: '',
+  firmaAtendidoExistente: null,
+  evolucionadoPor: '',
+  firmaEvolucionadoExistente: null,
+  profesionalRecibeNombre: '',
+  profesionalRecibeCedula: '',
+  firmaProfesionalRecibeExistente: null,
 }
  
 const TRATAMIENTO_OPCIONES: { valor: TratamientoAplicado; etiqueta: string }[] = [
@@ -209,10 +242,12 @@ function aNumeroONulo(valor: string): number | null {
  * cierre, pero si se marcó como identificado sí hace falta su nombre,
  * apellido y número de documento.
  *
- * La hora de entrega y quién recibe al paciente NO están acá --el
- * backend nunca los exigió para cerrar-- se piden y validan aparte,
- * dentro del propio formulario de cierre (ver `manejarCierre`), igual
- * que el PIN. */
+ * La hora de entrega NO está acá -- el backend nunca la exigió para
+ * cerrar -- se pide y valida aparte, dentro del propio formulario de
+ * cierre (ver `manejarCierre`), igual que el PIN. `atendido_por`/firma
+ * tampoco son obligatorios para cerrar (mismo criterio que
+ * `ClinicoTrasladoPage`): se autocompletan solos en la práctica, pero
+ * no bloquean el cierre si por algún motivo quedaran vacíos. */
 function camposFaltantesParaCerrarSoat(
   campos: EstadoClinico,
   identificado: boolean,
@@ -241,13 +276,18 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
   const navigate = useNavigate()
   const { atencionId } = useParams<{ atencionId: string }>()
   const id = atencionId ?? ''
-  const { tieneRol } = useAuth()
+  const { perfil, tieneRol } = useAuth()
   const tieneRolAuxiliar = tieneRol('auxiliar_enfermeria')
   const tieneRolMedico = tieneRol('medico')
+  // Si la misma persona tiene los dos roles a la vez, no puede firmar
+  // dos veces con la misma firma guardada -- mismo criterio que
+  // `ClinicoTrasladoPage` (issue #57).
+  const tieneAmbosRoles = tieneRolAuxiliar && tieneRolMedico
+  const firmaAtendidoRef = useRef<FirmaCanvasHandle>(null)
+  const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
+  const firmaProfesionalRecibeRef = useRef<FirmaCanvasHandle>(null)
  
   const [campos, setCampos] = useState<EstadoClinico>(ESTADO_VACIO)
-  const [profesionalRecibeNombre, setProfesionalRecibeNombre] = useState('')
-  const [profesionalRecibeCedula, setProfesionalRecibeCedula] = useState('')
   const [horaEntrega, setHoraEntrega] = useState('')
   // Del encabezado (issue #17) -- deciden si la identidad del
   // paciente es obligatoria para poder cerrar, y además se guarda
@@ -269,16 +309,49 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
   const [cerrando, setCerrando] = useState(false)
   const [errorCierre, setErrorCierre] = useState<string | null>(null)
  
+  // Médico opcional (issue #70, corrección) -- selector de médicos de
+  // planta para elegir, más "otro" para escribir el nombre a mano si
+  // no está en la lista, mismo patrón que `ClinicoTrasladoPage` (issue
+  // #63). `null` mientras carga.
+  const [medicos, setMedicos] = useState<Empleado[] | null>(null)
+  const [medicoId, setMedicoId] = useState('')
+ 
   useEffect(() => {
-    // Issue #70 (QA) -- igual que en `EncabezadoAccidenteSoatPage`,
-    // se guarda si este efecto sigue siendo el vigente antes de
-    // aplicar su resultado, para no dejar mostrado un error de una
-    // pasada vieja del efecto (React StrictMode monta dos veces en
-    // desarrollo) aunque la pasada siguiente haya cargado bien.
+    // `perfil === undefined` mientras se restaura la sesión guardada
+    // -- se espera a que se resuelva para no pedir la lista de
+    // médicos de más si quien está logueado termina siendo el médico
+    // mismo (nunca la necesita).
+    if (perfil === undefined || tieneRolMedico) return
+    listarMedicosDisponibles()
+      .then(setMedicos)
+      .catch(() => setMedicos([]))
+  }, [perfil, tieneRolMedico])
+ 
+  useEffect(() => {
+    // Issue #70 (QA) -- se guarda si este efecto sigue siendo el
+    // vigente antes de aplicar su resultado, para no dejar mostrado
+    // un error de una pasada vieja del efecto (React StrictMode
+    // monta dos veces en desarrollo) aunque la pasada siguiente haya
+    // cargado bien.
     let vigente = true
+    const nombrePerfil = perfil?.empleado_nombre_completo ?? null
     obtenerFormatoAccidenteSoatConRespaldo(id)
       .then((existente) => {
-        if (!vigente || existente === null) return
+        if (!vigente) return
+        if (existente === null) {
+          // Mismo criterio que `ClinicoTrasladoPage` -- "atendido
+          // por"/"evolucionado por" se autocompletan con el nombre de
+          // quien está logueado, según su rol, incluso antes de que
+          // exista nada guardado todavía.
+          if (nombrePerfil) {
+            setCampos((anterior) => ({
+              ...anterior,
+              atendidoPor: tieneRolAuxiliar ? nombrePerfil : anterior.atendidoPor,
+              evolucionadoPor: tieneRolMedico ? nombrePerfil : anterior.evolucionadoPor,
+            }))
+          }
+          return
+        }
         setCampos({
           tratamiento: existente.tratamiento,
           tratamientoOtro: existente.tratamiento_otro ?? '',
@@ -298,9 +371,19 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
           glasgowMotora: existente.glasgow_motora === null ? '' : String(existente.glasgow_motora),
           triage: existente.triage ?? '',
           descripcion: existente.descripcion ?? '',
+          // Nunca reemplaza un nombre que ya hubiera quedado guardado
+          // -- propio o de otra persona en un turno anterior -- solo
+          // precarga cuando el backend no tiene nada todavía.
+          atendidoPor:
+            existente.atendido_por ?? (tieneRolAuxiliar && nombrePerfil ? nombrePerfil : ''),
+          firmaAtendidoExistente: existente.firma_atendido_por,
+          evolucionadoPor:
+            existente.evolucionado_por ?? (tieneRolMedico && nombrePerfil ? nombrePerfil : ''),
+          firmaEvolucionadoExistente: existente.firma_evolucionado_por,
+          profesionalRecibeNombre: existente.profesional_recibe_nombre ?? '',
+          profesionalRecibeCedula: existente.profesional_recibe_cedula ?? '',
+          firmaProfesionalRecibeExistente: existente.firma_profesional_recibe,
         })
-        setProfesionalRecibeNombre(existente.profesional_recibe_nombre ?? '')
-        setProfesionalRecibeCedula(existente.profesional_recibe_cedula ?? '')
         setHoraEntrega(existente.hora_entrega ?? '')
         setIdentificado(existente.identificado)
         setIdentidadCompleta(
@@ -341,7 +424,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
     return () => {
       vigente = false
     }
-  }, [id])
+  }, [id, perfil?.empleado_nombre_completo, tieneRolAuxiliar, tieneRolMedico])
  
   function agregarSignoVital(): void {
     setCampos((anterior) => ({
@@ -377,6 +460,14 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
     identidadCompleta,
   )
  
+  // Issue #63 (mismo criterio en `ClinicoTrasladoPage`) -- si quien
+  // está logueado no es el médico, el nombre de "quien evolucionó" se
+  // elige del selector de médicos de planta, o se escribe a mano con
+  // "Otro".
+  const mostrarSelectorMedico = !tieneRolMedico
+  const modoOtroMedico =
+    mostrarSelectorMedico && (medicoId === 'otro' || (medicoId === '' && campos.evolucionadoPor !== ''))
+ 
   /** Arma el payload de lo clínico a partir del estado actual del
    * formulario -- lo usan tanto "Guardar" como "Cerrar atención",
    * mismo motivo que en `ClinicoTrasladoPage` (issue #63, comentario):
@@ -404,8 +495,37 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
       glasgow_motora: aNumeroONulo(campos.glasgowMotora),
       triage: campos.triage || null,
       descripcion: campos.descripcion || null,
-      profesional_recibe_nombre: profesionalRecibeNombre || null,
-      profesional_recibe_cedula: profesionalRecibeCedula || null,
+      atendido_por: campos.atendidoPor || null,
+      // La firma solo se recalcula para el rol de quien está logueado
+      // ahora mismo; si no le corresponde, se reenvía la que ya
+      // hubiera (mismo patrón de "reenvío completo" del resto del
+      // formato). Si la misma persona tiene los dos roles, no puede
+      // "firmar" dos veces con la misma firma guardada como si fueran
+      // dos personas distintas: el auxiliar sigue autocompletándose
+      // con la firma guardada del perfil, pero la del médico se exige
+      // dibujada a mano en ese caso (ver FirmaField más abajo).
+      firma_atendido_por: tieneRolAuxiliar
+        ? perfil?.firma_guardada ?? firmaAtendidoRef.current?.exportar() ?? null
+        : campos.firmaAtendidoExistente,
+      evolucionado_por: campos.evolucionadoPor || null,
+      // Issue #63 -- si quien está logueado no es el médico, la firma
+      // de "quien evolucionó" siempre se dibuja a mano en el
+      // dispositivo -- nunca se autocompleta con la firma guardada de
+      // la cuenta de ningún médico. Si nadie dibujó nada (el médico no
+      // participó en esta atención, lo normal), `exportar()` da
+      // `null` y se reenvía lo que ya hubiera.
+      firma_evolucionado_por: tieneRolMedico
+        ? tieneAmbosRoles
+          ? firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente
+          : perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
+        : firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente,
+      profesional_recibe_nombre: campos.profesionalRecibeNombre || null,
+      profesional_recibe_cedula: campos.profesionalRecibeCedula || null,
+      // El profesional que recibe en la IPS/ESE es siempre un tercero
+      // ajeno a la app -- su firma nunca se autocompleta de ningún
+      // perfil, a diferencia de auxiliar/médico de arriba.
+      firma_profesional_recibe:
+        firmaProfesionalRecibeRef.current?.exportar() ?? campos.firmaProfesionalRecibeExistente,
     }
   }
  
@@ -425,10 +545,10 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
  
   /** Cierra la atención con el PIN de firma -- mismo flujo que
    * `ClinicoTrasladoPage.manejarCierre` (issue #12, ADR-0010), más el
-   * paso propio de este formato (issue #70): la hora de entrega y
-   * quién recibe se piden acá mismo, justo antes de cerrar, y la hora
-   * de entrega se guarda reenviando el encabezado completo (PUT es
-   * reemplazo total, ver nota de módulo) con ese único campo puesto. */
+   * paso propio de este formato: la hora de entrega se pide acá
+   * mismo, justo antes de cerrar, y se guarda reenviando el
+   * encabezado completo (PUT es reemplazo total, ver nota de módulo)
+   * con ese único campo puesto. */
   async function manejarCierre(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setErrorCierre(null)
@@ -764,6 +884,128 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
             className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
           />
  
+          <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Atendido por</h2>
+          {campoTexto('Nombre del auxiliar', 'atendido-por', campos.atendidoPor, (valor) =>
+            setCampos((anterior) => ({ ...anterior, atendidoPor: valor })),
+          )}
+          {tieneRolAuxiliar && (
+            <FirmaField
+              etiqueta="Firma de quien atendió"
+              firmaGuardada={perfil?.firma_guardada ?? null}
+              imagenInicial={campos.firmaAtendidoExistente}
+              canvasRef={firmaAtendidoRef}
+            />
+          )}
+ 
+          <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
+            Médico que participó (opcional)
+          </h2>
+          {mostrarSelectorMedico ? (
+            <>
+              <div className="mb-4">
+                <label
+                  className="mb-1 block text-sm font-medium text-slate-700"
+                  htmlFor="medico-evoluciono"
+                >
+                  Médico
+                </label>
+                <select
+                  id="medico-evoluciono"
+                  value={medicoId}
+                  onChange={(e) => {
+                    const valor = e.target.value
+                    setMedicoId(valor)
+                    if (valor === '' || valor === 'otro') return
+                    const medico = medicos?.find((m) => String(m.id) === valor)
+                    if (medico) {
+                      setCampos((anterior) => ({
+                        ...anterior,
+                        evolucionadoPor: `${medico.nombres} ${medico.apellidos}`,
+                      }))
+                    }
+                  }}
+                  className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="">
+                    {medicos === null
+                      ? 'Cargando médicos…'
+                      : medicos.length === 0
+                        ? 'No hay médicos de planta registrados'
+                        : 'Ninguno participó / elige un médico de planta'}
+                  </option>
+                  {medicos?.map((medico) => (
+                    <option key={medico.id} value={medico.id}>
+                      {medico.nombres} {medico.apellidos}
+                    </option>
+                  ))}
+                  <option value="otro">Otro (escribir el nombre)</option>
+                </select>
+              </div>
+              {modoOtroMedico &&
+                campoTexto('Nombre del médico', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
+                  setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
+                )}
+            </>
+          ) : (
+            campoTexto('Nombre del médico', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
+              setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
+            )
+          )}
+          {tieneRolMedico ? (
+            <FirmaField
+              etiqueta="Firma de quien evolucionó"
+              firmaGuardada={tieneAmbosRoles ? null : perfil?.firma_guardada ?? null}
+              pista={
+                tieneAmbosRoles
+                  ? 'Ya se usó tu firma guardada como auxiliar — firma aquí a mano como médico.'
+                  : undefined
+              }
+              imagenInicial={campos.firmaEvolucionadoExistente}
+              canvasRef={firmaEvolucionadoRef}
+            />
+          ) : (
+            <FirmaField
+              etiqueta="Firma de quien evolucionó"
+              // Quien está logueado es el auxiliar, no el médico: su
+              // firma nunca se autocompleta con la que tenga guardada
+              // en su propia cuenta -- la dibuja aquí mismo, en el
+              // dispositivo, él mismo. Si nadie dibuja nada (no
+              // participó médico), no pasa nada: el campo es tan
+              // opcional como el nombre de arriba.
+              firmaGuardada={null}
+              pista="El médico firma aquí, en el dispositivo, si participó en esta atención — no se completa sola aunque esté de planta."
+              imagenInicial={campos.firmaEvolucionadoExistente}
+              canvasRef={firmaEvolucionadoRef}
+            />
+          )}
+ 
+          <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
+            Profesional que recibe en la IPS/ESE
+          </h2>
+          {campoTexto(
+            'Nombre de quien recibe',
+            'profesional-recibe-nombre',
+            campos.profesionalRecibeNombre,
+            (valor) => setCampos((anterior) => ({ ...anterior, profesionalRecibeNombre: valor })),
+          )}
+          {campoTexto(
+            'Cédula de quien recibe',
+            'profesional-recibe-cedula',
+            campos.profesionalRecibeCedula,
+            (valor) => setCampos((anterior) => ({ ...anterior, profesionalRecibeCedula: valor })),
+          )}
+          <FirmaField
+            etiqueta="Firma de quien recibe"
+            // Es personal de la IPS/ESE, no de LAFS -- nunca tiene una
+            // firma guardada en esta app, así que siempre se dibuja a
+            // mano (el sello físico que la acompaña en el papel no se
+            // captura acá).
+            firmaGuardada={null}
+            pista="Lo firma la persona que recibe al paciente en la institución, no el personal de LAFS."
+            imagenInicial={campos.firmaProfesionalRecibeExistente}
+            canvasRef={firmaProfesionalRecibeRef}
+          />
+ 
           {error && (
             <p role="alert" className="mb-4 mt-4 text-sm text-red-600">
               {error}
@@ -807,8 +1049,8 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
               <form onSubmit={manejarCierre}>
                 <h2 className="mb-1 text-base font-semibold text-slate-900">Cerrar atención</h2>
                 <p className="mb-4 text-sm text-slate-500">
-                  Estos son los últimos datos que se conocen al entregar al paciente -- se piden
-                  acá y no antes.
+                  La hora de entrega es el último dato que se conoce al entregar al paciente -- se
+                  pide acá y no antes.
                 </p>
  
                 <div className="mb-4">
@@ -823,36 +1065,6 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                     type="time"
                     value={horaEntrega}
                     onChange={(e) => setHoraEntrega(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div className="mb-4">
-                  <label
-                    className="mb-1 block text-sm font-medium text-slate-700"
-                    htmlFor="profesional-recibe-nombre"
-                  >
-                    Profesional que recibe
-                  </label>
-                  <input
-                    id="profesional-recibe-nombre"
-                    type="text"
-                    value={profesionalRecibeNombre}
-                    onChange={(e) => setProfesionalRecibeNombre(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div className="mb-4">
-                  <label
-                    className="mb-1 block text-sm font-medium text-slate-700"
-                    htmlFor="profesional-recibe-cedula"
-                  >
-                    Cédula de quien recibe
-                  </label>
-                  <input
-                    id="profesional-recibe-cedula"
-                    type="text"
-                    value={profesionalRecibeCedula}
-                    onChange={(e) => setProfesionalRecibeCedula(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
                   />
                 </div>
@@ -903,6 +1115,69 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+ 
+/**
+ * Firma de quien atiende/evoluciona (issue #11), mismo componente que
+ * `ClinicoTrasladoPage.FirmaField`. Si el usuario logueado ya tiene
+ * firma guardada (personal de planta) se muestra como vista previa de
+ * solo lectura y se reusa automáticamente al guardar — no hay nada
+ * que dibujar. Si no (personal ocasional, o planta que todavía no
+ * configuró la suya), se dibuja en el canvas, precargando lo que ya
+ * hubiera quedado guardado en este formato.
+ */
+function FirmaField({
+  etiqueta,
+  firmaGuardada,
+  imagenInicial,
+  canvasRef,
+  pista,
+}: {
+  etiqueta: string
+  firmaGuardada: string | null
+  imagenInicial: string | null
+  canvasRef: RefObject<FirmaCanvasHandle | null>
+  /** Aclaración opcional, p.ej. cuando se oculta la firma guardada a
+   * propósito porque la misma persona ya la usó para el otro rol. */
+  pista?: string
+}): JSX.Element {
+  return (
+    <div className="mb-4">
+      <h3 className="mb-1 block text-sm font-medium text-slate-700">{etiqueta}</h3>
+      {pista && <p className="mb-1 text-xs text-slate-500">{pista}</p>}
+      {firmaGuardada ? (
+        <img
+          src={firmaGuardada}
+          alt={etiqueta}
+          className="h-20 w-full rounded-lg border border-slate-300 bg-white object-contain"
+        />
+      ) : (
+        <FirmaCanvas ref={canvasRef} imagenInicial={imagenInicial} alto={120} />
+      )}
+    </div>
+  )
+}
+ 
+function campoTexto(
+  etiqueta: string,
+  id: string,
+  valor: string,
+  onChange: (valor: string) => void,
+): JSX.Element {
+  return (
+    <div className="mb-4">
+      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor={id}>
+        {etiqueta}
+      </label>
+      <input
+        id={id}
+        type="text"
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+      />
     </div>
   )
 }

@@ -27,13 +27,14 @@ function perfilCon(roles: MeResponse['roles']): MeResponse {
   }
 }
  
-// Issue #70 (QA): sin `paciente_documento_expedido_en` ni
+// Issue #70 (QA, corregido dos veces): sin
+// `paciente_documento_expedido_en` ni
 // `vehiculo_placa`/`vehiculo_tipo`/`vehiculo_marca` -- se quitaron del
 // formato (ver el fix sobre #17 que acompaña esta revisión).
-// `profesional_recibe_nombre`/`profesional_recibe_cedula` siguen en el
-// esquema clínico, pero esta pantalla ya no los pide en el formulario
-// principal -- se piden en el paso de "Cerrar atención", junto con la
-// hora de entrega (que vive en el encabezado).
+// `profesional_recibe_nombre`/`profesional_recibe_cedula` sí existían
+// desde el principio, pero mal ubicados -- viven en el formulario
+// principal (después de "Atendido por" y del médico), no en "Cerrar
+// atención", que solo pide la hora de entrega y el PIN.
 const FORMATO_BASE: FormatoAccidenteSoat = {
   atencion_id: 1,
   fecha_atencion: '2027-01-01',
@@ -66,8 +67,13 @@ const FORMATO_BASE: FormatoAccidenteSoat = {
   glasgow_motora: null,
   triage: null,
   descripcion: null,
+  atendido_por: null,
+  firma_atendido_por: null,
+  evolucionado_por: null,
+  firma_evolucionado_por: null,
   profesional_recibe_nombre: null,
   profesional_recibe_cedula: null,
+  firma_profesional_recibe: null,
   glasgow_total: null,
 }
  
@@ -83,8 +89,8 @@ const FORMATO_CLINICO_COMPLETO: FormatoAccidenteSoat = {
   glasgow_motora: 6,
   triage: 'ii',
   descripcion: 'Paciente consciente, trauma leve',
-  // Ya se habían llenado en una visita anterior al paso de cierre --
-  // deben precargarse ahí (y no en el formulario principal).
+  // Ya se habían llenado en una visita anterior -- deben precargarse
+  // en el formulario principal.
   profesional_recibe_nombre: 'Ana Ruiz',
   profesional_recibe_cedula: '800000001',
   glasgow_total: 15,
@@ -121,15 +127,17 @@ describe('ClinicoAccidenteSoatPage', () => {
     expect(screen.getByText('Total: — /15')).toBeInTheDocument()
   })
  
-  it('no pide la hora de entrega ni quién recibe en el formulario principal (issue #70)', async () => {
+  it('no pide la hora de entrega en el formulario principal, pero sí quién recibe (issue #70, corregido)', async () => {
     vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(FORMATO_CLINICO_COMPLETO)
  
     renderPagina()
  
     await screen.findByLabelText('Descripción de la atención')
     expect(screen.queryByLabelText(/hora de entrega/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Profesional que recibe')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Cédula de quien recibe')).not.toBeInTheDocument()
+    // "Profesional que recibe" sí vive en el formulario principal --
+    // es "Cerrar atención" quien NO lo pide (ver prueba de más abajo).
+    expect(screen.getByLabelText('Nombre de quien recibe')).toBeInTheDocument()
+    expect(screen.getByLabelText('Cédula de quien recibe')).toBeInTheDocument()
   })
  
   it('precarga el formulario principal si ya hay datos clínicos guardados', async () => {
@@ -145,6 +153,8 @@ describe('ClinicoAccidenteSoatPage', () => {
     expect(screen.getByLabelText('Derecha')).toHaveValue('isocorica')
     expect(screen.getByText('Total: 15/15')).toBeInTheDocument()
     expect(screen.getByLabelText('Triage')).toHaveValue('ii')
+    expect(screen.getByLabelText('Nombre de quien recibe')).toHaveValue('Ana Ruiz')
+    expect(screen.getByLabelText('Cédula de quien recibe')).toHaveValue('800000001')
   })
  
   it('no muestra "Cerrar atención" a quien no es auxiliar ni médico', async () => {
@@ -235,7 +245,7 @@ describe('ClinicoAccidenteSoatPage', () => {
     expect(await screen.findByText('pantalla principal')).toBeInTheDocument()
   })
  
-  it('al abrir "Cerrar atención", precarga quién recibe si ya se había guardado antes', async () => {
+  it('"Cerrar atención" solo pide la hora de entrega y el PIN, no quién recibe (issue #70, corregido)', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
@@ -246,8 +256,13 @@ describe('ClinicoAccidenteSoatPage', () => {
  
     await usuario.click(await screen.findByRole('button', { name: 'Cerrar atención' }))
  
-    expect(screen.getByLabelText('Profesional que recibe')).toHaveValue('Ana Ruiz')
-    expect(screen.getByLabelText('Cédula de quien recibe')).toHaveValue('800000001')
+    expect(screen.getByLabelText('Hora de entrega')).toBeInTheDocument()
+    expect(screen.getByLabelText('PIN')).toBeInTheDocument()
+    // "Profesional que recibe" sigue viéndose, pero porque es parte
+    // del formulario principal (que no se oculta al abrir "Cerrar
+    // atención") -- no porque el paso de cierre lo vuelva a pedir por
+    // su cuenta. Solo debe existir una vez en toda la pantalla.
+    expect(screen.getAllByLabelText('Nombre de quien recibe')).toHaveLength(1)
   })
  
   it('exige la hora de entrega para poder confirmar el cierre (issue #70)', async () => {
