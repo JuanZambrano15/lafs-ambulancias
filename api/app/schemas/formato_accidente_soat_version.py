@@ -62,5 +62,10 @@ class FormatoAccidenteSoatVersionOut(BaseModel):
     glasgow_motora: int | None
     triage: TriageNivel | None
     descripcion: str | None
+    atendido_por: str | None
+    firma_atendido_por: str | None
+    evolucionado_por: str | None
+    firma_evolucionado_por: str | None
     profesional_recibe_nombre: str | None
     profesional_recibe_cedula: str | None
+    firma_profesional_recibe: str | None

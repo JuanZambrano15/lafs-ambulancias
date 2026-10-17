@@ -67,8 +67,13 @@ CLINICO_VALIDO = {
     "glasgow_motora": 6,
     "triage": "ii",
     "descripcion": "Paciente víctima de accidente de tránsito, trasladado estable.",
+    "atendido_por": "Ana Ruiz",
+    "firma_atendido_por": "data:image/png;base64,AAAA",
+    "evolucionado_por": "Laura Gómez",
+    "firma_evolucionado_por": "data:image/png;base64,BBBB",
     "profesional_recibe_nombre": "Dra. Carolina Pinto",
     "profesional_recibe_cedula": "1098765432",
+    "firma_profesional_recibe": "data:image/png;base64,CCCC",
 }
  
  
@@ -434,7 +439,10 @@ def test_auxiliar_guarda_y_lee_lo_clinico(
     assert body["lesiones"] == ["tce", "contusion"]
     assert body["glasgow_total"] == 15
     assert body["triage"] == "ii"
+    assert body["firma_atendido_por"] == "data:image/png;base64,AAAA"
+    assert body["firma_evolucionado_por"] == "data:image/png;base64,BBBB"
     assert body["profesional_recibe_nombre"] == "Dra. Carolina Pinto"
+    assert body["firma_profesional_recibe"] == "data:image/png;base64,CCCC"
  
     leido = client.get(
         f"/atenciones/{atencion_id}/formato-accidente-soat", headers=auxiliar_headers
@@ -477,6 +485,9 @@ def test_leer_formato_antes_de_lo_clinico_trae_listas_vacias(
     assert body["triage"] is None
     assert body["descripcion"] is None
     assert body["glasgow_total"] is None
+    assert body["firma_atendido_por"] is None
+    assert body["firma_evolucionado_por"] is None
+    assert body["firma_profesional_recibe"] is None
  
  
 def test_guardar_clinico_parcial_deja_el_resto_en_su_valor_por_defecto(
@@ -558,6 +569,23 @@ def test_descripcion_demasiado_larga_da_422(
 ) -> None:
     atencion_id = _crear_atencion_con_encabezado(client, db, auxiliar_headers)
     invalido = {**CLINICO_VALIDO, "descripcion": "x" * 2001}
+ 
+    response = client.put(
+        f"/atenciones/{atencion_id}/formato-accidente-soat/clinico",
+        json=invalido,
+        headers=auxiliar_headers,
+    )
+ 
+    assert response.status_code == 422
+ 
+ 
+def test_firma_demasiado_larga_da_422(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    """Mismo limite que en traslado (issue #11): la firma es una data
+    URL en base64 -- se acepta hasta 300_000 caracteres."""
+    atencion_id = _crear_atencion_con_encabezado(client, db, auxiliar_headers)
+    invalido = {**CLINICO_VALIDO, "firma_profesional_recibe": "x" * 300_001}
  
     response = client.put(
         f"/atenciones/{atencion_id}/formato-accidente-soat/clinico",
