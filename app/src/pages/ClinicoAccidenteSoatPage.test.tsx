@@ -13,7 +13,10 @@ vi.mock('../lib/api', () => import('../test/mockApi').then((m) => m.construirMoc
 vi.mock('../lib/storage')
 vi.mock('../lib/pinLocal')
  
-function perfilCon(roles: MeResponse['roles']): MeResponse {
+function perfilCon(
+  roles: MeResponse['roles'],
+  firmaGuardada: string | null = null,
+): MeResponse {
   return {
     documento: '123456789',
     activo: true,
@@ -21,8 +24,8 @@ function perfilCon(roles: MeResponse['roles']): MeResponse {
     debe_cambiar_password: false,
     pin_configurado: true,
     roles,
-    empleado_tipo_vinculacion: null,
-    firma_guardada: null,
+    empleado_tipo_vinculacion: firmaGuardada ? 'planta' : null,
+    firma_guardada: firmaGuardada,
     empleado_nombre_completo: null,
   }
 }
@@ -366,5 +369,57 @@ describe('ClinicoAccidenteSoatPage', () => {
  
     expect(await screen.findByRole('alert')).toHaveTextContent('PIN incorrecto')
     expect(api.cerrarAtencion).not.toHaveBeenCalled()
+  })
+ 
+  it('bloquea la firma de "quien evolucionó" mientras no haya nombre de médico (bug de QA)', async () => {
+    const usuario = userEvent.setup()
+    class ImagenFalsa {
+      onload: (() => void) | null = null
+      set src(_valor: string) {
+        setTimeout(() => this.onload?.(), 0)
+      }
+    }
+    vi.stubGlobal('Image', ImagenFalsa)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      scale: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+      lineWidth: 0,
+      lineCap: '',
+      strokeStyle: '',
+    } as unknown as CanvasRenderingContext2D)
+    HTMLCanvasElement.prototype.setPointerCapture = vi.fn()
+    HTMLCanvasElement.prototype.releasePointerCapture = vi.fn()
+ 
+    // Firma guardada propia para el auxiliar -- "atendido por" se
+    // muestra como <img>, así que el único "Recuadro para firmar" en
+    // pantalla es el de "quien evolucionó" (sin ambigüedad de cuál es).
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon(
+        [{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }],
+        'data:image/png;base64,GUARDADA-AUXILIAR',
+      ),
+    )
+    vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(FORMATO_BASE)
+    vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([])
+ 
+    renderPagina()
+ 
+    const selector = await screen.findByLabelText('Médico')
+    await screen.findByText('No hay médicos de planta registrados')
+    // Dos recuadros en pantalla: el de "quien evolucionó" (médico) y
+    // el de "profesional que recibe" (siempre a mano, ver arriba) --
+    // "quien evolucionó" es el primero en el DOM.
+    const [canvas] = await screen.findAllByLabelText('Recuadro para firmar')
+    expect(canvas).toHaveAttribute('aria-disabled', 'true')
+ 
+    await usuario.selectOptions(selector, 'otro')
+    await usuario.type(screen.getByLabelText('Nombre del médico'), 'Carlos Mora')
+ 
+    expect(canvas).toHaveAttribute('aria-disabled', 'false')
   })
 })

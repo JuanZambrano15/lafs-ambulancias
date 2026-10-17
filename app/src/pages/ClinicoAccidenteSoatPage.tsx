@@ -962,6 +962,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
               }
               imagenInicial={campos.firmaEvolucionadoExistente}
               canvasRef={firmaEvolucionadoRef}
+              disabled={campos.evolucionadoPor.trim() === ''}
             />
           ) : (
             <FirmaField
@@ -971,11 +972,19 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
               // en su propia cuenta -- la dibuja aquí mismo, en el
               // dispositivo, él mismo. Si nadie dibuja nada (no
               // participó médico), no pasa nada: el campo es tan
-              // opcional como el nombre de arriba.
+              // opcional como el nombre de arriba. Mientras no haya
+              // nombre de médico (ni elegido del selector ni escrito a
+              // mano), el recuadro queda bloqueado -- no tiene sentido
+              // una firma sin nombre asociado.
               firmaGuardada={null}
-              pista="El médico firma aquí, en el dispositivo, si participó en esta atención — no se completa sola aunque esté de planta."
+              pista={
+                campos.evolucionadoPor.trim() === ''
+                  ? 'Elige un médico o escribe su nombre para habilitar la firma.'
+                  : 'El médico firma aquí, en el dispositivo, si participó en esta atención — no se completa sola aunque esté de planta.'
+              }
               imagenInicial={campos.firmaEvolucionadoExistente}
               canvasRef={firmaEvolucionadoRef}
+              disabled={campos.evolucionadoPor.trim() === ''}
             />
           )}
  
@@ -1134,6 +1143,7 @@ function FirmaField({
   imagenInicial,
   canvasRef,
   pista,
+  disabled,
 }: {
   etiqueta: string
   firmaGuardada: string | null
@@ -1142,6 +1152,10 @@ function FirmaField({
   /** Aclaración opcional, p.ej. cuando se oculta la firma guardada a
    * propósito porque la misma persona ya la usó para el otro rol. */
   pista?: string
+  /** Bloquea el recuadro -- p.ej. "quien evolucionó" mientras no se
+   * haya elegido o escrito ningún médico (no tiene sentido dejar
+   * dibujar una firma sin nombre asociado). */
+  disabled?: boolean
 }): JSX.Element {
   return (
     <div className="mb-4">
@@ -1154,7 +1168,7 @@ function FirmaField({
           className="h-20 w-full rounded-lg border border-slate-300 bg-white object-contain"
         />
       ) : (
-        <FirmaCanvas ref={canvasRef} imagenInicial={imagenInicial} alto={120} />
+        <FirmaCanvas ref={canvasRef} imagenInicial={imagenInicial} alto={120} disabled={disabled} />
       )}
     </div>
   )
