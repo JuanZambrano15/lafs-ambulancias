@@ -42,6 +42,11 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     obtenerEncabezadoTraslado: vi.fn().mockResolvedValue(null),
     guardarEncabezadoTraslado: vi.fn(),
     guardarClinicoTraslado: vi.fn(),
+    // Issue #70 -- mismo criterio que `obtenerEncabezadoTraslado` de
+    // arriba, para el formato de accidente SOAT (issue #17).
+    obtenerEncabezadoAccidenteSoat: vi.fn().mockResolvedValue(null),
+    guardarEncabezadoAccidenteSoat: vi.fn(),
+    guardarClinicoAccidenteSoat: vi.fn(),
     cerrarAtencion: vi.fn(),
   }
 }

@@ -216,7 +216,7 @@ export interface FormatoTraslado extends FormatoTrasladoEncabezado, FormatoTrasl
   atencion_id: number
   glasgow_total: number | null
 }
-
+ 
 /** Issue #17: formato de atención de accidentes SOAT (AA-LAFS-005) --
  * mismo criterio que el formato de traslado de arriba (encabezado +
  * parte clínica en el mismo registro), con varias casillas que
@@ -225,7 +225,7 @@ export interface FormatoTraslado extends FormatoTrasladoEncabezado, FormatoTrasl
  * usa la empresa en los dos documentos de papel. */
 export type RolVictima = 'conductor' | 'pasajero' | 'parrillero' | 'peaton' | 'otro'
 export type TriageNivel = 'i' | 'ii' | 'iii'
-
+ 
 export interface FormatoAccidenteSoatEncabezado {
   fecha_atencion: string
   hora_atencion: string
@@ -236,7 +236,6 @@ export interface FormatoAccidenteSoatEncabezado {
   identificado: boolean
   paciente_tipo_documento: TipoDocumentoPaciente | null
   paciente_numero_documento: string | null
-  paciente_documento_expedido_en: string | null
   paciente_aseguradora: string | null
   paciente_nombres: string | null
   paciente_apellidos: string | null
@@ -248,12 +247,11 @@ export interface FormatoAccidenteSoatEncabezado {
   rol_victima: RolVictima
   poliza_vigente_desde: string | null
   poliza_vigente_hasta: string | null
-  vehiculo_placa: string
-  vehiculo_tipo: string
-  vehiculo_marca: string
-  numero_poliza: string
+  /** Opcional -- puede no saberse todavía al recibir al paciente
+   * (fix sobre #17: el dato a veces se completa días después). */
+  numero_poliza: string | null
 }
-
+ 
 export interface FormatoAccidenteSoatClinico {
   tratamiento: TratamientoAplicado[]
   tratamiento_otro: string | null
@@ -270,7 +268,7 @@ export interface FormatoAccidenteSoatClinico {
   profesional_recibe_nombre: string | null
   profesional_recibe_cedula: string | null
 }
-
+ 
 export interface FormatoAccidenteSoat
   extends FormatoAccidenteSoatEncabezado,
     FormatoAccidenteSoatClinico {
