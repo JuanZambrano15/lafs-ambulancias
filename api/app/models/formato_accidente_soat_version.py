@@ -94,5 +94,12 @@ class FormatoAccidenteSoatVersion(Base):
     )
     descripcion: Mapped[str | None] = mapped_column(Text, default=None)
  
+    atendido_por: Mapped[str | None] = mapped_column(String(150), default=None)
+    firma_atendido_por: Mapped[str | None] = mapped_column(Text, default=None)
+ 
+    evolucionado_por: Mapped[str | None] = mapped_column(String(150), default=None)
+    firma_evolucionado_por: Mapped[str | None] = mapped_column(Text, default=None)
+ 
     profesional_recibe_nombre: Mapped[str | None] = mapped_column(String(150), default=None)
     profesional_recibe_cedula: Mapped[str | None] = mapped_column(String(20), default=None)
+    firma_profesional_recibe: Mapped[str | None] = mapped_column(Text, default=None)

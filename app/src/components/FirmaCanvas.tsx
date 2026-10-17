@@ -24,10 +24,13 @@ interface FirmaCanvasProps {
   imagenInicial?: string | null
   alto?: number
   className?: string
+  /** Bloquea el trazo (p. ej. mientras no haya a quien atribuirle la
+   * firma -- no tiene sentido dejar dibujar sin un nombre asociado). */
+  disabled?: boolean
 }
  
 export const FirmaCanvas = forwardRef<FirmaCanvasHandle, FirmaCanvasProps>(
-  function FirmaCanvas({ imagenInicial, alto = 160, className }, ref) {
+  function FirmaCanvas({ imagenInicial, alto = 160, className, disabled = false }, ref) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null)
     const dibujandoRef = useRef(false)
     const vacioRef = useRef(true)
@@ -71,6 +74,7 @@ export const FirmaCanvas = forwardRef<FirmaCanvasHandle, FirmaCanvasProps>(
     }
  
     function manejarPointerDown(evento: React.PointerEvent<HTMLCanvasElement>): void {
+      if (disabled) return
       const ctx = contexto()
       if (!ctx) return
       evento.currentTarget.setPointerCapture(evento.pointerId)
@@ -117,7 +121,11 @@ export const FirmaCanvas = forwardRef<FirmaCanvasHandle, FirmaCanvasProps>(
         onPointerUp={terminarTrazo}
         onPointerLeave={(e) => dibujandoRef.current && terminarTrazo(e)}
         style={{ height: alto, width: '100%', touchAction: 'none' }}
-        className={className ?? 'rounded-lg border border-slate-300 bg-white'}
+        aria-disabled={disabled}
+        className={
+          className ??
+          `rounded-lg border border-slate-300 bg-white ${disabled ? 'cursor-not-allowed opacity-50' : ''}`
+        }
       />
     )
   },

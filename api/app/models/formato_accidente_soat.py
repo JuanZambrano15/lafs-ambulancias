@@ -20,35 +20,42 @@ más tarde es una corrección post-cierre más, por el mismo mecanismo de
 `formato_accidente_soat_version` que cualquier otra — no hay un flujo
 especial para "convertir" un NN.
  
-Los datos del conductor y del auxiliar que firman en el papel
-("FIRMAS: Conductor ___ C.C. ___ / Auxiliar ___ C.C. ___ / Placa móvil
-___") no se repiten acá: ya están en `Atencion.conductor`,
-`Atencion.responsable` y `Atencion.ambulancia` — es la misma
-tripulación y el mismo móvil de la atención, no un dato nuevo de este
-formato. El papel tampoco les pide firma dibujada a ninguno de los
-dos (a diferencia de "atendido por"/"evolucionado por" en traslado),
-así que esta tabla no tiene columnas de firma para la tripulación.
+La firma del conductor no se diligencia en ninguna pantalla de este
+formato -- queda para el PDF que se genera en un issue aparte (ver más
+abajo), reconstruida a partir de `Atencion.conductor`, igual que en
+`FormatoTraslado`.
  
-La única firma que el papel sí pide es la del "profesional que
-recibe" en la IPS/ESE — pero, igual que en `FormatoTraslado` (donde
-la firma de quien entrega/recibe tampoco se captura, por no ser
-personal de LAFS), acá solo se guarda su nombre y cédula, sin firma
-dibujada.
+El auxiliar que atiende sí firma en pantalla ("atendido por"/firma,
+mismo patrón que `FormatoTraslado`, issue #11). Si participó un
+médico (opcional -- este formato no tiene la noción de
+"medicalizado" que sí tiene traslado), también queda su nombre y
+firma ("evolucionado por"), mismo patrón.
+ 
+El papel también pide la firma de el "profesional que recibe" en la
+IPS/ESE, además de su nombre y cédula -- a diferencia de
+`FormatoTraslado` (donde la firma de quien entrega/recibe no se
+captura, por no ser personal de LAFS), acá sí se dibuja en pantalla.
+El sello físico que acompaña esa firma en el papel no se captura en
+la app.
  
 El PDF descargable de este formato queda para un issue aparte (igual
 que pasó con traslado: issue #13, separado de #8/#9) — por eso esta
 tabla todavía no tiene columnas `pdf_generado`/`pdf_generado_en`.
  
-Corrección sobre el modelado original del issue #17 (antes de que
+Correcciones sobre el modelado original del issue #17 (antes de que
 hubiera pantallas que lo usaran, al construir el issue #70 se
-encontró que no correspondía con el papel real): `vehiculo_placa`,
-`vehiculo_tipo`, `vehiculo_marca` y `paciente_documento_expedido_en`
-no existen en el formato AA-LAFS-005, así que se quitaron (columnas
-eliminadas por migración, no solo dejadas de usar). `numero_poliza`
-sí está en el papel pero puede no saberse al momento de la atención
--- el dato del paciente a veces se completa días después -- así que
-pasó a ser opcional, corregible por el administrador como cualquier
-otro campo tras el cierre.
+encontraron varias cosas que no correspondían con el papel real):
+`vehiculo_placa`, `vehiculo_tipo`, `vehiculo_marca` y
+`paciente_documento_expedido_en` no existen en el formato AA-LAFS-005,
+así que se quitaron (columnas eliminadas por migración, no solo
+dejadas de usar). `numero_poliza` sí está en el papel pero puede no
+saberse al momento de la atención -- el dato del paciente a veces se
+completa días después -- así que pasó a ser opcional, corregible por
+el administrador como cualquier otro campo tras el cierre. Y faltaban
+`atendido_por`/`firma_atendido_por`, `evolucionado_por`/
+`firma_evolucionado_por` y `firma_profesional_recibe` (esta última
+columna se agrega junto a `profesional_recibe_nombre`/
+`profesional_recibe_cedula`, que sí correspondían desde el principio).
 """
  
 from __future__ import annotations
@@ -152,7 +159,22 @@ class FormatoAccidenteSoat(Base):
     )
     descripcion: Mapped[str | None] = mapped_column(Text, default=None)
  
-    # "Profesional que recibe" en la IPS/ESE — solo nombre y cédula,
-    # sin firma (ver nota de módulo).
+    # Auxiliar que atiende — nombre y firma (autocompletados desde el
+    # perfil del usuario que entrega el formato, o la firma reusada si
+    # ya tiene una guardada; ver patrón idéntico en `FormatoTraslado`).
+    atendido_por: Mapped[str | None] = mapped_column(String(150), default=None)
+    firma_atendido_por: Mapped[str | None] = mapped_column(Text, default=None)
+ 
+    # Médico que participó, si lo hubo — siempre opcional (este formato
+    # no tiene la noción de "medicalizado" que sí tiene traslado). Su
+    # firma siempre se dibuja en pantalla, nunca se autocompleta.
+    evolucionado_por: Mapped[str | None] = mapped_column(String(150), default=None)
+    firma_evolucionado_por: Mapped[str | None] = mapped_column(Text, default=None)
+ 
+    # "Profesional que recibe" en la IPS/ESE — nombre, cédula y firma,
+    # todos dibujados/escritos en pantalla al cerrar la atención (es un
+    # tercero ajeno a la app, no se autocompleta de ningún perfil). El
+    # sello físico que lo acompaña en el papel no se captura acá.
     profesional_recibe_nombre: Mapped[str | None] = mapped_column(String(150), default=None)
     profesional_recibe_cedula: Mapped[str | None] = mapped_column(String(20), default=None)
+    firma_profesional_recibe: Mapped[str | None] = mapped_column(Text, default=None)

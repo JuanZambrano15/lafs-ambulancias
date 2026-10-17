@@ -4,10 +4,12 @@ import { Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
 import { OfflineSyncBanner } from './components/OfflineSyncBanner'
 import { CambiarPasswordPage } from './pages/CambiarPasswordPage'
+import { ClinicoAccidenteSoatPage } from './pages/ClinicoAccidenteSoatPage'
 import { ClinicoTrasladoPage } from './pages/ClinicoTrasladoPage'
 import { ConfigurarFirmaPage } from './pages/ConfigurarFirmaPage'
 import { ConfigurarPinPage } from './pages/ConfigurarPinPage'
 import { CrearAtencionPage } from './pages/CrearAtencionPage'
+import { EncabezadoAccidenteSoatPage } from './pages/EncabezadoAccidenteSoatPage'
 import { EncabezadoTrasladoPage } from './pages/EncabezadoTrasladoPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
@@ -32,6 +34,14 @@ export function App(): JSX.Element {
           <Route
             path="/atenciones/:atencionId/clinico-traslado"
             element={<ClinicoTrasladoPage />}
+          />
+          <Route
+            path="/atenciones/:atencionId/encabezado-accidente-soat"
+            element={<EncabezadoAccidenteSoatPage />}
+          />
+          <Route
+            path="/atenciones/:atencionId/clinico-accidente-soat"
+            element={<ClinicoAccidenteSoatPage />}
           />
         </Route>
       </Routes>

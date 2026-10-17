@@ -60,6 +60,11 @@ CLINICO_VALIDO = {
     "glasgow_motora": 6,
     "triage": "ii",
     "descripcion": "Paciente víctima de accidente de tránsito, trasladado estable.",
+    "atendido_por": "Ana Ruiz",
+    "firma_atendido_por": "data:image/png;base64,AAAA",
+    "profesional_recibe_nombre": "Dra. Carolina Pinto",
+    "profesional_recibe_cedula": "1098765432",
+    "firma_profesional_recibe": "data:image/png;base64,CCCC",
 }
  
 CLINICO_CORREGIDO = {**CLINICO_VALIDO, "descripcion": "Se corrige clasificación de triage"}
@@ -241,6 +246,35 @@ class TestCorreccionDeAdministrador:
  
         assert respuesta.status_code == 200
         assert respuesta.json()["descripcion"] == "Se corrige clasificación de triage"
+        # El resto de lo clínico sigue estando (no se pisa con la corrección parcial).
+        assert respuesta.json()["atendido_por"] == "Ana Ruiz"
+        assert respuesta.json()["profesional_recibe_nombre"] == "Dra. Carolina Pinto"
+ 
+    def test_firma_y_atendido_por_quedan_en_el_historial_tras_una_correccion(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
+ 
+        client.put(
+            f"/atenciones/{atencion_id}/formato-accidente-soat/clinico",
+            json=CLINICO_CORREGIDO,
+            headers=admin_headers,
+        )
+ 
+        historial = client.get(
+            f"/atenciones/{atencion_id}/formato-accidente-soat/historial", headers=admin_headers
+        ).json()
+ 
+        assert len(historial) == 1
+        version = historial[0]
+        assert version["atendido_por"] == "Ana Ruiz"
+        assert version["firma_atendido_por"] == "data:image/png;base64,AAAA"
+        assert version["profesional_recibe_nombre"] == "Dra. Carolina Pinto"
+        assert version["firma_profesional_recibe"] == "data:image/png;base64,CCCC"
  
     def test_admin_completa_la_identidad_de_un_nn_tras_el_cierre(
         self,

@@ -12,7 +12,11 @@ import type { JSX } from 'react'
 import { Link } from 'react-router-dom'
  
 import { useAuth } from '../auth/AuthContext'
-import { listarAtencionesEnCurso, obtenerEncabezadoTraslado } from '../lib/api'
+import {
+  listarAtencionesEnCurso,
+  obtenerEncabezadoAccidenteSoat,
+  obtenerEncabezadoTraslado,
+} from '../lib/api'
 import type { Atencion, NombreRol } from '../lib/types'
  
 interface Seccion {
@@ -64,14 +68,24 @@ function puedeTenerAtencionesEnCurso(roles: NombreRol[]): boolean {
  * de poder pasar al clínico), es porque el encabezado ya se llenó y
  * lo que falta es la parte clínica -- volver al encabezado ahí haría
  * reescribir algo que ya quedó bien. Si todavía no hay formato, es
- * que ni siquiera el encabezado se guardó una vez. La atención SOAT
- * (issue #17) todavía no tiene pantalla propia. */
+ * que ni siquiera el encabezado se guardó una vez.
+ *
+ * Issue #70 (QA): la atención SOAT (issue #17) ya tiene sus propias
+ * pantallas, con el mismo criterio de "qué paso retomar" que el
+ * traslado -- antes esta función devolvía `null` para cualquier
+ * atención que no fuera traslado, y por eso "Continuar" nunca
+ * aparecía para una atención SOAT en curso. */
 async function resolverRutaContinuar(atencion: Atencion): Promise<string | null> {
-  if (atencion.tipo !== 'traslado') return null
-  const formatoExistente = await obtenerEncabezadoTraslado(atencion.id)
+  if (atencion.tipo === 'traslado') {
+    const formatoExistente = await obtenerEncabezadoTraslado(atencion.id)
+    return formatoExistente
+      ? `/atenciones/${atencion.id}/clinico-traslado`
+      : `/atenciones/${atencion.id}/encabezado-traslado`
+  }
+  const formatoExistente = await obtenerEncabezadoAccidenteSoat(atencion.id)
   return formatoExistente
-    ? `/atenciones/${atencion.id}/clinico-traslado`
-    : `/atenciones/${atencion.id}/encabezado-traslado`
+    ? `/atenciones/${atencion.id}/clinico-accidente-soat`
+    : `/atenciones/${atencion.id}/encabezado-accidente-soat`
 }
  
 export function HomePage(): JSX.Element {
