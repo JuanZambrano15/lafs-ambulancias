@@ -1,25 +1,25 @@
 """formato de atención de accidentes SOAT (issue #17)
-
+ 
 Revision ID: 8501190d14e6
 Revises: 472c53abd65f
 Create Date: 2026-10-16 00:00:00.000000
-
+ 
 """
-
+ 
 from __future__ import annotations
-
+ 
 from collections.abc import Sequence
-
+ 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import ENUM as PGEnum
-
+ 
 # revision identifiers, used by Alembic.
 revision: str = "8501190d14e6"
 down_revision: str | None = "472c53abd65f"
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
-
+ 
 # Tipos nuevos de este formato (no existen todavía, a diferencia de
 # tipo_documento_paciente/sexo_paciente/reflejo_pupilar, que ya los creó
 # formato_traslado y acá solo se reutilizan).
@@ -27,8 +27,8 @@ ROL_VICTIMA = sa.Enum(
     "conductor", "pasajero", "parrillero", "peaton", "otro", name="rol_victima"
 )
 TRIAGE_NIVEL = sa.Enum("i", "ii", "iii", name="triage_nivel")
-
-
+ 
+ 
 def upgrade() -> None:
     # tipo_documento_paciente, sexo_paciente y reflejo_pupilar ya existen
     # (los creó 44a345a09945/f2c8e4b1a3d7 para formato_traslado) — se
@@ -37,7 +37,7 @@ def upgrade() -> None:
     # triage_nivel sí son nuevos de este formato, se crean normal.
     ROL_VICTIMA.create(op.get_bind(), checkfirst=True)
     TRIAGE_NIVEL.create(op.get_bind(), checkfirst=True)
-
+ 
     op.create_table(
         "formato_accidente_soat",
         sa.Column("atencion_id", sa.Integer(), sa.ForeignKey("atencion.id"), primary_key=True),
@@ -69,7 +69,7 @@ def upgrade() -> None:
         sa.Column("telefono_contacto", sa.String(length=20), nullable=True),
         sa.Column(
             "rol_victima",
-            sa.Enum(name="rol_victima", create_type=False),
+            PGEnum(name="rol_victima", create_type=False),
             nullable=False,
         ),
         sa.Column("poliza_vigente_desde", sa.Date(), nullable=True),
@@ -105,18 +105,18 @@ def upgrade() -> None:
         sa.Column("glasgow_motora", sa.Integer(), nullable=True),
         sa.Column(
             "triage",
-            sa.Enum(name="triage_nivel", create_type=False),
+            PGEnum(name="triage_nivel", create_type=False),
             nullable=True,
         ),
         sa.Column("descripcion", sa.Text(), nullable=True),
         sa.Column("profesional_recibe_nombre", sa.String(length=150), nullable=True),
         sa.Column("profesional_recibe_cedula", sa.String(length=20), nullable=True),
     )
-
-
+ 
+ 
 def downgrade() -> None:
     op.drop_table("formato_accidente_soat")
-
+ 
     # tipo_documento_paciente/sexo_paciente/reflejo_pupilar son
     # compartidos con formato_traslado (create_type=False) — no se
     # borran acá, los maneja el downgrade de esa migración. rol_victima
