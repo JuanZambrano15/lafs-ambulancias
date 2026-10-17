@@ -2,12 +2,12 @@
 versiones (issue #17, mismo mecanismo que `test_formato_version.py`
 para traslado -- issue #14, ADR-0012).
 """
-
+ 
 from __future__ import annotations
-
+ 
 from collections.abc import Mapping
 from datetime import date
-
+ 
 from app.core.security import hash_secret
 from app.models.ambulancia import Ambulancia, TipoAmbulancia
 from app.models.empleado import Empleado
@@ -16,7 +16,7 @@ from app.models.usuario import Usuario
 from app.models.usuario_rol import UsuarioRol
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-
+ 
 ENCABEZADO_VALIDO = {
     "fecha_atencion": "2027-01-01",
     "hora_atencion": "08:00:00",
@@ -24,7 +24,6 @@ ENCABEZADO_VALIDO = {
     "identificado": True,
     "paciente_tipo_documento": "cc",
     "paciente_numero_documento": "123456789",
-    "paciente_documento_expedido_en": "Cúcuta",
     "paciente_aseguradora": "SOAT Seguros XYZ",
     "paciente_nombres": "Pepito",
     "paciente_apellidos": "Pérez",
@@ -36,27 +35,23 @@ ENCABEZADO_VALIDO = {
     "rol_victima": "conductor",
     "poliza_vigente_desde": "2026-01-01",
     "poliza_vigente_hasta": "2027-01-01",
-    "vehiculo_placa": "ABC123",
-    "vehiculo_tipo": "Motocicleta",
-    "vehiculo_marca": "Yamaha",
     "numero_poliza": "SOAT-0001",
 }
-
+ 
 ENCABEZADO_CORREGIDO = {**ENCABEZADO_VALIDO, "paciente_edad": 46, "ciudad": "Ocaña"}
-
+ 
 ENCABEZADO_NN = {
     **ENCABEZADO_VALIDO,
     "identificado": False,
     "paciente_tipo_documento": None,
     "paciente_numero_documento": None,
-    "paciente_documento_expedido_en": None,
     "paciente_aseguradora": None,
     "paciente_nombres": None,
     "paciente_apellidos": None,
     "paciente_edad": None,
     "paciente_sexo": None,
 }
-
+ 
 CLINICO_VALIDO = {
     "tratamiento": ["collar_cervical", "oxigeno"],
     "signos_vitales": [{"hora": "08:05", "ta": "120/80", "fc": 88, "fr": 18, "spo2": 97}],
@@ -66,10 +61,10 @@ CLINICO_VALIDO = {
     "triage": "ii",
     "descripcion": "Paciente víctima de accidente de tránsito, trasladado estable.",
 }
-
+ 
 CLINICO_CORREGIDO = {**CLINICO_VALIDO, "descripcion": "Se corrige clasificación de triage"}
-
-
+ 
+ 
 def _crear_ambulancia(db: Session, movil: str = "M-soatver") -> Ambulancia:
     ambulancia = Ambulancia(
         movil=movil,
@@ -83,31 +78,31 @@ def _crear_ambulancia(db: Session, movil: str = "M-soatver") -> Ambulancia:
     db.commit()
     db.refresh(ambulancia)
     return ambulancia
-
-
+ 
+ 
 def _crear_conductor(db: Session, cedula: str = "800000598") -> Empleado:
     empleado = Empleado(nombres="Carlos", apellidos="Gómez", cedula=cedula)
     db.add(empleado)
     db.flush()
-
+ 
     rol = db.query(Rol).filter(Rol.nombre == "conductor").first()
     if rol is None:
         rol = Rol(nombre="conductor", descripcion="Rol de prueba")
         db.add(rol)
         db.flush()
-
+ 
     usuario = Usuario(
         documento=cedula, password_hash=hash_secret("clave-conductor"), empleado_id=empleado.id
     )
     db.add(usuario)
     db.flush()
     db.add(UsuarioRol(usuario_id=usuario.id, rol_id=rol.id))
-
+ 
     db.commit()
     db.refresh(empleado)
     return empleado
-
-
+ 
+ 
 def _crear_atencion(client: TestClient, db: Session, headers: dict[str, str]) -> int:
     ambulancia = _crear_ambulancia(db)
     conductor = _crear_conductor(db)
@@ -122,8 +117,8 @@ def _crear_atencion(client: TestClient, db: Session, headers: dict[str, str]) ->
     )
     assert response.status_code == 201
     return response.json()["id"]
-
-
+ 
+ 
 def _crear_atencion_cerrada_con_formato(
     client: TestClient,
     db: Session,
@@ -146,17 +141,17 @@ def _crear_atencion_cerrada_con_formato(
         headers=headers,
     )
     assert respuesta.status_code == 200
-
+ 
     usuario = db.query(Usuario).filter(Usuario.documento == "700000001").one()
     usuario.pin_hash = hash_secret("1234")
     db.commit()
-
+ 
     cerrar = client.put(f"/atenciones/{atencion_id}/cerrar", json={"pin": "1234"}, headers=headers)
     assert cerrar.status_code == 200
-
+ 
     return atencion_id
-
-
+ 
+ 
 class TestPermisosDeEdicion:
     def test_admin_no_puede_editar_encabezado_de_atencion_abierta(
         self,
@@ -166,15 +161,15 @@ class TestPermisosDeEdicion:
         admin_headers: dict[str, str],
     ) -> None:
         atencion_id = _crear_atencion(client, db, auxiliar_headers)
-
+ 
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-accidente-soat",
             json=ENCABEZADO_VALIDO,
             headers=admin_headers,
         )
-
+ 
         assert respuesta.status_code == 403
-
+ 
     def test_auxiliar_no_puede_editar_encabezado_de_atencion_cerrada(
         self,
         client: TestClient,
@@ -182,15 +177,15 @@ class TestPermisosDeEdicion:
         auxiliar_headers: dict[str, str],
     ) -> None:
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
-
+ 
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-accidente-soat",
             json=ENCABEZADO_CORREGIDO,
             headers=auxiliar_headers,
         )
-
+ 
         assert respuesta.status_code == 409
-
+ 
     def test_medico_no_puede_editar_clinico_de_atencion_cerrada(
         self,
         client: TestClient,
@@ -199,16 +194,16 @@ class TestPermisosDeEdicion:
         medico_headers: dict[str, str],
     ) -> None:
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
-
+ 
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-accidente-soat/clinico",
             json=CLINICO_CORREGIDO,
             headers=medico_headers,
         )
-
+ 
         assert respuesta.status_code == 409
-
-
+ 
+ 
 class TestCorreccionDeAdministrador:
     def test_admin_corrige_el_encabezado_de_atencion_cerrada(
         self,
@@ -218,17 +213,17 @@ class TestCorreccionDeAdministrador:
         admin_headers: dict[str, str],
     ) -> None:
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
-
+ 
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-accidente-soat",
             json=ENCABEZADO_CORREGIDO,
             headers=admin_headers,
         )
-
+ 
         assert respuesta.status_code == 200
         assert respuesta.json()["paciente_edad"] == 46
         assert respuesta.json()["ciudad"] == "Ocaña"
-
+ 
     def test_admin_corrige_el_clinico_de_atencion_cerrada(
         self,
         client: TestClient,
@@ -237,16 +232,16 @@ class TestCorreccionDeAdministrador:
         admin_headers: dict[str, str],
     ) -> None:
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
-
+ 
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-accidente-soat/clinico",
             json=CLINICO_CORREGIDO,
             headers=admin_headers,
         )
-
+ 
         assert respuesta.status_code == 200
         assert respuesta.json()["descripcion"] == "Se corrige clasificación de triage"
-
+ 
     def test_admin_completa_la_identidad_de_un_nn_tras_el_cierre(
         self,
         client: TestClient,
@@ -262,7 +257,7 @@ class TestCorreccionDeAdministrador:
         atencion_id = _crear_atencion_cerrada_con_formato(
             client, db, auxiliar_headers, encabezado=ENCABEZADO_NN
         )
-
+ 
         identificado = {
             **ENCABEZADO_VALIDO,
             "identificado": True,
@@ -272,19 +267,19 @@ class TestCorreccionDeAdministrador:
             json=identificado,
             headers=admin_headers,
         )
-
+ 
         assert respuesta.status_code == 200
         assert respuesta.json()["identificado"] is True
         assert respuesta.json()["paciente_nombres"] == "Pepito"
-
+ 
         historial = client.get(
             f"/atenciones/{atencion_id}/formato-accidente-soat/historial", headers=admin_headers
         ).json()
         assert len(historial) == 1
         assert historial[0]["identificado"] is False
         assert historial[0]["paciente_nombres"] is None
-
-
+ 
+ 
 class TestHistorial:
     def test_vacio_si_nunca_hubo_correccion(
         self,
@@ -293,14 +288,14 @@ class TestHistorial:
         auxiliar_headers: dict[str, str],
     ) -> None:
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
-
+ 
         respuesta = client.get(
             f"/atenciones/{atencion_id}/formato-accidente-soat/historial", headers=auxiliar_headers
         )
-
+ 
         assert respuesta.status_code == 200
         assert respuesta.json() == []
-
+ 
     def test_una_correccion_crea_una_version_con_el_estado_anterior(
         self,
         client: TestClient,
@@ -309,13 +304,13 @@ class TestHistorial:
         admin_headers: dict[str, str],
     ) -> None:
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
-
+ 
         client.put(
             f"/atenciones/{atencion_id}/formato-accidente-soat",
             json=ENCABEZADO_CORREGIDO,
             headers=admin_headers,
         )
-
+ 
         historial = client.get(
             f"/atenciones/{atencion_id}/formato-accidente-soat/historial", headers=admin_headers
         )
@@ -325,7 +320,7 @@ class TestHistorial:
         assert versiones[0]["paciente_edad"] == 45
         assert versiones[0]["ciudad"] == "Cúcuta"
         assert versiones[0]["corregido_por"]["documento"] == "999999999"
-
+ 
     def test_conductor_no_puede_ver_el_historial(
         self,
         client: TestClient,
@@ -334,14 +329,14 @@ class TestHistorial:
         conductor_headers: dict[str, str],
     ) -> None:
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
-
+ 
         respuesta = client.get(
             f"/atenciones/{atencion_id}/formato-accidente-soat/historial",
             headers=conductor_headers,
         )
-
+ 
         assert respuesta.status_code == 403
-
+ 
     def test_sin_token_da_401(self, client: TestClient) -> None:
         respuesta = client.get("/atenciones/1/formato-accidente-soat/historial")
         assert respuesta.status_code == 401
