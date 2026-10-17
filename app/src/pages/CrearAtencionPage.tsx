@@ -63,15 +63,20 @@ export function CrearAtencionPage(): JSX.Element {
         ambulancia_id: Number(ambulanciaId),
         conductor_id: Number(conductorId),
       })
-      // El encabezado del formato (issue #8) solo existe para traslados —
-      // la atención SOAT todavía no tiene su propio formato (issue #17).
+      // Issue #70 (QA): la atención SOAT (issue #17) ya tiene su propio
+      // encabezado -- antes de esta corrección, crear una atención SOAT
+      // mandaba directo a "/" sin pasar por ninguna pantalla de
+      // formato, lo que además hacía que no se pudiera volver a ella
+      // desde "Continuar" en Home.
       // Si no había conexión, `atencionId` es un identificador local
       // (issue #10) y esta misma pantalla de encabezado sigue
       // funcionando guardando en el dispositivo (ver trasladoOffline.ts).
       if (resultado.tipo === 'traslado') {
         navigate(`/atenciones/${resultado.atencionId}/encabezado-traslado`, { replace: true })
       } else {
-        navigate('/', { replace: true })
+        navigate(`/atenciones/${resultado.atencionId}/encabezado-accidente-soat`, {
+          replace: true,
+        })
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar la atención')

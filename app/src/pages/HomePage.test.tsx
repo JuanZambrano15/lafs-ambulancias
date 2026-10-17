@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  
 import * as api from '../lib/api'
 import { AuthProvider } from '../auth/AuthContext'
-import type { Atencion, FormatoTraslado, MeResponse } from '../lib/types'
+import type { Atencion, FormatoAccidenteSoat, FormatoTraslado, MeResponse } from '../lib/types'
 import { HomePage } from './HomePage'
  
 vi.mock('../lib/api', () => import('../test/mockApi').then((m) => m.construirMockApi()))
@@ -109,6 +109,49 @@ const ENCABEZADO_YA_GUARDADO: FormatoTraslado = {
   nota_medica: null,
   evolucionado_por: null,
   firma_evolucionado_por: null,
+  glasgow_total: null,
+}
+ 
+const ATENCION_SOAT_EN_CURSO: Atencion = {
+  ...ATENCION_EN_CURSO,
+  id: 9,
+  tipo: 'atencion_soat',
+}
+ 
+const ENCABEZADO_SOAT_YA_GUARDADO: FormatoAccidenteSoat = {
+  atencion_id: 9,
+  fecha_atencion: '2027-01-01',
+  hora_atencion: '08:00:00',
+  hora_entrega: null,
+  identificado: true,
+  paciente_tipo_documento: 'cc',
+  paciente_numero_documento: '123456789',
+  paciente_aseguradora: 'SOAT Seguros XYZ',
+  paciente_nombres: 'Pepito',
+  paciente_apellidos: 'Pérez',
+  paciente_edad: 45,
+  paciente_sexo: 'm',
+  lugar_ocurrencia: 'Av. Gran Colombia con calle 10',
+  ciudad: 'Cúcuta',
+  telefono_contacto: '3001234567',
+  rol_victima: 'conductor',
+  poliza_vigente_desde: '2026-01-01',
+  poliza_vigente_hasta: '2027-01-01',
+  numero_poliza: 'SOAT-0001',
+  tratamiento: [],
+  tratamiento_otro: null,
+  pupila_derecha: null,
+  pupila_izquierda: null,
+  signos_vitales: [],
+  lesiones: [],
+  lesion_otro: null,
+  glasgow_ocular: null,
+  glasgow_verbal: null,
+  glasgow_motora: null,
+  triage: null,
+  descripcion: null,
+  profesional_recibe_nombre: null,
+  profesional_recibe_cedula: null,
   glasgow_total: null,
 }
  
@@ -228,6 +271,34 @@ describe('HomePage', () => {
     expect(await screen.findByText(/Servicio en curso — móvil M-03/)).toBeInTheDocument()
     const enlace = screen.getByRole('link', { name: 'Continuar' })
     expect(enlace).toHaveAttribute('href', '/atenciones/7/clinico-traslado')
+  })
+ 
+  it('enlaza al encabezado SOAT si todavía no se ha guardado ninguno (issue #70)', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+    )
+    vi.mocked(api.listarAtencionesEnCurso).mockResolvedValue([ATENCION_SOAT_EN_CURSO])
+    vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(null)
+ 
+    renderHome()
+ 
+    expect(await screen.findByText(/Servicio en curso — móvil M-03/)).toBeInTheDocument()
+    const enlace = screen.getByRole('link', { name: 'Continuar' })
+    expect(enlace).toHaveAttribute('href', '/atenciones/9/encabezado-accidente-soat')
+  })
+ 
+  it('enlaza directo al clínico SOAT si el encabezado ya se guardó (issue #70)', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+    )
+    vi.mocked(api.listarAtencionesEnCurso).mockResolvedValue([ATENCION_SOAT_EN_CURSO])
+    vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(ENCABEZADO_SOAT_YA_GUARDADO)
+ 
+    renderHome()
+ 
+    expect(await screen.findByText(/Servicio en curso — móvil M-03/)).toBeInTheDocument()
+    const enlace = screen.getByRole('link', { name: 'Continuar' })
+    expect(enlace).toHaveAttribute('href', '/atenciones/9/clinico-accidente-soat')
   })
  
   it('no pregunta por servicios en curso si el rol no puede ser responsable', async () => {

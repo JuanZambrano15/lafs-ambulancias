@@ -43,6 +43,10 @@ function renderPagina(): void {
         <Route path="/" element={<div>pantalla principal</div>} />
         <Route path="/atenciones/nueva" element={<CrearAtencionPage />} />
         <Route path="/atenciones/:atencionId/encabezado-traslado" element={<div>encabezado</div>} />
+        <Route
+          path="/atenciones/:atencionId/encabezado-accidente-soat"
+          element={<div>encabezado soat</div>}
+        />
       </Routes>
     </MemoryRouter>,
   )
@@ -107,7 +111,7 @@ describe('CrearAtencionPage', () => {
     expect(await screen.findByText('encabezado')).toBeInTheDocument()
   })
  
-  it('al crear una atención SOAT, vuelve a la pantalla principal', async () => {
+  it('al crear una atención SOAT, va al encabezado del formato de accidente (issue #70)', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.listarAmbulanciasDisponibles).mockResolvedValue([ambulancia])
     vi.mocked(api.listarConductoresDisponibles).mockResolvedValue([conductor])
@@ -130,7 +134,7 @@ describe('CrearAtencionPage', () => {
     await usuario.selectOptions(screen.getByLabelText('Conductor'), '2')
     await usuario.click(screen.getByRole('button', { name: 'Iniciar atención' }))
  
-    expect(await screen.findByText('pantalla principal')).toBeInTheDocument()
+    expect(await screen.findByText('encabezado soat')).toBeInTheDocument()
   })
  
   it('si no hay conexión, guarda la atención localmente y entra igual al encabezado (issue #10)', async () => {
