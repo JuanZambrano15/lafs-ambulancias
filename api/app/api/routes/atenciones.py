@@ -425,8 +425,8 @@ def crear_atencion(
         .where(Atencion.id == atencion_id)
     ).scalar_one()
     return atencion
-
-
+ 
+ 
 def _atencion_de_accidente_soat(atencion_id: int, db: DbSession) -> Atencion:
     """Igual que `_atencion_de_traslado`, pero para el formato de
     accidente SOAT (issue #17) -- el encabezado de este formato no
@@ -752,7 +752,7 @@ def cerrar_atencion(
     `_campos_faltantes_para_cerrar`). Un traslado que nunca llegó a
     tener encabezado se puede cerrar igual (servicio cancelado antes
     de atender a nadie, ver ADR-0002).
-
+ 
     Issue #17 — una atención SOAT tiene la misma validación, con su
     propia lista de campos obligatorios (ver
     `_campos_faltantes_para_cerrar_soat`): un paciente NN sin
@@ -866,15 +866,15 @@ def historial_formato_traslado(atencion_id: int, db: DbSession) -> list[FormatoV
         .order_by(FormatoVersion.corregido_en.desc())
     ).scalars().all()
     return list(versiones)
-
-
+ 
+ 
 # --- Formato de accidente SOAT (issue #17) ---------------------------------
 #
 # Mismo patrón que el formato de traslado de arriba (encabezado + clínico,
 # ambos PUT con el formulario completo cada vez, misma lógica de permisos
 # abierto/cerrado, mismo mecanismo de versionado) -- ver cada función para
 # las diferencias puntuales (el paciente puede ser NN, no hay PDF todavía).
-
+ 
 # Campos que se copian a FormatoAccidenteSoatVersion antes de aplicar una
 # corrección (mismo mecanismo que _CAMPOS_VERSIONADOS para traslado).
 _CAMPOS_VERSIONADOS_SOAT = (
@@ -884,7 +884,6 @@ _CAMPOS_VERSIONADOS_SOAT = (
     "identificado",
     "paciente_tipo_documento",
     "paciente_numero_documento",
-    "paciente_documento_expedido_en",
     "paciente_aseguradora",
     "paciente_nombres",
     "paciente_apellidos",
@@ -896,9 +895,6 @@ _CAMPOS_VERSIONADOS_SOAT = (
     "rol_victima",
     "poliza_vigente_desde",
     "poliza_vigente_hasta",
-    "vehiculo_placa",
-    "vehiculo_tipo",
-    "vehiculo_marca",
     "numero_poliza",
     "tratamiento",
     "tratamiento_otro",
@@ -915,8 +911,8 @@ _CAMPOS_VERSIONADOS_SOAT = (
     "profesional_recibe_nombre",
     "profesional_recibe_cedula",
 )
-
-
+ 
+ 
 def _guardar_version_soat(
     formato: FormatoAccidenteSoat, usuario: Usuario, db: DbSession
 ) -> None:
@@ -931,13 +927,13 @@ def _guardar_version_soat(
         **{campo: getattr(formato, campo) for campo in _CAMPOS_VERSIONADOS_SOAT},
     )
     db.add(version)
-
-
+ 
+ 
 def _campos_faltantes_para_cerrar_soat(formato: FormatoAccidenteSoat) -> list[str]:
     """Qué le falta al formato de accidente SOAT para poder cerrarlo --
     mismo criterio que `_campos_faltantes_para_cerrar` para traslado,
     con sus propios campos obligatorios.
-
+ 
     Si el paciente sigue siendo NN (`identificado=False`) al momento
     del cierre, los campos de identidad NO se exigen -- completarlos
     después es una corrección como cualquier otra (ADR-0002, ver
@@ -965,8 +961,8 @@ def _campos_faltantes_para_cerrar_soat(formato: FormatoAccidenteSoat) -> list[st
     ):
         faltantes.append("identidad del paciente (marcado como identificado)")
     return faltantes
-
-
+ 
+ 
 @router.get(
     "/{atencion_id}/formato-accidente-soat",
     response_model=FormatoAccidenteSoatOut,
@@ -983,8 +979,8 @@ def obtener_encabezado_accidente_soat(
             detail="Esta atención todavía no tiene formato de accidente SOAT",
         )
     return formato
-
-
+ 
+ 
 @router.put(
     "/{atencion_id}/formato-accidente-soat",
     response_model=FormatoAccidenteSoatOut,
@@ -1002,7 +998,7 @@ def guardar_encabezado_accidente_soat(
     cada decisión).
     """
     atencion = _atencion_de_accidente_soat(atencion_id, db)
-
+ 
     if atencion.estado == EstadoAtencion.abierto:
         if _es_admin(usuario) and not _es_personal_clinico(usuario):
             raise HTTPException(
@@ -1028,15 +1024,15 @@ def guardar_encabezado_accidente_soat(
             db.add(formato)
         else:
             _guardar_version_soat(formato, usuario, db)
-
+ 
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
-
+ 
     db.commit()
     db.refresh(formato)
     return formato
-
-
+ 
+ 
 @router.put(
     "/{atencion_id}/formato-accidente-soat/clinico",
     response_model=FormatoAccidenteSoatOut,
@@ -1053,7 +1049,7 @@ def guardar_clinico_accidente_soat(
     requerir que el encabezado ya exista.
     """
     atencion = _atencion_de_accidente_soat(atencion_id, db)
-
+ 
     if atencion.estado == EstadoAtencion.abierto:
         if _es_admin(usuario) and not _es_personal_clinico(usuario):
             raise HTTPException(
@@ -1082,15 +1078,15 @@ def guardar_clinico_accidente_soat(
                 detail="Esta atención no tiene encabezado, no hay nada que corregir",
             )
         _guardar_version_soat(formato, usuario, db)
-
+ 
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
-
+ 
     db.commit()
     db.refresh(formato)
     return formato
-
-
+ 
+ 
 @router.get(
     "/{atencion_id}/formato-accidente-soat/historial",
     response_model=list[FormatoAccidenteSoatVersionOut],
