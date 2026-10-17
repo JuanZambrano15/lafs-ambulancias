@@ -150,8 +150,13 @@ const ENCABEZADO_SOAT_YA_GUARDADO: FormatoAccidenteSoat = {
   glasgow_motora: null,
   triage: null,
   descripcion: null,
+  atendido_por: null,
+  firma_atendido_por: null,
+  evolucionado_por: null,
+  firma_evolucionado_por: null,
   profesional_recibe_nombre: null,
   profesional_recibe_cedula: null,
+  firma_profesional_recibe: null,
   glasgow_total: null,
 }
  

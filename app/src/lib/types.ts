@@ -247,8 +247,8 @@ export interface FormatoAccidenteSoatEncabezado {
   rol_victima: RolVictima
   poliza_vigente_desde: string | null
   poliza_vigente_hasta: string | null
-  /** Opcional -- puede no saberse todavía al recibir al paciente
-   * (fix sobre #17: el dato a veces se completa días después). */
+  /** Opcional -- puede no saberse todavía al recibir al paciente (el
+   * dato del paciente a veces se completa días después). */
   numero_poliza: string | null
 }
  
@@ -265,8 +265,13 @@ export interface FormatoAccidenteSoatClinico {
   glasgow_motora: number | null
   triage: TriageNivel | null
   descripcion: string | null
+  atendido_por: string | null
+  firma_atendido_por: string | null
+  evolucionado_por: string | null
+  firma_evolucionado_por: string | null
   profesional_recibe_nombre: string | null
   profesional_recibe_cedula: string | null
+  firma_profesional_recibe: string | null
 }
  
 export interface FormatoAccidenteSoat
