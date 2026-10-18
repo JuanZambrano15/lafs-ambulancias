@@ -52,7 +52,7 @@ export function OfflineSyncBanner(): JSX.Element | null {
   if (pendientes === 0 && mensaje === null) return null
  
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+    <div className="flex items-center justify-between gap-3 border-b border-brand-amber bg-brand-amber-soft px-4 py-2 text-sm text-brand-amber-dark">
       <span>
         {sincronizando
           ? 'Sincronizando traslados pendientes…'

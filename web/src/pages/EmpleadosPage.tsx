@@ -137,7 +137,7 @@ export function EmpleadosPage(): JSX.Element {
           required
           value={formulario.nombres}
           onChange={(evento) => setFormulario((f) => ({ ...f, nombres: evento.target.value }))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
         />
 
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-apellidos">
@@ -149,7 +149,7 @@ export function EmpleadosPage(): JSX.Element {
           required
           value={formulario.apellidos}
           onChange={(evento) => setFormulario((f) => ({ ...f, apellidos: evento.target.value }))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
         />
 
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-cedula">
@@ -162,7 +162,7 @@ export function EmpleadosPage(): JSX.Element {
           disabled={edicion !== null}
           value={formulario.cedula}
           onChange={(evento) => setFormulario((f) => ({ ...f, cedula: evento.target.value }))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none disabled:bg-slate-100 disabled:text-slate-500"
         />
 
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-telefono">
@@ -173,7 +173,7 @@ export function EmpleadosPage(): JSX.Element {
           type="text"
           value={formulario.telefono}
           onChange={(evento) => setFormulario((f) => ({ ...f, telefono: evento.target.value }))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
         />
 
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-vinculacion">
@@ -188,14 +188,14 @@ export function EmpleadosPage(): JSX.Element {
               tipo_vinculacion: evento.target.value as TipoVinculacion,
             }))
           }
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
         >
           <option value="planta">Planta</option>
           <option value="ocasional">Ocasional</option>
         </select>
 
         {error && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
             {error}
           </p>
         )}
@@ -204,7 +204,7 @@ export function EmpleadosPage(): JSX.Element {
           <button
             type="submit"
             disabled={enviando}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           >
             {edicion ? 'Guardar cambios' : 'Crear empleado'}
           </button>
@@ -254,7 +254,7 @@ export function EmpleadosPage(): JSX.Element {
                   <button
                     type="button"
                     onClick={() => comenzarEdicion(empleado)}
-                    className="mr-3 text-blue-600 hover:underline"
+                    className="mr-3 text-brand-blue hover:underline"
                   >
                     Editar
                   </button>
@@ -262,7 +262,7 @@ export function EmpleadosPage(): JSX.Element {
                     <button
                       type="button"
                       onClick={() => void manejarDesactivar(empleado)}
-                      className="text-red-600 hover:underline"
+                      className="text-brand-orange-dark hover:underline"
                     >
                       Desactivar
                     </button>

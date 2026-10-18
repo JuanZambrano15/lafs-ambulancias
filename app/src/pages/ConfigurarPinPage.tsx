@@ -77,7 +77,7 @@ export function ConfigurarPinPage(): JSX.Element {
           required
           value={pin}
           onChange={(evento) => setPin(evento.target.value.replace(/\D/g, '').slice(0, 4))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
         />
  
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pin-confirmacion">
@@ -93,11 +93,11 @@ export function ConfigurarPinPage(): JSX.Element {
           required
           value={confirmacion}
           onChange={(evento) => setConfirmacion(evento.target.value.replace(/\D/g, '').slice(0, 4))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
         />
  
         {error && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
             {error}
           </p>
         )}
@@ -105,7 +105,7 @@ export function ConfigurarPinPage(): JSX.Element {
         <button
           type="submit"
           disabled={enviando}
-          className="w-full rounded-lg bg-blue-600 py-3 text-base font-medium text-white disabled:opacity-60"
+          className="w-full rounded-lg bg-brand-blue py-3 text-base font-medium text-white disabled:opacity-60"
         >
           {enviando ? 'Guardando…' : 'Guardar PIN'}
         </button>

@@ -19,7 +19,7 @@ const ENLACES = [
 function claseEnlace({ isActive }: { isActive: boolean }): string {
   return [
     'block rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-    isActive ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100',
+    isActive ? 'bg-brand-blue text-white' : 'text-slate-700 hover:bg-slate-100',
   ].join(' ')
 }
  

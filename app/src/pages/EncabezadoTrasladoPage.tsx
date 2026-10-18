@@ -104,7 +104,7 @@ function campoRequerido(label: string, id: string, props: JSX.IntrinsicElements[
       </label>
       <input
         id={id}
-        className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+        className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
         {...props}
       />
     </div>
@@ -213,7 +213,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
           </p>
  
           {errorCarga && (
-            <p role="alert" className="mb-4 text-sm text-red-600">
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
               {errorCarga}
             </p>
           )}
@@ -228,7 +228,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
             onChange={(e) =>
               actualizar('paciente_tipo_documento', e.target.value as TipoDocumentoPaciente)
             }
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           >
             {TIPOS_DOCUMENTO.map((opcion) => (
               <option key={opcion.valor} value={opcion.valor}>
@@ -270,7 +270,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
             id="sexo"
             value={campos.paciente_sexo}
             onChange={(e) => actualizar('paciente_sexo', e.target.value as SexoPaciente)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           >
             <option value="m">Masculino</option>
             <option value="f">Femenino</option>
@@ -374,7 +374,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
             id="complejidad"
             value={campos.complejidad}
             onChange={(e) => actualizar('complejidad', e.target.value as ComplejidadTraslado)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           >
             <option value="alta">Alta</option>
             <option value="baja">Baja</option>
@@ -386,7 +386,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
             id="categoria"
             value={campos.categoria_paciente}
             onChange={(e) => actualizar('categoria_paciente', e.target.value as CategoriaPaciente)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           >
             <option value="neonato">Neonato</option>
             <option value="pediatrico">Pediátrico</option>
@@ -399,7 +399,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
             id="nivel-servicio"
             value={campos.nivel_servicio}
             onChange={(e) => actualizar('nivel_servicio', e.target.value as NivelServicioTraslado)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           >
             <option value="basico">Básico</option>
             <option value="medicalizado">Medicalizado</option>
@@ -411,14 +411,14 @@ export function EncabezadoTrasladoPage(): JSX.Element {
             id="modalidad"
             value={campos.modalidad}
             onChange={(e) => actualizar('modalidad', e.target.value as ModalidadTraslado)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           >
             <option value="sencillo">Sencillo</option>
             <option value="redondo">Redondo</option>
           </select>
  
           {error && (
-            <p role="alert" className="mb-4 text-sm text-red-600">
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
               {error}
             </p>
           )}
@@ -426,7 +426,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
           <button
             type="submit"
             disabled={guardando}
-            className="w-full rounded-lg bg-blue-600 py-3 text-base font-medium text-white disabled:opacity-60"
+            className="w-full rounded-lg bg-brand-blue py-3 text-base font-medium text-white disabled:opacity-60"
           >
             {guardando ? 'Guardando…' : 'Guardar encabezado'}
           </button>

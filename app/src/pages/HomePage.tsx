@@ -149,14 +149,14 @@ export function HomePage(): JSX.Element {
               return (
                 <li
                   key={atencion.id}
-                  className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm"
+                  className="rounded-xl border border-brand-amber bg-brand-amber-soft p-4 shadow-sm"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h2 className="font-medium text-amber-900">
+                      <h2 className="font-medium text-brand-amber-dark">
                         Servicio en curso — móvil {atencion.ambulancia.movil}
                       </h2>
-                      <p className="text-sm text-amber-700">
+                      <p className="text-sm text-brand-amber-dark">
                         {atencion.tipo === 'traslado' ? 'Traslado asistencial' : 'Atención SOAT'}
                         , iniciado sin cerrar todavía.
                       </p>
@@ -164,12 +164,12 @@ export function HomePage(): JSX.Element {
                     {ruta ? (
                       <Link
                         to={ruta}
-                        className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white"
+                        className="shrink-0 rounded-lg bg-brand-amber-dark px-4 py-2 text-sm font-medium text-white"
                       >
                         Continuar
                       </Link>
                     ) : (
-                      <span className="shrink-0 text-xs text-amber-700">
+                      <span className="shrink-0 text-xs text-brand-amber-dark">
                         Sin pantalla todavía
                       </span>
                     )}
@@ -190,7 +190,7 @@ export function HomePage(): JSX.Element {
                 {seccion.ruta ? (
                   <Link
                     to={seccion.ruta}
-                    className="inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+                    className="inline-block rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white"
                   >
                     Empezar
                   </Link>

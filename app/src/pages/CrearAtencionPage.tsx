@@ -104,7 +104,7 @@ export function CrearAtencionPage(): JSX.Element {
           </p>
  
           {errorCarga && (
-            <p role="alert" className="mb-4 text-sm text-red-600">
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
               {errorCarga}
             </p>
           )}
@@ -122,7 +122,7 @@ export function CrearAtencionPage(): JSX.Element {
                 id="tipo"
                 value={tipo}
                 onChange={(evento) => setTipo(evento.target.value as TipoAtencion)}
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               >
                 {TIPOS.map((opcion) => (
                   <option key={opcion.valor} value={opcion.valor}>
@@ -139,7 +139,7 @@ export function CrearAtencionPage(): JSX.Element {
                 required
                 value={ambulanciaId}
                 onChange={(evento) => setAmbulanciaId(evento.target.value)}
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               >
                 <option value="">
                   {ambulancias?.length === 0 ? 'No hay móviles disponibles' : 'Elige un móvil'}
@@ -159,7 +159,7 @@ export function CrearAtencionPage(): JSX.Element {
                 required
                 value={conductorId}
                 onChange={(evento) => setConductorId(evento.target.value)}
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               >
                 <option value="">
                   {conductores?.length === 0 ? 'No hay conductores disponibles' : 'Elige un conductor'}
@@ -174,7 +174,7 @@ export function CrearAtencionPage(): JSX.Element {
           )}
  
           {error && (
-            <p role="alert" className="mb-4 text-sm text-red-600">
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
               {error}
             </p>
           )}
@@ -182,7 +182,7 @@ export function CrearAtencionPage(): JSX.Element {
           <button
             type="submit"
             disabled={enviando || cargando}
-            className="w-full rounded-lg bg-blue-600 py-3 text-base font-medium text-white disabled:opacity-60"
+            className="w-full rounded-lg bg-brand-blue py-3 text-base font-medium text-white disabled:opacity-60"
           >
             {enviando ? 'Iniciando…' : 'Iniciar atención'}
           </button>

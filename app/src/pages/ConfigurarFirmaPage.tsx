@@ -76,7 +76,7 @@ export function ConfigurarFirmaPage(): JSX.Element {
               </button>
  
               {error && (
-                <p role="alert" className="mt-4 text-sm text-red-600">
+                <p role="alert" className="mt-4 text-sm text-brand-orange-dark">
                   {error}
                 </p>
               )}
@@ -85,7 +85,7 @@ export function ConfigurarFirmaPage(): JSX.Element {
                 type="button"
                 onClick={() => void manejarGuardar()}
                 disabled={guardando}
-                className="mt-4 w-full rounded-lg bg-blue-600 py-3 text-base font-medium text-white disabled:opacity-60"
+                className="mt-4 w-full rounded-lg bg-brand-blue py-3 text-base font-medium text-white disabled:opacity-60"
               >
                 {guardando ? 'Guardando…' : 'Guardar firma'}
               </button>

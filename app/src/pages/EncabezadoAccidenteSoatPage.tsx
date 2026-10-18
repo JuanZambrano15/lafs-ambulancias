@@ -110,7 +110,7 @@ function campoRequerido(
       </label>
       <input
         id={id}
-        className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+        className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
         {...props}
       />
     </div>
@@ -246,7 +246,7 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
           </p>
  
           {errorCarga && (
-            <p role="alert" className="mb-4 text-sm text-red-600">
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
               {errorCarga}
             </p>
           )}
@@ -275,7 +275,7 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
             Paciente identificado
           </label>
           {!campos.identificado && (
-            <p className="mb-4 text-sm text-amber-700">
+            <p className="mb-4 text-sm text-brand-amber-dark">
               Se registrará como NN. Los datos de identidad se pueden completar después, sin
               necesidad de cerrar la atención para corregirlos.
             </p>
@@ -294,7 +294,7 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
                 onChange={(e) =>
                   actualizar('paciente_tipo_documento', e.target.value as TipoDocumentoPaciente)
                 }
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               >
                 {TIPOS_DOCUMENTO.map((opcion) => (
                   <option key={opcion.valor} value={opcion.valor}>
@@ -331,7 +331,7 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
                 id="sexo"
                 value={campos.paciente_sexo}
                 onChange={(e) => actualizar('paciente_sexo', e.target.value as SexoPaciente)}
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               >
                 <option value="m">Masculino</option>
                 <option value="f">Femenino</option>
@@ -361,7 +361,7 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
             id="rol-victima"
             value={campos.rol_victima}
             onChange={(e) => actualizar('rol_victima', e.target.value as RolVictima)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           >
             {ROLES_VICTIMA.map((opcion) => (
               <option key={opcion.valor} value={opcion.valor}>
@@ -390,7 +390,7 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
           })}
  
           {error && (
-            <p role="alert" className="mb-4 text-sm text-red-600">
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
               {error}
             </p>
           )}
@@ -398,7 +398,7 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
           <button
             type="submit"
             disabled={guardando}
-            className="w-full rounded-lg bg-blue-600 py-3 text-base font-medium text-white disabled:opacity-60"
+            className="w-full rounded-lg bg-brand-blue py-3 text-base font-medium text-white disabled:opacity-60"
           >
             {guardando ? 'Guardando…' : 'Guardar encabezado'}
           </button>

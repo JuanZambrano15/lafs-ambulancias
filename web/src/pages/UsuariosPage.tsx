@@ -196,7 +196,7 @@ export function UsuariosPage(): JSX.Element {
           minLength={5}
           value={documento}
           onChange={(evento) => setDocumento(evento.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
         />
  
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="usr-empleado">
@@ -216,7 +216,7 @@ export function UsuariosPage(): JSX.Element {
               if (empleado) setDocumento(empleado.cedula)
             }
           }}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
         >
           <option value="">— Sin empleado —</option>
           {/* Solo empleados activos: uno desactivado no debería poder
@@ -248,7 +248,7 @@ export function UsuariosPage(): JSX.Element {
         </div>
  
         {error && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
             {error}
           </p>
         )}
@@ -257,7 +257,7 @@ export function UsuariosPage(): JSX.Element {
         <button
           type="submit"
           disabled={enviando}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
           {enviando ? 'Creando…' : 'Crear usuario'}
         </button>
@@ -305,7 +305,7 @@ export function UsuariosPage(): JSX.Element {
                         <button
                           type="button"
                           onClick={() => void guardarRolesEdicion()}
-                          className="text-blue-600 hover:underline"
+                          className="text-brand-blue hover:underline"
                         >
                           Guardar
                         </button>
@@ -331,7 +331,7 @@ export function UsuariosPage(): JSX.Element {
                     <span className="text-slate-400">Inactivo</span>
                   )}
                   {usuario.debe_cambiar_password && (
-                    <span className="ml-1 block text-xs text-amber-600">
+                    <span className="ml-1 block text-xs text-brand-amber-dark">
                       Debe cambiar contraseña
                     </span>
                   )}
@@ -341,7 +341,7 @@ export function UsuariosPage(): JSX.Element {
                     <button
                       type="button"
                       onClick={() => comenzarEdicionRoles(usuario)}
-                      className="mr-3 text-blue-600 hover:underline"
+                      className="mr-3 text-brand-blue hover:underline"
                     >
                       Roles
                     </button>
@@ -349,14 +349,14 @@ export function UsuariosPage(): JSX.Element {
                   <button
                     type="button"
                     onClick={() => void manejarResetearPassword(usuario)}
-                    className="mr-3 text-blue-600 hover:underline"
+                    className="mr-3 text-brand-blue hover:underline"
                   >
                     Resetear contraseña
                   </button>
                   <button
                     type="button"
                     onClick={() => void manejarActivo(usuario)}
-                    className={usuario.activo ? 'text-red-600 hover:underline' : 'text-green-700 hover:underline'}
+                    className={usuario.activo ? 'text-brand-orange-dark hover:underline' : 'text-green-700 hover:underline'}
                   >
                     {usuario.activo ? 'Desactivar' : 'Activar'}
                   </button>
