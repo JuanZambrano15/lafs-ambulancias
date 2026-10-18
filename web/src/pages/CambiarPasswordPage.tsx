@@ -67,7 +67,7 @@ export function CambiarPasswordPage(): JSX.Element {
           required
           value={passwordActual}
           onChange={(evento) => setPasswordActual(evento.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
         />
 
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="password-nueva">
@@ -81,7 +81,7 @@ export function CambiarPasswordPage(): JSX.Element {
           required
           value={passwordNueva}
           onChange={(evento) => setPasswordNueva(evento.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
         />
 
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="confirmacion">
@@ -95,11 +95,11 @@ export function CambiarPasswordPage(): JSX.Element {
           required
           value={confirmacion}
           onChange={(evento) => setConfirmacion(evento.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
         />
 
         {error && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
             {error}
           </p>
         )}
@@ -107,7 +107,7 @@ export function CambiarPasswordPage(): JSX.Element {
         <button
           type="submit"
           disabled={enviando}
-          className="w-full rounded-lg bg-blue-600 py-3 text-base font-medium text-white disabled:opacity-60"
+          className="w-full rounded-lg bg-brand-blue py-3 text-base font-medium text-white disabled:opacity-60"
         >
           {enviando ? 'Guardando…' : 'Guardar contraseña'}
         </button>

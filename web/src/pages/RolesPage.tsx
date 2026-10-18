@@ -109,7 +109,7 @@ export function RolesPage(): JSX.Element {
           minLength={2}
           value={nombre}
           onChange={(evento) => setNombre(evento.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
         />
 
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="rol-descripcion">
@@ -120,11 +120,11 @@ export function RolesPage(): JSX.Element {
           type="text"
           value={descripcion}
           onChange={(evento) => setDescripcion(evento.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
         />
 
         {error && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
             {error}
           </p>
         )}
@@ -133,7 +133,7 @@ export function RolesPage(): JSX.Element {
           <button
             type="submit"
             disabled={enviando}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           >
             {edicion ? 'Guardar cambios' : 'Crear rol'}
           </button>
@@ -169,14 +169,14 @@ export function RolesPage(): JSX.Element {
                   <button
                     type="button"
                     onClick={() => comenzarEdicion(rol)}
-                    className="mr-3 text-blue-600 hover:underline"
+                    className="mr-3 text-brand-blue hover:underline"
                   >
                     Editar
                   </button>
                   <button
                     type="button"
                     onClick={() => void manejarEliminar(rol)}
-                    className="text-red-600 hover:underline"
+                    className="text-brand-orange-dark hover:underline"
                   >
                     Eliminar
                   </button>

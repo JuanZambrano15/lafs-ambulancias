@@ -126,7 +126,7 @@ export function PendientesPage(): JSX.Element {
         </div>
  
         {errorPendientes && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
             {errorPendientes}
           </p>
         )}
@@ -153,7 +153,7 @@ export function PendientesPage(): JSX.Element {
                 return (
                   <tr
                     key={atencion.id}
-                    className={`rounded-lg shadow-sm ${enAlerta ? 'bg-red-50' : 'bg-white'}`}
+                    className={`rounded-lg shadow-sm ${enAlerta ? 'bg-brand-orange-soft' : 'bg-white'}`}
                   >
                     <td className="px-3 py-2 font-medium text-slate-900">
                       {atencion.ambulancia.movil}
@@ -167,7 +167,7 @@ export function PendientesPage(): JSX.Element {
                     <td className="px-3 py-2 text-slate-600">
                       {formatearFecha(atencion.abierta_en)}
                     </td>
-                    <td className={`px-3 py-2 ${enAlerta ? 'font-semibold text-red-700' : 'text-slate-600'}`}>
+                    <td className={`px-3 py-2 ${enAlerta ? 'font-semibold text-brand-orange-dark' : 'text-slate-600'}`}>
                       {formatearDuracion(horas)}
                       {enAlerta && ' — lleva mucho tiempo abierta'}
                     </td>
@@ -201,23 +201,23 @@ export function PendientesPage(): JSX.Element {
             placeholder="Nombre, apellido o documento del paciente"
             value={busqueda}
             onChange={(evento) => setBusqueda(evento.target.value)}
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
           />
           <button
             type="submit"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+            className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white"
           >
             Buscar
           </button>
         </form>
  
         {errorCerradas && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
             {errorCerradas}
           </p>
         )}
         {errorDescarga && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
             {errorDescarga}
           </p>
         )}
@@ -256,7 +256,7 @@ export function PendientesPage(): JSX.Element {
                         type="button"
                         disabled={descargandoId === atencion.id}
                         onClick={() => void manejarDescargar(atencion)}
-                        className="text-blue-600 hover:underline disabled:text-slate-400"
+                        className="text-brand-blue hover:underline disabled:text-slate-400"
                       >
                         {descargandoId === atencion.id ? 'Descargando…' : 'Descargar PDF'}
                       </button>

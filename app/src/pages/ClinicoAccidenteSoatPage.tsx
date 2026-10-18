@@ -76,6 +76,7 @@ import type {
   TratamientoAplicado,
   TriageNivel,
 } from '../lib/types'
+import logoLafs from '../assets/logo-lafs.png'
 
 const PIN_VALIDO = /^\d{4}$/
 
@@ -571,13 +572,14 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
         </button>
 
         <form onSubmit={manejarEnvio} className="rounded-xl bg-white p-6 shadow-sm">
+          <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
           <h1 className="mb-1 text-xl font-semibold text-slate-900">Atención del paciente</h1>
           <p className="mb-6 text-sm text-slate-500">
             Se puede guardar el avance las veces que haga falta.
           </p>
 
           {errorCarga && (
-            <p role="alert" className="mb-4 text-sm text-red-600">
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
               {errorCarga}
             </p>
           )}
@@ -607,7 +609,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
             onChange={(e) =>
               setCampos((anterior) => ({ ...anterior, tratamientoOtro: e.target.value }))
             }
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           />
 
           <h2 className="mb-3 text-sm font-semibold text-slate-900">Reflejo pupilar</h2>
@@ -623,7 +625,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                 pupilaDerecha: e.target.value as ReflejoPupilar | '',
               }))
             }
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           >
             <option value="">Sin registrar</option>
             {REFLEJO_OPCIONES.map((opcion) => (
@@ -644,7 +646,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                 pupilaIzquierda: e.target.value as ReflejoPupilar | '',
               }))
             }
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           >
             <option value="">Sin registrar</option>
             {REFLEJO_OPCIONES.map((opcion) => (
@@ -659,7 +661,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
             <button
               type="button"
               onClick={agregarSignoVital}
-              className="text-sm font-medium text-blue-600"
+              className="text-sm font-medium text-brand-blue"
             >
               + Agregar medición
             </button>
@@ -671,7 +673,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                 <button
                   type="button"
                   onClick={() => quitarSignoVital(indice)}
-                  className="text-xs font-medium text-red-600"
+                  className="text-xs font-medium text-brand-orange-dark"
                 >
                   Quitar
                 </button>
@@ -682,7 +684,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   aria-label={`Hora medición ${indice + 1}`}
                   value={signo.hora}
                   onChange={(e) => actualizarSignoVital(indice, 'hora', e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
                 />
                 <input
                   type="text"
@@ -690,7 +692,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   aria-label={`TA medición ${indice + 1}`}
                   value={signo.ta}
                   onChange={(e) => actualizarSignoVital(indice, 'ta', e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
                 />
                 <input
                   type="number"
@@ -700,7 +702,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   max={300}
                   value={signo.fc}
                   onChange={(e) => actualizarSignoVital(indice, 'fc', e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
                 />
                 <input
                   type="number"
@@ -710,7 +712,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   max={120}
                   value={signo.fr}
                   onChange={(e) => actualizarSignoVital(indice, 'fr', e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
                 />
                 <input
                   type="number"
@@ -720,7 +722,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   max={100}
                   value={signo.spo2}
                   onChange={(e) => actualizarSignoVital(indice, 'spo2', e.target.value)}
-                  className="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
                 />
               </div>
             </div>
@@ -748,7 +750,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                 onChange={(e) =>
                   setCampos((anterior) => ({ ...anterior, glasgowOcular: e.target.value }))
                 }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
               >
                 <option value="">Sin registrar</option>
                 {GLASGOW_OCULAR_OPCIONES.map((opcion) => (
@@ -768,7 +770,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                 onChange={(e) =>
                   setCampos((anterior) => ({ ...anterior, glasgowVerbal: e.target.value }))
                 }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
               >
                 <option value="">Sin registrar</option>
                 {GLASGOW_VERBAL_OPCIONES.map((opcion) => (
@@ -788,7 +790,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                 onChange={(e) =>
                   setCampos((anterior) => ({ ...anterior, glasgowMotora: e.target.value }))
                 }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
               >
                 <option value="">Sin registrar</option>
                 {GLASGOW_MOTORA_OPCIONES.map((opcion) => (
@@ -812,7 +814,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
             onChange={(e) =>
               setCampos((anterior) => ({ ...anterior, triage: e.target.value as TriageNivel | '' }))
             }
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           >
             <option value="">Sin registrar</option>
             {TRIAGE_OPCIONES.map((opcion) => (
@@ -834,7 +836,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
             onChange={(e) => setCampos((anterior) => ({ ...anterior, descripcion: e.target.value }))}
             maxLength={2000}
             rows={4}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           />
 
           <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Atendido por</h2>
@@ -877,7 +879,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                       }))
                     }
                   }}
-                  className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                  className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
                 >
                   <option value="">
                     {medicos === null
@@ -969,7 +971,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
           />
 
           {error && (
-            <p role="alert" className="mb-4 mt-4 text-sm text-red-600">
+            <p role="alert" className="mb-4 mt-4 text-sm text-brand-orange-dark">
               {error}
             </p>
           )}
@@ -977,7 +979,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
           <button
             type="submit"
             disabled={guardando}
-            className="mt-2 w-full rounded-lg bg-blue-600 py-3 text-base font-medium text-white disabled:opacity-60"
+            className="mt-2 w-full rounded-lg bg-brand-blue py-3 text-base font-medium text-white disabled:opacity-60"
           >
             {guardando ? 'Guardando…' : 'Guardar'}
           </button>
@@ -988,7 +990,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
             {faltantesParaCerrar.length > 0 && (
               <div
                 role="alert"
-                className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800"
+                className="mb-4 rounded-lg border border-brand-amber bg-brand-amber-soft p-3 text-sm text-brand-amber-dark"
               >
                 <p className="font-medium">Falta diligenciar antes de poder cerrar:</p>
                 <ul className="mt-1 list-inside list-disc">
@@ -1003,7 +1005,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                 type="button"
                 onClick={() => setMostrarCierre(true)}
                 disabled={faltantesParaCerrar.length > 0}
-                className="w-full rounded-lg border border-red-300 py-3 text-base font-medium text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-lg border border-brand-orange py-3 text-base font-medium text-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cerrar atención
               </button>
@@ -1027,7 +1029,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                     type="time"
                     value={horaEntrega}
                     onChange={(e) => setHoraEntrega(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
                   />
                 </div>
 
@@ -1043,11 +1045,11 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   autoComplete="off"
                   value={pinCierre}
                   onChange={(e) => setPinCierre(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-red-500 focus:outline-none"
+                  className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-orange-dark focus:outline-none"
                 />
 
                 {errorCierre && (
-                  <p role="alert" className="mb-4 text-sm text-red-600">
+                  <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
                     {errorCierre}
                   </p>
                 )}
@@ -1067,7 +1069,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   <button
                     type="submit"
                     disabled={cerrando || faltantesParaCerrar.length > 0}
-                    className="flex-1 rounded-lg bg-red-600 py-3 text-base font-medium text-white disabled:opacity-60"
+                    className="flex-1 rounded-lg bg-brand-orange-dark py-3 text-base font-medium text-white disabled:opacity-60"
                   >
                     {cerrando ? 'Cerrando…' : 'Confirmar cierre'}
                   </button>
@@ -1143,7 +1145,7 @@ function campoTexto(
         type="text"
         value={valor}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+        className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
       />
     </div>
   )

@@ -212,7 +212,7 @@ export function DiagramaCorporal({ valor, onChange }: DiagramaCorporalProps) {
             type="button"
             onClick={() => cambiarVista('frontal')}
             className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-              vista === 'frontal' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600'
+              vista === 'frontal' ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-600'
             }`}
           >
             Vista frontal
@@ -221,7 +221,7 @@ export function DiagramaCorporal({ valor, onChange }: DiagramaCorporalProps) {
             type="button"
             onClick={() => cambiarVista('posterior')}
             className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-              vista === 'posterior' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600'
+              vista === 'posterior' ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-600'
             }`}
           >
             Vista posterior
@@ -248,7 +248,7 @@ export function DiagramaCorporal({ valor, onChange }: DiagramaCorporalProps) {
               rx={z.rx}
               stroke="#64748b"
               strokeWidth={1}
-              fill={z.seleccionada ? '#2563eb' : z.tieneEntradas ? '#fbbf24' : '#e2e8f0'}
+              fill={z.seleccionada ? '#2B6CB0' : z.tieneEntradas ? '#CC8B00' : '#e2e8f0'}
               className="cursor-pointer"
               onClick={() => seleccionarZona(z.zona, z.lado)}
               onKeyDown={(evento) => {
@@ -267,10 +267,10 @@ export function DiagramaCorporal({ valor, onChange }: DiagramaCorporalProps) {
             marcar
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-400" /> Ya tiene lesión
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-brand-amber" /> Ya tiene lesión
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-600" /> Seleccionada
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-brand-blue" /> Seleccionada
           </span>
         </div>
       </div>
@@ -328,7 +328,7 @@ export function DiagramaCorporal({ valor, onChange }: DiagramaCorporalProps) {
                   onClick={agregarEntrada}
                   disabled={!puedeAgregar}
                   className={`flex-1 rounded-md px-3 py-2 text-sm font-semibold text-white ${
-                    puedeAgregar ? 'bg-blue-600' : 'bg-slate-400'
+                    puedeAgregar ? 'bg-brand-blue' : 'bg-slate-400'
                   }`}
                 >
                   Agregar a la lista
@@ -358,7 +358,7 @@ export function DiagramaCorporal({ valor, onChange }: DiagramaCorporalProps) {
               <button
                 type="button"
                 onClick={() => quitarEntrada(indice)}
-                className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700"
+                className="rounded-md border border-brand-orange bg-brand-orange-soft px-2.5 py-1 text-xs font-semibold text-brand-orange-dark"
               >
                 Quitar
               </button>

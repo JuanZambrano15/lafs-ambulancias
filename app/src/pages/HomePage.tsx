@@ -18,6 +18,7 @@ import {
   obtenerEncabezadoTraslado,
 } from '../lib/api'
 import type { Atencion, NombreRol } from '../lib/types'
+import logoLafs from '../assets/logo-lafs.png'
  
 interface Seccion {
   titulo: string
@@ -129,9 +130,12 @@ export function HomePage(): JSX.Element {
   return (
     <div className="min-h-screen bg-slate-100">
       <header className="flex items-center justify-between bg-white px-6 py-4 shadow-sm">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">L.A.F.S. Ambulancias</h1>
-          <p className="text-sm text-slate-500">Documento: {perfil?.documento}</p>
+        <div className="flex items-center gap-3">
+          <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="h-9 w-auto" />
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">L.A.F.S. Ambulancias</h1>
+            <p className="text-sm text-slate-500">Documento: {perfil?.documento}</p>
+          </div>
         </div>
         <button
           onClick={() => void cerrarSesion()}
@@ -149,14 +153,14 @@ export function HomePage(): JSX.Element {
               return (
                 <li
                   key={atencion.id}
-                  className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm"
+                  className="rounded-xl border border-brand-amber bg-brand-amber-soft p-4 shadow-sm"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h2 className="font-medium text-amber-900">
+                      <h2 className="font-medium text-brand-amber-dark">
                         Servicio en curso — móvil {atencion.ambulancia.movil}
                       </h2>
-                      <p className="text-sm text-amber-700">
+                      <p className="text-sm text-brand-amber-dark">
                         {atencion.tipo === 'traslado' ? 'Traslado asistencial' : 'Atención SOAT'}
                         , iniciado sin cerrar todavía.
                       </p>
@@ -164,12 +168,12 @@ export function HomePage(): JSX.Element {
                     {ruta ? (
                       <Link
                         to={ruta}
-                        className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white"
+                        className="shrink-0 rounded-lg bg-brand-amber-dark px-4 py-2 text-sm font-medium text-white"
                       >
                         Continuar
                       </Link>
                     ) : (
-                      <span className="shrink-0 text-xs text-amber-700">
+                      <span className="shrink-0 text-xs text-brand-amber-dark">
                         Sin pantalla todavía
                       </span>
                     )}
@@ -190,7 +194,7 @@ export function HomePage(): JSX.Element {
                 {seccion.ruta ? (
                   <Link
                     to={seccion.ruta}
-                    className="inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+                    className="inline-block rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white"
                   >
                     Empezar
                   </Link>

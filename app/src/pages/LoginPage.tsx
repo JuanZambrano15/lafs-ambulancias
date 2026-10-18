@@ -5,6 +5,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthContext'
 import { ApiError } from '../lib/api'
+import logoLafs from '../assets/logo-lafs.png'
 
 export function LoginPage(): JSX.Element {
   const { perfil, iniciarSesion } = useAuth()
@@ -43,6 +44,7 @@ export function LoginPage(): JSX.Element {
         onSubmit={manejarEnvio}
         className="w-full max-w-sm rounded-xl bg-white p-8 shadow-md"
       >
+        <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
         <h1 className="mb-1 text-2xl font-semibold text-slate-900">L.A.F.S. Ambulancias</h1>
         <p className="mb-6 text-sm text-slate-500">Ingresa con tu documento y contraseña.</p>
 
@@ -58,7 +60,7 @@ export function LoginPage(): JSX.Element {
           required
           value={documento}
           onChange={(evento) => setDocumento(evento.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
         />
 
         <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="password">
@@ -72,11 +74,11 @@ export function LoginPage(): JSX.Element {
           required
           value={password}
           onChange={(evento) => setPassword(evento.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
         />
 
         {error && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
             {error}
           </p>
         )}
@@ -84,7 +86,7 @@ export function LoginPage(): JSX.Element {
         <button
           type="submit"
           disabled={enviando}
-          className="w-full rounded-lg bg-blue-600 py-3 text-base font-medium text-white disabled:opacity-60"
+          className="w-full rounded-lg bg-brand-blue py-3 text-base font-medium text-white disabled:opacity-60"
         >
           {enviando ? 'Ingresando…' : 'Ingresar'}
         </button>

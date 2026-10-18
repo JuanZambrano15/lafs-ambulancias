@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { ApiError, listarAmbulanciasDisponibles, listarConductoresDisponibles } from '../lib/api'
 import { crearAtencionConRespaldo } from '../lib/trasladoOffline'
 import type { Ambulancia, Empleado, TipoAtencion } from '../lib/types'
+import logoLafs from '../assets/logo-lafs.png'
  
 const TIPOS: { valor: TipoAtencion; etiqueta: string }[] = [
   { valor: 'traslado', etiqueta: 'Traslado asistencial' },
@@ -98,13 +99,14 @@ export function CrearAtencionPage(): JSX.Element {
         </button>
  
         <form onSubmit={manejarEnvio} className="rounded-xl bg-white p-6 shadow-sm">
+          <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
           <h1 className="mb-1 text-xl font-semibold text-slate-900">Iniciar atención</h1>
           <p className="mb-6 text-sm text-slate-500">
             Elige el tipo de atención, el móvil y el conductor con los que sales.
           </p>
  
           {errorCarga && (
-            <p role="alert" className="mb-4 text-sm text-red-600">
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
               {errorCarga}
             </p>
           )}
@@ -122,7 +124,7 @@ export function CrearAtencionPage(): JSX.Element {
                 id="tipo"
                 value={tipo}
                 onChange={(evento) => setTipo(evento.target.value as TipoAtencion)}
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               >
                 {TIPOS.map((opcion) => (
                   <option key={opcion.valor} value={opcion.valor}>
@@ -139,7 +141,7 @@ export function CrearAtencionPage(): JSX.Element {
                 required
                 value={ambulanciaId}
                 onChange={(evento) => setAmbulanciaId(evento.target.value)}
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               >
                 <option value="">
                   {ambulancias?.length === 0 ? 'No hay móviles disponibles' : 'Elige un móvil'}
@@ -159,7 +161,7 @@ export function CrearAtencionPage(): JSX.Element {
                 required
                 value={conductorId}
                 onChange={(evento) => setConductorId(evento.target.value)}
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               >
                 <option value="">
                   {conductores?.length === 0 ? 'No hay conductores disponibles' : 'Elige un conductor'}
@@ -174,7 +176,7 @@ export function CrearAtencionPage(): JSX.Element {
           )}
  
           {error && (
-            <p role="alert" className="mb-4 text-sm text-red-600">
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
               {error}
             </p>
           )}
@@ -182,7 +184,7 @@ export function CrearAtencionPage(): JSX.Element {
           <button
             type="submit"
             disabled={enviando || cargando}
-            className="w-full rounded-lg bg-blue-600 py-3 text-base font-medium text-white disabled:opacity-60"
+            className="w-full rounded-lg bg-brand-blue py-3 text-base font-medium text-white disabled:opacity-60"
           >
             {enviando ? 'Iniciando…' : 'Iniciar atención'}
           </button>
