@@ -18,6 +18,7 @@ import {
   obtenerEncabezadoTraslado,
 } from '../lib/api'
 import type { Atencion, NombreRol } from '../lib/types'
+import logoLafs from '../assets/logo-lafs.png'
  
 interface Seccion {
   titulo: string
@@ -129,9 +130,12 @@ export function HomePage(): JSX.Element {
   return (
     <div className="min-h-screen bg-slate-100">
       <header className="flex items-center justify-between bg-white px-6 py-4 shadow-sm">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">L.A.F.S. Ambulancias</h1>
-          <p className="text-sm text-slate-500">Documento: {perfil?.documento}</p>
+        <div className="flex items-center gap-3">
+          <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="h-9 w-auto" />
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">L.A.F.S. Ambulancias</h1>
+            <p className="text-sm text-slate-500">Documento: {perfil?.documento}</p>
+          </div>
         </div>
         <button
           onClick={() => void cerrarSesion()}

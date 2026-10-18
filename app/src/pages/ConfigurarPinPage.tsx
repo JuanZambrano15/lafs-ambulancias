@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { ApiError, establecerPin } from '../lib/api'
 import { guardarPinLocal } from '../lib/pinLocal'
+import logoLafs from '../assets/logo-lafs.png'
  
 const PIN_VALIDO = /^\d{4}$/
  
@@ -57,6 +58,7 @@ export function ConfigurarPinPage(): JSX.Element {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
       <form onSubmit={manejarEnvio} className="w-full max-w-sm rounded-xl bg-white p-8 shadow-md">
+        <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
         <h1 className="mb-1 text-2xl font-semibold text-slate-900">Define tu PIN de firma</h1>
         <p className="mb-6 text-sm text-slate-500">
           {perfil?.pin_configurado

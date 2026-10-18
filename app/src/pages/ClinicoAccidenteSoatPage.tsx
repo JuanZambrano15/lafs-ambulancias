@@ -76,6 +76,7 @@ import type {
   TratamientoAplicado,
   TriageNivel,
 } from '../lib/types'
+import logoLafs from '../assets/logo-lafs.png'
 
 const PIN_VALIDO = /^\d{4}$/
 
@@ -571,6 +572,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
         </button>
 
         <form onSubmit={manejarEnvio} className="rounded-xl bg-white p-6 shadow-sm">
+          <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
           <h1 className="mb-1 text-xl font-semibold text-slate-900">Atención del paciente</h1>
           <p className="mb-6 text-sm text-slate-500">
             Se puede guardar el avance las veces que haga falta.

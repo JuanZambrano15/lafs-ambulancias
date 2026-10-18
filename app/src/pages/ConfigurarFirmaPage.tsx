@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
 import { ApiError, guardarFirma } from '../lib/api'
+import logoLafs from '../assets/logo-lafs.png'
  
 export function ConfigurarFirmaPage(): JSX.Element {
   const { perfil, refrescarPerfil } = useAuth()
@@ -51,6 +52,7 @@ export function ConfigurarFirmaPage(): JSX.Element {
         </button>
  
         <div className="rounded-xl bg-white p-6 shadow-sm">
+          <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
           <h1 className="mb-1 text-xl font-semibold text-slate-900">Configurar mi firma</h1>
  
           {!esPlanta ? (

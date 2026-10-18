@@ -5,6 +5,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthContext'
 import { ApiError } from '../lib/api'
+import logoLafs from '../assets/logo-lafs.png'
 
 export function LoginPage(): JSX.Element {
   const { perfil, iniciarSesion } = useAuth()
@@ -43,6 +44,7 @@ export function LoginPage(): JSX.Element {
         onSubmit={manejarEnvio}
         className="w-full max-w-sm rounded-xl bg-white p-8 shadow-md"
       >
+        <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
         <h1 className="mb-1 text-2xl font-semibold text-slate-900">L.A.F.S. Ambulancias</h1>
         <p className="mb-6 text-sm text-slate-500">Ingresa con tu documento y contraseña.</p>
 

@@ -24,6 +24,7 @@ import type {
   SexoPaciente,
   TipoDocumentoPaciente,
 } from '../lib/types'
+import logoLafs from '../assets/logo-lafs.png'
  
 /** Mismos campos que `FormatoTrasladoEncabezado`, pero los que son
  * número o texto opcional se manejan como string de formulario (los
@@ -207,6 +208,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
         </button>
  
         <form onSubmit={manejarEnvio} className="rounded-xl bg-white p-6 shadow-sm">
+          <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
           <h1 className="mb-1 text-xl font-semibold text-slate-900">Encabezado de traslado</h1>
           <p className="mb-6 text-sm text-slate-500">
             Datos del paciente, acompañante, recepción y entrega.
