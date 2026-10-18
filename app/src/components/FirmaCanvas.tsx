@@ -41,30 +41,55 @@ export const FirmaCanvas = forwardRef<FirmaCanvasHandle, FirmaCanvasProps>(
  
     useEffect(() => {
       const canvas = canvasRef.current
-      const ctx = contexto()
-      if (!canvas || !ctx) return
+      if (!canvas) return
  
-      // Escala por devicePixelRatio para que la línea no se vea
-      // pixelada en pantallas de alta densidad (la mayoría de tablets).
-      const relacion = window.devicePixelRatio || 1
-      const ancho = canvas.clientWidth
-      canvas.width = ancho * relacion
-      canvas.height = alto * relacion
-      ctx.scale(relacion, relacion)
-      ctx.lineWidth = 2
-      ctx.lineCap = 'round'
-      ctx.strokeStyle = '#1e293b'
+      // Issue #78: la tablet puede rotar (vertical <-> horizontal) con la
+      // firma ya dibujada. `clientWidth` solo se leia al montar, asi que
+      // al rotar el canvas quedaba con la resolucion vieja estirada por
+      // CSS al nuevo ancho -- se veia borroso/deformado. `dimensionar` se
+      // usa tanto al montar como cada vez que el contenedor cambia de
+      // tamaño, y si ya habia un trazo lo reescala en vez de borrarlo.
+      function dimensionar(conservarTrazo: boolean): void {
+        const ctx = contexto()
+        if (!canvas || !ctx) return
+        const relacion = window.devicePixelRatio || 1
+        const ancho = canvas.clientWidth
+        if (ancho === 0) return
+        const previo = conservarTrazo && !vacioRef.current ? canvas.toDataURL('image/png') : null
+ 
+        canvas.width = ancho * relacion
+        canvas.height = alto * relacion
+        ctx.scale(relacion, relacion)
+        ctx.lineWidth = 2
+        ctx.lineCap = 'round'
+        ctx.strokeStyle = '#1e293b'
+ 
+        if (previo) {
+          const img = new Image()
+          img.onload = () => ctx.drawImage(img, 0, 0, ancho, alto)
+          img.src = previo
+        }
+      }
+ 
+      dimensionar(false)
  
       if (imagenInicial) {
+        const ctx = contexto()
+        const ancho = canvas.clientWidth
         const img = new Image()
         img.onload = () => {
-          ctx.drawImage(img, 0, 0, ancho, alto)
+          ctx?.drawImage(img, 0, 0, ancho, alto)
           vacioRef.current = false
         }
         img.src = imagenInicial
       }
-      // Solo al montar: si `imagenInicial` cambia después, el padre
-      // suele querer mantener lo que el usuario ya dibujó encima.
+ 
+      const observador = new ResizeObserver(() => dimensionar(true))
+      observador.observe(canvas)
+      return () => observador.disconnect()
+      // Solo al montar (y mientras el tamaño cambie de ahi en adelante): si
+      // `imagenInicial` cambia despues, el padre suele querer mantener lo
+      // que el usuario ya dibujo encima.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
  

@@ -52,7 +52,7 @@ export function CambiarPasswordPage(): JSX.Element {
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
       <form
         onSubmit={manejarEnvio}
-        className="w-full max-w-sm rounded-xl bg-white p-8 shadow-md"
+        className="w-full max-w-sm sm:max-w-md rounded-xl bg-white p-8 shadow-md"
       >
         <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
         <h1 className="mb-1 text-2xl font-semibold text-slate-900">Cambia tu contraseña</h1>
