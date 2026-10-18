@@ -133,3 +133,10 @@ class FormatoVersion(Base):
     firma_atendido_por: Mapped[str | None] = mapped_column(Text, default=None)
     evolucionado_por: Mapped[str | None] = mapped_column(String(150), default=None)
     firma_evolucionado_por: Mapped[str | None] = mapped_column(Text, default=None)
+
+    # Profesional que recibe en la IPS/ESE de destino (issue #75) --
+    # ver FormatoTraslado para el detalle, nullable acá igual que el
+    # resto de este historial.
+    profesional_recibe_nombre: Mapped[str | None] = mapped_column(String(150), default=None)
+    profesional_recibe_cedula: Mapped[str | None] = mapped_column(String(20), default=None)
+    firma_profesional_recibe: Mapped[str | None] = mapped_column(Text, default=None)

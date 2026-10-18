@@ -238,11 +238,20 @@ class FormatoTraslado(Base):
     # en base64 de lo dibujado en pantalla — la del auxiliar de planta
     # con firma guardada llega ya resuelta desde el frontend (copiada
     # de `Empleado.firma_guardada`), así que este endpoint no necesita
-    # saber si viene de ahí o de un dibujo nuevo en pantalla. Las
-    # firmas de "quien entrega"/"quien recibe" (personal de la IPS,
-    # no de LAFS) quedan fuera de este issue.
+    # saber si viene de ahí o de un dibujo nuevo en pantalla.
     firma_atendido_por: Mapped[str | None] = mapped_column(Text, default=None)
     firma_evolucionado_por: Mapped[str | None] = mapped_column(Text, default=None)
+
+    # Profesional que recibe al paciente en la IPS/ESE de destino
+    # (issue #75): personal de la institución, no de LAFS -- quedó
+    # fuera del issue #11 original (ver el comentario que había acá
+    # arriba antes de esta corrección). Mismo patrón ya usado en el
+    # formato de accidente SOAT: la firma siempre se dibuja a mano,
+    # nunca se autocompleta de ningún perfil. El sello físico que la
+    # acompaña en el papel no se captura en la app.
+    profesional_recibe_nombre: Mapped[str | None] = mapped_column(String(150), default=None)
+    profesional_recibe_cedula: Mapped[str | None] = mapped_column(String(20), default=None)
+    firma_profesional_recibe: Mapped[str | None] = mapped_column(Text, default=None)
  
     # El total de Glasgow (suma de las tres escalas) no es una columna
     # — se calcula en `FormatoTrasladoOut.glasgow_total`
