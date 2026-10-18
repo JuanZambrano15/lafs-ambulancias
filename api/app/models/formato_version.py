@@ -120,8 +120,7 @@ class FormatoVersion(Base):
  
     signos_vitales: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
  
-    lesiones: Mapped[list[str]] = mapped_column(JSON, default=list)
-    lesion_otro: Mapped[str | None] = mapped_column(String(255), default=None)
+    lesiones_localizadas: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
  
     glasgow_ocular: Mapped[int | None] = mapped_column(Integer, default=None)
     glasgow_verbal: Mapped[int | None] = mapped_column(Integer, default=None)
