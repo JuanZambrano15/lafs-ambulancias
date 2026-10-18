@@ -29,12 +29,13 @@
  * el cierre — en línea o encolado, según haya conexión. El servidor
  * siempre revalida el PIN de verdad, la validación local es solo UX.
  */
- 
+
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, JSX, RefObject } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
- 
+
 import { useAuth } from '../auth/AuthContext'
+import { DiagramaCorporal } from '../components/DiagramaCorporal'
 import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
 import { ApiError, listarMedicosDisponibles } from '../lib/api'
 import { pinLocalValido } from '../lib/pinLocal'
@@ -46,21 +47,21 @@ import {
 import type {
   Empleado,
   FormatoTrasladoClinico,
-  LesionTipo,
+  LesionLocalizada,
   NivelServicioTraslado,
   ReflejoPupilar,
   TratamientoAplicado,
 } from '../lib/types'
- 
+
 const PIN_VALIDO = /^\d{4}$/
- 
+
 /** "HH:MM" en hora local, el mismo formato que produce un `<input
  * type="time">` -- issue #52. */
 function horaActual(): string {
   const ahora = new Date()
   return `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
 }
- 
+
 interface SignoVitalForm {
   hora: string
   ta: string
@@ -68,7 +69,7 @@ interface SignoVitalForm {
   fr: string
   spo2: string
 }
- 
+
 interface EstadoClinico {
   diagnostico: string
   tratamiento: TratamientoAplicado[]
@@ -76,8 +77,7 @@ interface EstadoClinico {
   pupilaDerecha: ReflejoPupilar | ''
   pupilaIzquierda: ReflejoPupilar | ''
   signosVitales: SignoVitalForm[]
-  lesiones: LesionTipo[]
-  lesionOtro: string
+  lesionesLocalizadas: LesionLocalizada[]
   glasgowOcular: string
   glasgowVerbal: string
   glasgowMotora: string
@@ -97,7 +97,7 @@ interface EstadoClinico {
   profesionalRecibeCedula: string
   firmaProfesionalRecibeExistente: string | null
 }
- 
+
 const ESTADO_VACIO: EstadoClinico = {
   diagnostico: '',
   tratamiento: [],
@@ -105,8 +105,7 @@ const ESTADO_VACIO: EstadoClinico = {
   pupilaDerecha: '',
   pupilaIzquierda: '',
   signosVitales: [],
-  lesiones: [],
-  lesionOtro: '',
+  lesionesLocalizadas: [],
   glasgowOcular: '',
   glasgowVerbal: '',
   glasgowMotora: '',
@@ -121,7 +120,7 @@ const ESTADO_VACIO: EstadoClinico = {
   profesionalRecibeCedula: '',
   firmaProfesionalRecibeExistente: null,
 }
- 
+
 const TRATAMIENTO_OPCIONES: { valor: TratamientoAplicado; etiqueta: string }[] = [
   { valor: 'collar_cervical', etiqueta: 'Collar cervical' },
   { valor: 'inmovilizacion', etiqueta: 'Inmovilización' },
@@ -138,7 +137,7 @@ const TRATAMIENTO_OPCIONES: { valor: TratamientoAplicado; etiqueta: string }[] =
   { valor: 'asepsia', etiqueta: 'Asepsia' },
   { valor: 'otros', etiqueta: 'Otros' },
 ]
- 
+
 const REFLEJO_OPCIONES: { valor: ReflejoPupilar; etiqueta: string }[] = [
   { valor: 'midriatica', etiqueta: 'Midriática' },
   { valor: 'miotica', etiqueta: 'Miótica' },
@@ -146,7 +145,7 @@ const REFLEJO_OPCIONES: { valor: ReflejoPupilar; etiqueta: string }[] = [
   { valor: 'anisocorica', etiqueta: 'Anisocórica' },
   { valor: 'no_reactiva', etiqueta: 'No reactiva' },
 ]
- 
+
 // Issue #53 -- el backend ya valida estos rangos (glasgow_ocular 1-4,
 // glasgow_verbal 1-5, glasgow_motora 1-6 en
 // api/app/schemas/formato_traslado.py), pero el formulario dejaba
@@ -160,7 +159,7 @@ const GLASGOW_OCULAR_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 2, etiqueta: '2 - Al dolor' },
   { valor: 1, etiqueta: '1 - Ninguna' },
 ]
- 
+
 const GLASGOW_VERBAL_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 5, etiqueta: '5 - Orientado' },
   { valor: 4, etiqueta: '4 - Confuso' },
@@ -168,7 +167,7 @@ const GLASGOW_VERBAL_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 2, etiqueta: '2 - Sonidos incomprensibles' },
   { valor: 1, etiqueta: '1 - Ninguna' },
 ]
- 
+
 const GLASGOW_MOTORA_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 6, etiqueta: '6 - Obedece órdenes' },
   { valor: 5, etiqueta: '5 - Localiza el dolor' },
@@ -177,45 +176,17 @@ const GLASGOW_MOTORA_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 2, etiqueta: '2 - Extensión anormal' },
   { valor: 1, etiqueta: '1 - Ninguna' },
 ]
- 
-const LESION_OPCIONES: { valor: LesionTipo; etiqueta: string }[] = [
-  { valor: 'tce', etiqueta: 'TCE' },
-  { valor: 'amputacion', etiqueta: 'Amputación' },
-  { valor: 'escalpe', etiqueta: 'Escalpe' },
-  { valor: 'eritema', etiqueta: 'Eritema' },
-  { valor: 'fractura_abierta', etiqueta: 'Fractura abierta' },
-  { valor: 'puncion', etiqueta: 'Punción' },
-  { valor: 'laceracion', etiqueta: 'Laceración' },
-  { valor: 'edema', etiqueta: 'Edema' },
-  { valor: 'luxacion', etiqueta: 'Luxación' },
-  { valor: 'mordedura', etiqueta: 'Mordedura' },
-  { valor: 'abrasion', etiqueta: 'Abrasión' },
-  { valor: 'hematoma', etiqueta: 'Hematoma' },
-  { valor: 'esguince', etiqueta: 'Esguince' },
-  { valor: 'picadura', etiqueta: 'Picadura' },
-  { valor: 'trauma', etiqueta: 'Trauma' },
-  { valor: 'torax_inestable', etiqueta: 'Tórax inestable' },
-  { valor: 'contusion', etiqueta: 'Contusión' },
-  { valor: 'cuerpo_extrano', etiqueta: 'Cuerpo extraño' },
-  { valor: 'hemotorax_masivo', etiqueta: 'Hemotórax masivo' },
-  { valor: 'abdomen_cerrado', etiqueta: 'Abdomen cerrado' },
-  { valor: 'hemorragia', etiqueta: 'Hemorragia' },
-  { valor: 'quemadura', etiqueta: 'Quemadura' },
-  { valor: 'aplastamiento', etiqueta: 'Aplastamiento' },
-  { valor: 'avulsion', etiqueta: 'Avulsión' },
-  { valor: 'dolor', etiqueta: 'Dolor' },
-]
- 
+
 const MAX_INSUMOS = 8
- 
+
 function alternarEnLista<T>(lista: T[], valor: T): T[] {
   return lista.includes(valor) ? lista.filter((v) => v !== valor) : [...lista, valor]
 }
- 
+
 function aNumeroONulo(valor: string): number | null {
   return valor === '' ? null : Number(valor)
 }
- 
+
 /** Issue #57 -- qué le falta a lo clínico para poder cerrar el
  * traslado, calculado en el cliente a partir del estado actual del
  * formulario (sin esperar la respuesta del servidor). Es un espejo
@@ -244,7 +215,7 @@ function camposFaltantesParaCerrar(
   }
   return faltantes
 }
- 
+
 export function ClinicoTrasladoPage(): JSX.Element {
   const navigate = useNavigate()
   const { atencionId } = useParams<{ atencionId: string }>()
@@ -258,7 +229,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const firmaAtendidoRef = useRef<FirmaCanvasHandle>(null)
   const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
   const firmaProfesionalRecibeRef = useRef<FirmaCanvasHandle>(null)
- 
+
   const [campos, setCampos] = useState<EstadoClinico>(ESTADO_VACIO)
   // Nivel de servicio del encabezado (issue #57) -- decide si la nota
   // médica es obligatoria para poder cerrar. `null` mientras carga o
@@ -268,19 +239,19 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
- 
+
   const [mostrarCierre, setMostrarCierre] = useState(false)
   const [pinCierre, setPinCierre] = useState('')
   const [cerrando, setCerrando] = useState(false)
   const [errorCierre, setErrorCierre] = useState<string | null>(null)
- 
+
   // Issue #63 -- selector de médico para cuando quien diligencia lo
   // clínico de un medicalizado es el auxiliar (no el médico): lista de
   // médicos de planta para elegir, más "otro" para escribir el nombre
   // a mano si no está en la lista. `null` mientras carga.
   const [medicos, setMedicos] = useState<Empleado[] | null>(null)
   const [medicoId, setMedicoId] = useState('')
- 
+
   useEffect(() => {
     // `perfil === undefined` mientras se restaura la sesión guardada
     // (ver AuthContext) -- se espera a que se resuelva para no pedir
@@ -291,7 +262,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
       .then(setMedicos)
       .catch(() => setMedicos([]))
   }, [perfil, tieneRolMedico])
- 
+
   useEffect(() => {
     // Issue #57 (comentario) -- "atendido por"/"evolucionó por" se
     // autocompletan con el nombre de quien está logueado, el mismo
@@ -329,8 +300,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
             fr: signo.fr === null ? '' : String(signo.fr),
             spo2: signo.spo2 === null ? '' : String(signo.spo2),
           })),
-          lesiones: existente.lesiones,
-          lesionOtro: existente.lesion_otro ?? '',
+          lesionesLocalizadas: existente.lesiones_localizadas,
           glasgowOcular: existente.glasgow_ocular === null ? '' : String(existente.glasgow_ocular),
           glasgowVerbal: existente.glasgow_verbal === null ? '' : String(existente.glasgow_verbal),
           glasgowMotora: existente.glasgow_motora === null ? '' : String(existente.glasgow_motora),
@@ -357,7 +327,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
       })
       .finally(() => setCargando(false))
   }, [id, perfil?.empleado_nombre_completo, tieneRolAuxiliar, tieneRolMedico])
- 
+
   function agregarSignoVital(): void {
     setCampos((anterior) => ({
       ...anterior,
@@ -370,14 +340,14 @@ export function ClinicoTrasladoPage(): JSX.Element {
       signosVitales: [...anterior.signosVitales, { hora: horaActual(), ta: '', fc: '', fr: '', spo2: '' }],
     }))
   }
- 
+
   function quitarSignoVital(indice: number): void {
     setCampos((anterior) => ({
       ...anterior,
       signosVitales: anterior.signosVitales.filter((_, i) => i !== indice),
     }))
   }
- 
+
   function actualizarSignoVital(indice: number, campo: keyof SignoVitalForm, valor: string): void {
     setCampos((anterior) => ({
       ...anterior,
@@ -386,7 +356,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
       ),
     }))
   }
- 
+
   function agregarInsumo(): void {
     setCampos((anterior) =>
       anterior.insumos.length >= MAX_INSUMOS
@@ -394,32 +364,32 @@ export function ClinicoTrasladoPage(): JSX.Element {
         : { ...anterior, insumos: [...anterior.insumos, ''] },
     )
   }
- 
+
   function quitarInsumo(indice: number): void {
     setCampos((anterior) => ({
       ...anterior,
       insumos: anterior.insumos.filter((_, i) => i !== indice),
     }))
   }
- 
+
   function actualizarInsumo(indice: number, valor: string): void {
     setCampos((anterior) => ({
       ...anterior,
       insumos: anterior.insumos.map((insumo, i) => (i === indice ? valor : insumo)),
     }))
   }
- 
+
   const glasgowTotal =
     campos.glasgowOcular !== '' && campos.glasgowVerbal !== '' && campos.glasgowMotora !== ''
       ? Number(campos.glasgowOcular) + Number(campos.glasgowVerbal) + Number(campos.glasgowMotora)
       : null
- 
+
   // Issue #57 -- qué le falta al formulario para poder cerrar, visto
   // en el cliente antes de intentarlo (el servidor vuelve a validar
   // igual, esto es solo para no hacer a alguien llenar el PIN para
   // enterarse recién ahí de que falta algo).
   const faltantesParaCerrar = camposFaltantesParaCerrar(campos, nivelServicio)
- 
+
   // Issue #63 -- si quien está logueado no es el médico, el nombre de
   // "quien evolucionó" se elige del selector de médicos de planta, o
   // se escribe a mano con "Otro" (si no está en la lista, o ya había
@@ -432,7 +402,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const mostrarSelectorMedico = !tieneRolMedico
   const modoOtroMedico =
     mostrarSelectorMedico && (medicoId === 'otro' || (medicoId === '' && campos.evolucionadoPor !== ''))
- 
+
   /**
    * Arma el payload de lo clínico a partir del estado actual del
    * formulario -- lo usan tanto "Guardar" como "Cerrar atención"
@@ -461,8 +431,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
           fr: aNumeroONulo(signo.fr),
           spo2: aNumeroONulo(signo.spo2),
         })),
-      lesiones: campos.lesiones,
-      lesion_otro: campos.lesionOtro || null,
+      lesiones_localizadas: campos.lesionesLocalizadas,
       glasgow_ocular: aNumeroONulo(campos.glasgowOcular),
       glasgow_verbal: aNumeroONulo(campos.glasgowVerbal),
       glasgow_motora: aNumeroONulo(campos.glasgowMotora),
@@ -506,7 +475,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
         firmaProfesionalRecibeRef.current?.exportar() ?? campos.firmaProfesionalRecibeExistente,
     }
   }
- 
+
   async function manejarEnvio(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setError(null)
@@ -520,7 +489,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
       setGuardando(false)
     }
   }
- 
+
   /**
    * Cierra la atención con el PIN de firma (issue #12, ADR-0010). Si
    * hay un hash local del PIN en este dispositivo y no coincide, se
@@ -543,12 +512,12 @@ export function ClinicoTrasladoPage(): JSX.Element {
   async function manejarCierre(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setErrorCierre(null)
- 
+
     if (!PIN_VALIDO.test(pinCierre)) {
       setErrorCierre('El PIN debe ser de 4 dígitos')
       return
     }
- 
+
     setCerrando(true)
     try {
       const localmenteValido = await pinLocalValido(pinCierre)
@@ -556,7 +525,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
         setErrorCierre('PIN incorrecto')
         return
       }
- 
+
       await guardarClinicoTrasladoConRespaldo(id, construirDatosClinico())
       await cerrarAtencionConRespaldo(id, pinCierre)
       navigate('/', { replace: true })
@@ -566,7 +535,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
       setCerrando(false)
     }
   }
- 
+
   if (cargando) {
     return (
       <div className="min-h-screen bg-slate-100 px-4 py-6">
@@ -574,26 +543,26 @@ export function ClinicoTrasladoPage(): JSX.Element {
       </div>
     )
   }
- 
+
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6">
       <div className="mx-auto max-w-sm">
         <button onClick={() => navigate(-1)} className="mb-4 text-sm font-medium text-slate-500">
           ← Volver
         </button>
- 
+
         <form onSubmit={manejarEnvio} className="rounded-xl bg-white p-6 shadow-sm">
           <h1 className="mb-1 text-xl font-semibold text-slate-900">Estado del paciente</h1>
           <p className="mb-6 text-sm text-slate-500">
             Se puede guardar el avance las veces que haga falta durante el traslado.
           </p>
- 
+
           {errorCarga && (
             <p role="alert" className="mb-4 text-sm text-red-600">
               {errorCarga}
             </p>
           )}
- 
+
           <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="diagnostico">
             Diagnóstico
           </label>
@@ -604,7 +573,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
             className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
             rows={2}
           />
- 
+
           <h2 className="mb-3 text-sm font-semibold text-slate-900">Tratamiento</h2>
           <div className="mb-2 grid grid-cols-2 gap-1">
             {TRATAMIENTO_OPCIONES.map((opcion) => (
@@ -632,7 +601,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
             }
             className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
           />
- 
+
           <h2 className="mb-3 text-sm font-semibold text-slate-900">Reflejo pupilar</h2>
           <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pupila-derecha">
             Derecha
@@ -676,7 +645,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
               </option>
             ))}
           </select>
- 
+
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-900">Signos vitales</h2>
             <button
@@ -748,33 +717,17 @@ export function ClinicoTrasladoPage(): JSX.Element {
               </div>
             </div>
           ))}
- 
+
           <h2 className="mb-3 mt-2 text-sm font-semibold text-slate-900">Localización de lesiones</h2>
-          <div className="mb-2 grid grid-cols-2 gap-1">
-            {LESION_OPCIONES.map((opcion) => (
-              <label key={opcion.valor} className="flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={campos.lesiones.includes(opcion.valor)}
-                  onChange={() =>
-                    setCampos((anterior) => ({
-                      ...anterior,
-                      lesiones: alternarEnLista(anterior.lesiones, opcion.valor),
-                    }))
-                  }
-                />
-                {opcion.etiqueta}
-              </label>
-            ))}
+          <div className="mb-4">
+            <DiagramaCorporal
+              valor={campos.lesionesLocalizadas}
+              onChange={(nuevoValor) =>
+                setCampos((anterior) => ({ ...anterior, lesionesLocalizadas: nuevoValor }))
+              }
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Otra lesión no listada"
-            value={campos.lesionOtro}
-            onChange={(e) => setCampos((anterior) => ({ ...anterior, lesionOtro: e.target.value }))}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none"
-          />
- 
+
           <h2 className="mb-3 text-sm font-semibold text-slate-900">Escala de Glasgow</h2>
           <div className="mb-1 grid grid-cols-3 gap-2">
             <div>
@@ -841,7 +794,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
           <p className="mb-4 text-sm text-slate-500">
             Total: {glasgowTotal === null ? '— ' : glasgowTotal}/15
           </p>
- 
+
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-900">Insumos entregados</h2>
             <button
@@ -871,7 +824,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
               </button>
             </div>
           ))}
- 
+
           <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">
             Notas de enfermería durante el traslado
           </h2>
@@ -893,7 +846,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
               canvasRef={firmaAtendidoRef}
             />
           )}
- 
+
           <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">Evolución médica</h2>
           <textarea
             value={campos.notaMedica}
@@ -994,7 +947,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
               disabled={campos.evolucionadoPor.trim() === ''}
             />
           )}
- 
+
           <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
             Profesional que recibe en la IPS/ESE
           </h2>
@@ -1021,13 +974,13 @@ export function ClinicoTrasladoPage(): JSX.Element {
             imagenInicial={campos.firmaProfesionalRecibeExistente}
             canvasRef={firmaProfesionalRecibeRef}
           />
- 
+
           {error && (
             <p role="alert" className="mb-4 mt-4 text-sm text-red-600">
               {error}
             </p>
           )}
- 
+
           <button
             type="submit"
             disabled={guardando}
@@ -1036,7 +989,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
             {guardando ? 'Guardando…' : 'Guardar'}
           </button>
         </form>
- 
+
         {(tieneRolAuxiliar || tieneRolMedico) && (
           <div className="mt-4 rounded-xl bg-white p-6 shadow-sm">
             {faltantesParaCerrar.length > 0 && (
@@ -1068,7 +1021,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
                   Ingresa tu PIN de firma para cerrar este formato. Una vez cerrado, no se podrá
                   editar.
                 </p>
- 
+
                 <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pin-cierre">
                   PIN
                 </label>
@@ -1083,13 +1036,13 @@ export function ClinicoTrasladoPage(): JSX.Element {
                   onChange={(e) => setPinCierre(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-red-500 focus:outline-none"
                 />
- 
+
                 {errorCierre && (
                   <p role="alert" className="mb-4 text-sm text-red-600">
                     {errorCierre}
                   </p>
                 )}
- 
+
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -1118,7 +1071,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
     </div>
   )
 }
- 
+
 /**
  * Firma de quien atiende/evoluciona (issue #11). Si el usuario
  * logueado ya tiene firma guardada (personal de planta) se muestra
@@ -1164,7 +1117,7 @@ function FirmaField({
     </div>
   )
 }
- 
+
 function campoTexto(
   etiqueta: string,
   id: string,

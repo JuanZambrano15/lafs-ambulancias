@@ -50,8 +50,16 @@ CLINICO_VALIDO = {
         {"hora": "08:05", "ta": "120/80", "fc": 88, "fr": 18, "spo2": 97},
         {"hora": "08:20", "ta": "118/78", "fc": 90, "fr": 19, "spo2": 96},
     ],
-    "lesiones": ["tce", "contusion"],
-    "lesion_otro": None,
+    "lesiones_localizadas": [
+        {"tipo": "tce", "tipo_otro": None, "zona": "cabeza", "lado": "central", "vista": "frontal"},
+        {
+            "tipo": "contusion",
+            "tipo_otro": None,
+            "zona": "pierna",
+            "lado": "derecho",
+            "vista": "posterior",
+        },
+    ],
     "glasgow_ocular": 4,
     "glasgow_verbal": 5,
     "glasgow_motora": 6,
@@ -190,7 +198,7 @@ def test_auxiliar_guarda_y_lee_lo_clinico(
     assert body["pupila_derecha"] == "isocorica"
     assert len(body["signos_vitales"]) == 2
     assert body["signos_vitales"][0]["ta"] == "120/80"
-    assert body["lesiones"] == ["tce", "contusion"]
+    assert body["lesiones_localizadas"] == CLINICO_VALIDO["lesiones_localizadas"]
     assert body["glasgow_total"] == 15
     assert body["firma_atendido_por"] == "data:image/png;base64,AAAA"
     assert body["firma_evolucionado_por"] == "data:image/png;base64,BBBB"
@@ -237,7 +245,7 @@ def test_leer_formato_antes_de_lo_clinico_trae_listas_vacias(
     body = response.json()
     assert body["tratamiento"] == []
     assert body["signos_vitales"] == []
-    assert body["lesiones"] == []
+    assert body["lesiones_localizadas"] == []
     assert body["insumos_entregados"] == []
     assert body["diagnostico"] is None
     assert body["glasgow_total"] is None
@@ -392,6 +400,99 @@ def test_firma_profesional_recibe_demasiado_grande_da_422(
     """issue #75: misma validación de tamaño que el resto de firmas."""
     atencion_id = _crear_atencion_con_encabezado(client, db, auxiliar_headers)
     invalido = {**CLINICO_VALIDO, "firma_profesional_recibe": "x" * 300_001}
+
+    response = client.put(
+        f"/atenciones/{atencion_id}/formato-traslado/clinico",
+        json=invalido,
+        headers=auxiliar_headers,
+    )
+
+    assert response.status_code == 422
+
+
+def test_lesion_tipo_otro_sin_texto_libre_da_422(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    """issue #54: cuando `tipo` es "otro", `tipo_otro` es obligatorio --
+    antes era un solo campo de texto compartido por todo el formato
+    (`lesion_otro`), ahora cada lesión lleva el suyo."""
+    atencion_id = _crear_atencion_con_encabezado(client, db, auxiliar_headers)
+    invalido = {
+        **CLINICO_VALIDO,
+        "lesiones_localizadas": [
+            {"tipo": "otro", "zona": "brazo", "lado": "izquierdo", "vista": "frontal"},
+        ],
+    }
+
+    response = client.put(
+        f"/atenciones/{atencion_id}/formato-traslado/clinico",
+        json=invalido,
+        headers=auxiliar_headers,
+    )
+
+    assert response.status_code == 422
+
+
+def test_lesion_tipo_otro_con_texto_libre_se_guarda(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    atencion_id = _crear_atencion_con_encabezado(client, db, auxiliar_headers)
+    valido = {
+        **CLINICO_VALIDO,
+        "lesiones_localizadas": [
+            {
+                "tipo": "otro",
+                "tipo_otro": "Reacción alérgica cutánea",
+                "zona": "brazo",
+                "lado": "izquierdo",
+                "vista": "frontal",
+            },
+        ],
+    }
+
+    response = client.put(
+        f"/atenciones/{atencion_id}/formato-traslado/clinico",
+        json=valido,
+        headers=auxiliar_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["lesiones_localizadas"][0]["tipo_otro"] == "Reacción alérgica cutánea"
+
+
+def test_lesion_zona_central_con_lado_lateral_da_422(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    """Las zonas del eje central (cabeza, cuello, tórax, abdomen) no
+    tienen lado -- debe mandarse `lado: central`, nunca
+    izquierdo/derecho."""
+    atencion_id = _crear_atencion_con_encabezado(client, db, auxiliar_headers)
+    invalido = {
+        **CLINICO_VALIDO,
+        "lesiones_localizadas": [
+            {"tipo": "tce", "zona": "cabeza", "lado": "derecho", "vista": "frontal"},
+        ],
+    }
+
+    response = client.put(
+        f"/atenciones/{atencion_id}/formato-traslado/clinico",
+        json=invalido,
+        headers=auxiliar_headers,
+    )
+
+    assert response.status_code == 422
+
+
+def test_lesion_zona_lateral_con_lado_central_da_422(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    atencion_id = _crear_atencion_con_encabezado(client, db, auxiliar_headers)
+    invalido = {
+        **CLINICO_VALIDO,
+        "lesiones_localizadas": [
+            {"tipo": "hematoma", "zona": "pierna", "lado": "central", "vista": "frontal"},
+        ],
+    }
 
     response = client.put(
         f"/atenciones/{atencion_id}/formato-traslado/clinico",

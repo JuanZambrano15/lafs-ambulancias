@@ -2,14 +2,14 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
- 
+
 import * as api from '../lib/api'
 import type { FormatoTraslado } from '../lib/types'
 import { EncabezadoTrasladoPage } from './EncabezadoTrasladoPage'
- 
+
 vi.mock('../lib/api', () => import('../test/mockApi').then((m) => m.construirMockApi()))
 vi.mock('../lib/storage')
- 
+
 const ENCABEZADO: FormatoTraslado = {
   atencion_id: 1,
   paciente_tipo_documento: 'cc',
@@ -45,8 +45,7 @@ const ENCABEZADO: FormatoTraslado = {
   pupila_derecha: null,
   pupila_izquierda: null,
   signos_vitales: [],
-  lesiones: [],
-  lesion_otro: null,
+  lesiones_localizadas: [],
   glasgow_ocular: null,
   glasgow_verbal: null,
   glasgow_motora: null,
@@ -62,11 +61,11 @@ const ENCABEZADO: FormatoTraslado = {
   firma_profesional_recibe: null,
   glasgow_total: null,
 }
- 
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
- 
+
 function renderPagina(): void {
   render(
     <MemoryRouter initialEntries={['/atenciones/1/encabezado-traslado']}>
@@ -81,43 +80,43 @@ function renderPagina(): void {
     </MemoryRouter>,
   )
 }
- 
+
 describe('EncabezadoTrasladoPage', () => {
   it('arranca en blanco si la atención todavía no tiene encabezado', async () => {
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(null)
- 
+
     renderPagina()
- 
+
     expect(await screen.findByLabelText('Nombres')).toHaveValue('')
   })
- 
+
   it('precarga el formulario si ya hay un encabezado guardado', async () => {
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(ENCABEZADO)
- 
+
     renderPagina()
- 
+
     expect(await screen.findByLabelText('Nombres')).toHaveValue('Pepito')
     expect(screen.getByLabelText('Apellidos')).toHaveValue('Pérez')
     expect(screen.getByLabelText('Edad')).toHaveValue(45)
   })
- 
+
   it('muestra un error si falla la carga del encabezado', async () => {
     vi.mocked(api.obtenerEncabezadoTraslado).mockRejectedValue(
       new api.ApiError(500, 'Error del servidor'),
     )
- 
+
     renderPagina()
- 
+
     expect(await screen.findByRole('alert')).toHaveTextContent('Error del servidor')
   })
- 
+
   it('guarda el encabezado y continúa a la parte clínica', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(null)
     vi.mocked(api.guardarEncabezadoTraslado).mockResolvedValue(ENCABEZADO)
- 
+
     renderPagina()
- 
+
     await screen.findByLabelText('Nombres')
     await usuario.type(screen.getByLabelText('Número de documento'), '123456789')
     await usuario.type(screen.getByLabelText('EPS'), 'Nueva EPS')
@@ -142,31 +141,31 @@ describe('EncabezadoTrasladoPage', () => {
       'Hospital Universitario',
     )
     await usuario.type(screen.getByLabelText('Servicio', { selector: '#entrega-servicio' }), 'UCI')
- 
+
     await usuario.click(screen.getByRole('button', { name: 'Guardar encabezado' }))
- 
+
     await waitFor(() => expect(api.guardarEncabezadoTraslado).toHaveBeenCalledTimes(1))
     const [atencionId, datos] = vi.mocked(api.guardarEncabezadoTraslado).mock.calls[0]
     expect(atencionId).toBe(1)
     expect(datos.paciente_nombres).toBe('Pepito')
     expect(datos.paciente_edad).toBe(45)
     expect(datos.acompanante_nombres_apellidos).toBeNull()
- 
+
     expect(await screen.findByText('clinico')).toBeInTheDocument()
   })
- 
+
   it('muestra un error si falla al guardar', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(ENCABEZADO)
     vi.mocked(api.guardarEncabezadoTraslado).mockRejectedValue(
       new api.ApiError(409, 'La atención ya está cerrada, el encabezado no se puede editar así'),
     )
- 
+
     renderPagina()
- 
+
     await screen.findByLabelText('Nombres')
     await usuario.click(screen.getByRole('button', { name: 'Guardar encabezado' }))
- 
+
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'La atención ya está cerrada, el encabezado no se puede editar así',
     )

@@ -1,6 +1,6 @@
 """Pendientes (atenciones abiertas) y cerradas con descarga de PDF,
 para el panel del administrador (issue #15).
- 
+
 `/atenciones/pendientes` y `/atenciones/cerradas` son los dos
 endpoints nuevos: el primero resuelve "vista de formatos con la parte
 1 sin cerrar" (no hay "parte 1" independiente en el modelo -- es la
@@ -11,9 +11,9 @@ encontrar cuál atención cerrada quiere, ya que `GET
 /atenciones/{id}/formato-traslado/pdf` (issue #13) existe desde antes
 pero exige saber el id de antemano.
 """
- 
+
 from datetime import date
- 
+
 from app.core.security import hash_secret
 from app.models.ambulancia import Ambulancia, TipoAmbulancia
 from app.models.empleado import Empleado
@@ -22,7 +22,7 @@ from app.models.usuario import Usuario
 from app.models.usuario_rol import UsuarioRol
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
- 
+
 ENCABEZADO_VALIDO = {
     "paciente_tipo_documento": "cc",
     "paciente_numero_documento": "123456789",
@@ -52,7 +52,7 @@ ENCABEZADO_VALIDO = {
     "nivel_servicio": "basico",
     "modalidad": "sencillo",
 }
- 
+
 CLINICO_VALIDO = {
     "diagnostico": "Trauma craneoencefálico leve por caída de altura",
     "tratamiento": [],
@@ -60,8 +60,7 @@ CLINICO_VALIDO = {
     "pupila_derecha": None,
     "pupila_izquierda": None,
     "signos_vitales": [{"hora": "08:05", "ta": "120/80", "fc": 88, "fr": 18, "spo2": 97}],
-    "lesiones": [],
-    "lesion_otro": None,
+    "lesiones_localizadas": [],
     "glasgow_ocular": 4,
     "glasgow_verbal": 5,
     "glasgow_motora": 6,
@@ -73,8 +72,8 @@ CLINICO_VALIDO = {
     "evolucionado_por": None,
     "firma_evolucionado_por": None,
 }
- 
- 
+
+
 def _crear_ambulancia(db: Session, movil: str = "M-panel") -> Ambulancia:
     ambulancia = Ambulancia(
         movil=movil,
@@ -88,31 +87,31 @@ def _crear_ambulancia(db: Session, movil: str = "M-panel") -> Ambulancia:
     db.commit()
     db.refresh(ambulancia)
     return ambulancia
- 
- 
+
+
 def _crear_conductor(db: Session, cedula: str = "800000098") -> Empleado:
     empleado = Empleado(nombres="Carlos", apellidos="Gómez", cedula=cedula)
     db.add(empleado)
     db.flush()
- 
+
     rol = db.query(Rol).filter(Rol.nombre == "conductor").first()
     if rol is None:
         rol = Rol(nombre="conductor", descripcion="Rol de prueba")
         db.add(rol)
         db.flush()
- 
+
     usuario = Usuario(
         documento=cedula, password_hash=hash_secret("clave-conductor"), empleado_id=empleado.id
     )
     db.add(usuario)
     db.flush()
     db.add(UsuarioRol(usuario_id=usuario.id, rol_id=rol.id))
- 
+
     db.commit()
     db.refresh(empleado)
     return empleado
- 
- 
+
+
 def _crear_atencion(
     client: TestClient, db: Session, headers: dict[str, str], tipo: str = "traslado"
 ) -> int:
@@ -125,8 +124,8 @@ def _crear_atencion(
     )
     assert response.status_code == 201
     return response.json()["id"]
- 
- 
+
+
 def _crear_y_cerrar_atencion(
     client: TestClient,
     db: Session,
@@ -158,35 +157,35 @@ def _crear_y_cerrar_atencion(
         headers=headers,
     )
     assert respuesta.status_code == 200
- 
+
     usuario = db.query(Usuario).filter(Usuario.documento == documento_responsable).one()
     usuario.pin_hash = hash_secret("1234")
     db.commit()
- 
+
     cerrar = client.put(
         f"/atenciones/{atencion_id}/cerrar", json={"pin": "1234"}, headers=headers
     )
     assert cerrar.status_code == 200
     return atencion_id
- 
- 
+
+
 class TestAtencionesPendientes:
     def test_sin_token_da_401(self, client: TestClient) -> None:
         respuesta = client.get("/atenciones/pendientes")
         assert respuesta.status_code == 401
- 
+
     def test_auxiliar_no_puede_listar_da_403(
         self, client: TestClient, auxiliar_headers: dict[str, str]
     ) -> None:
         respuesta = client.get("/atenciones/pendientes", headers=auxiliar_headers)
         assert respuesta.status_code == 403
- 
+
     def test_conductor_no_puede_listar_da_403(
         self, client: TestClient, conductor_headers: dict[str, str]
     ) -> None:
         respuesta = client.get("/atenciones/pendientes", headers=conductor_headers)
         assert respuesta.status_code == 403
- 
+
     def test_trae_todas_las_abiertas_sin_filtrar_por_responsable(
         self,
         client: TestClient,
@@ -200,13 +199,13 @@ class TestAtencionesPendientes:
         # las propias (de hecho nunca tiene `empleado_id`).
         id_auxiliar = _crear_atencion(client, db, auxiliar_headers)
         id_medico = _crear_atencion(client, db, medico_headers)
- 
+
         respuesta = client.get("/atenciones/pendientes", headers=admin_headers)
- 
+
         assert respuesta.status_code == 200
         ids = {fila["id"] for fila in respuesta.json()}
         assert ids == {id_auxiliar, id_medico}
- 
+
     def test_no_incluye_cerradas(
         self,
         client: TestClient,
@@ -216,12 +215,12 @@ class TestAtencionesPendientes:
     ) -> None:
         id_abierta = _crear_atencion(client, db, auxiliar_headers)
         _crear_y_cerrar_atencion(client, db, auxiliar_headers, "700000001")
- 
+
         respuesta = client.get("/atenciones/pendientes", headers=admin_headers)
- 
+
         ids = {fila["id"] for fila in respuesta.json()}
         assert ids == {id_abierta}
- 
+
     def test_no_incluye_atenciones_soat(
         self,
         client: TestClient,
@@ -233,12 +232,12 @@ class TestAtencionesPendientes:
         # -- no hay "parte 1" que mostrar como pendiente para ese tipo.
         id_traslado = _crear_atencion(client, db, auxiliar_headers, tipo="traslado")
         _crear_atencion(client, db, auxiliar_headers, tipo="atencion_soat")
- 
+
         respuesta = client.get("/atenciones/pendientes", headers=admin_headers)
- 
+
         ids = {fila["id"] for fila in respuesta.json()}
         assert ids == {id_traslado}
- 
+
     def test_ordenadas_de_mas_antigua_a_mas_reciente(
         self,
         client: TestClient,
@@ -248,24 +247,24 @@ class TestAtencionesPendientes:
     ) -> None:
         primera = _crear_atencion(client, db, auxiliar_headers)
         segunda = _crear_atencion(client, db, auxiliar_headers)
- 
+
         respuesta = client.get("/atenciones/pendientes", headers=admin_headers)
- 
+
         ids_en_orden = [fila["id"] for fila in respuesta.json()]
         assert ids_en_orden == [primera, segunda]
- 
- 
+
+
 class TestAtencionesCerradas:
     def test_sin_token_da_401(self, client: TestClient) -> None:
         respuesta = client.get("/atenciones/cerradas")
         assert respuesta.status_code == 401
- 
+
     def test_auxiliar_no_puede_listar_da_403(
         self, client: TestClient, auxiliar_headers: dict[str, str]
     ) -> None:
         respuesta = client.get("/atenciones/cerradas", headers=auxiliar_headers)
         assert respuesta.status_code == 403
- 
+
     def test_trae_cerradas_con_datos_del_paciente_y_tiene_pdf(
         self,
         client: TestClient,
@@ -274,9 +273,9 @@ class TestAtencionesCerradas:
         admin_headers: dict[str, str],
     ) -> None:
         atencion_id = _crear_y_cerrar_atencion(client, db, auxiliar_headers, "700000001")
- 
+
         respuesta = client.get("/atenciones/cerradas", headers=admin_headers)
- 
+
         assert respuesta.status_code == 200
         filas = respuesta.json()
         assert len(filas) == 1
@@ -286,7 +285,7 @@ class TestAtencionesCerradas:
         assert fila["paciente_apellidos"] == "Pérez"
         assert fila["paciente_numero_documento"] == "123456789"
         assert fila["tiene_pdf"] is True
- 
+
     def test_no_incluye_abiertas(
         self,
         client: TestClient,
@@ -295,11 +294,11 @@ class TestAtencionesCerradas:
         admin_headers: dict[str, str],
     ) -> None:
         _crear_atencion(client, db, auxiliar_headers)
- 
+
         respuesta = client.get("/atenciones/cerradas", headers=admin_headers)
- 
+
         assert respuesta.json() == []
- 
+
     def test_no_incluye_cerradas_sin_formato(
         self,
         client: TestClient,
@@ -319,11 +318,11 @@ class TestAtencionesCerradas:
             f"/atenciones/{atencion_id}/cerrar", json={"pin": "1234"}, headers=auxiliar_headers
         )
         assert cerrar.status_code == 200
- 
+
         respuesta = client.get("/atenciones/cerradas", headers=admin_headers)
- 
+
         assert respuesta.json() == []
- 
+
     def test_mas_reciente_primero(
         self,
         client: TestClient,
@@ -337,12 +336,12 @@ class TestAtencionesCerradas:
         segunda = _crear_y_cerrar_atencion(
             client, db, auxiliar_headers, "700000001", paciente_numero_documento="222222222"
         )
- 
+
         respuesta = client.get("/atenciones/cerradas", headers=admin_headers)
- 
+
         ids_en_orden = [fila["id"] for fila in respuesta.json()]
         assert ids_en_orden == [segunda, primera]
- 
+
     def test_busqueda_por_nombre_filtra(
         self,
         client: TestClient,
@@ -368,14 +367,14 @@ class TestAtencionesCerradas:
             paciente_apellidos="Gómez",
             paciente_numero_documento="222222222",
         )
- 
+
         respuesta = client.get(
             "/atenciones/cerradas", params={"q": "pepito"}, headers=admin_headers
         )
- 
+
         ids = [fila["id"] for fila in respuesta.json()]
         assert ids == [id_pepito]
- 
+
     def test_busqueda_por_documento_filtra(
         self,
         client: TestClient,
@@ -397,14 +396,14 @@ class TestAtencionesCerradas:
             "700000001",
             paciente_numero_documento="111111111",
         )
- 
+
         respuesta = client.get(
             "/atenciones/cerradas", params={"q": "999888"}, headers=admin_headers
         )
- 
+
         ids = [fila["id"] for fila in respuesta.json()]
         assert ids == [id_buscada]
- 
+
     def test_limit_fuera_de_rango_da_422(
         self, client: TestClient, admin_headers: dict[str, str]
     ) -> None:

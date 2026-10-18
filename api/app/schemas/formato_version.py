@@ -1,17 +1,16 @@
 """Esquema de salida del historial de versiones de un formato de
 traslado (issue #14, ADR-0012).
 """
- 
+
 from __future__ import annotations
- 
+
 from datetime import date, datetime, time
- 
+
 from pydantic import BaseModel, ConfigDict
- 
+
 from app.models.formato_traslado import (
     CategoriaPaciente,
     ComplejidadTraslado,
-    LesionTipo,
     ModalidadTraslado,
     NivelServicioTraslado,
     ReflejoPupilar,
@@ -19,9 +18,9 @@ from app.models.formato_traslado import (
     TipoDocumentoPaciente,
     TratamientoAplicado,
 )
-from app.schemas.formato_traslado import SignoVitalItem
- 
- 
+from app.schemas.formato_traslado import LesionLocalizadaItem, SignoVitalItem
+
+
 class UsuarioResumenOut(BaseModel):
     """Identidad mínima de quien corrigió — no los roles completos de
     `UsuarioOut` (ese esquema espera `list[RolOut]`, construido a mano
@@ -29,21 +28,21 @@ class UsuarioResumenOut(BaseModel):
     realidad son filas `UsuarioRol`, no `Rol`; acá ni hace falta, con
     el documento alcanza para identificar quién fue).
     """
- 
+
     model_config = ConfigDict(from_attributes=True)
- 
+
     id: int
     documento: str
- 
- 
+
+
 class FormatoVersionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
- 
+
     id: int
     atencion_id: int
     corregido_por: UsuarioResumenOut
     corregido_en: datetime
- 
+
     # --- Paciente ---
     paciente_tipo_documento: TipoDocumentoPaciente | None
     paciente_numero_documento: str | None
@@ -55,12 +54,12 @@ class FormatoVersionOut(BaseModel):
     paciente_direccion_residencial: str | None
     paciente_ciudad: str | None
     paciente_telefono: str | None
- 
+
     # --- Acompañante ---
     acompanante_nombres_apellidos: str | None
     acompanante_parentesco: str | None
     acompanante_telefono: str | None
- 
+
     # --- Recepción / entrega ---
     recepcion_fecha: date | None
     recepcion_hora: time | None
@@ -72,20 +71,19 @@ class FormatoVersionOut(BaseModel):
     entrega_ciudad: str | None
     entrega_ips: str | None
     entrega_servicio: str | None
- 
+
     complejidad: ComplejidadTraslado | None
     categoria_paciente: CategoriaPaciente | None
     nivel_servicio: NivelServicioTraslado | None
     modalidad: ModalidadTraslado | None
- 
+
     # --- Clínico---
     tratamiento: list[TratamientoAplicado]
     tratamiento_otro: str | None
     pupila_derecha: ReflejoPupilar | None
     pupila_izquierda: ReflejoPupilar | None
     signos_vitales: list[SignoVitalItem]
-    lesiones: list[LesionTipo]
-    lesion_otro: str | None
+    lesiones_localizadas: list[LesionLocalizadaItem]
     glasgow_ocular: int | None
     glasgow_verbal: int | None
     glasgow_motora: int | None

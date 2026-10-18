@@ -19,7 +19,7 @@
  * distintos), así que esas funciones se separan en dos pares, uno por
  * formato -- mismo criterio que ya separa `lib/api.ts`.
  */
- 
+
 import {
   cerrarAtencion,
   crearAtencion,
@@ -51,28 +51,28 @@ import type {
   FormatoTrasladoEncabezado,
   TipoAtencion,
 } from './types'
- 
+
 const LOCAL_PREFIX = 'local-'
- 
+
 export function esIdLocal(atencionId: string): boolean {
   return atencionId.startsWith(LOCAL_PREFIX)
 }
- 
+
 function idDesdeClientId(clientId: string): string {
   return `${LOCAL_PREFIX}${clientId}`
 }
- 
+
 function clientIdDesdeId(atencionId: string): string {
   return atencionId.slice(LOCAL_PREFIX.length)
 }
- 
+
 /** `fetch` lanza `TypeError` cuando no hay red (a diferencia de
  * `ApiError`, que es una respuesta HTTP real del servidor) — es la
  * señal de que toca guardar localmente en vez de reintentar. */
 function esErrorDeRed(err: unknown): boolean {
   return err instanceof TypeError
 }
- 
+
 const CLINICO_TRASLADO_VACIO: FormatoTrasladoClinico = {
   diagnostico: null,
   tratamiento: [],
@@ -80,8 +80,7 @@ const CLINICO_TRASLADO_VACIO: FormatoTrasladoClinico = {
   pupila_derecha: null,
   pupila_izquierda: null,
   signos_vitales: [],
-  lesiones: [],
-  lesion_otro: null,
+  lesiones_localizadas: [],
   glasgow_ocular: null,
   glasgow_verbal: null,
   glasgow_motora: null,
@@ -96,15 +95,14 @@ const CLINICO_TRASLADO_VACIO: FormatoTrasladoClinico = {
   profesional_recibe_cedula: null,
   firma_profesional_recibe: null,
 }
- 
+
 const CLINICO_SOAT_VACIO: FormatoAccidenteSoatClinico = {
   tratamiento: [],
   tratamiento_otro: null,
   pupila_derecha: null,
   pupila_izquierda: null,
   signos_vitales: [],
-  lesiones: [],
-  lesion_otro: null,
+  lesiones_localizadas: [],
   glasgow_ocular: null,
   glasgow_verbal: null,
   glasgow_motora: null,
@@ -118,7 +116,7 @@ const CLINICO_SOAT_VACIO: FormatoAccidenteSoatClinico = {
   profesional_recibe_cedula: null,
   firma_profesional_recibe: null,
 }
- 
+
 function formatoTrasladoDesdeLocal(pendiente: TrasladoPendiente): FormatoTraslado | null {
   if (pendiente.encabezado === null) return null
   return {
@@ -130,7 +128,7 @@ function formatoTrasladoDesdeLocal(pendiente: TrasladoPendiente): FormatoTraslad
     glasgow_total: null,
   }
 }
- 
+
 function formatoAccidenteSoatDesdeLocal(pendiente: TrasladoPendiente): FormatoAccidenteSoat | null {
   if (pendiente.encabezado === null) return null
   return {
@@ -140,25 +138,25 @@ function formatoAccidenteSoatDesdeLocal(pendiente: TrasladoPendiente): FormatoAc
     glasgow_total: null,
   }
 }
- 
+
 export interface ResultadoCrearAtencion {
   atencionId: string
   tipo: TipoAtencion
   /** true si se guardó localmente porque no había conexión. */
   guardadaSinConexion: boolean
 }
- 
+
 export async function crearAtencionConRespaldo(
   datos: AtencionCreate,
 ): Promise<ResultadoCrearAtencion> {
   const clientId = crypto.randomUUID()
   const datosConClientId: AtencionCreate = { ...datos, client_id: clientId }
- 
+
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     await guardarComoPendiente(clientId, datosConClientId)
     return { atencionId: idDesdeClientId(clientId), tipo: datos.tipo, guardadaSinConexion: true }
   }
- 
+
   try {
     const atencion = await crearAtencion(datosConClientId)
     return { atencionId: String(atencion.id), tipo: atencion.tipo, guardadaSinConexion: false }
@@ -168,7 +166,7 @@ export async function crearAtencionConRespaldo(
     return { atencionId: idDesdeClientId(clientId), tipo: datos.tipo, guardadaSinConexion: true }
   }
 }
- 
+
 async function guardarComoPendiente(clientId: string, atencion: AtencionCreate): Promise<void> {
   await guardarPendiente({
     clientId,
@@ -182,7 +180,7 @@ async function guardarComoPendiente(clientId: string, atencion: AtencionCreate):
     error: null,
   })
 }
- 
+
 async function pendienteOFallar(atencionId: string): Promise<TrasladoPendiente> {
   const pendiente = await obtenerPendiente(clientIdDesdeId(atencionId))
   if (pendiente === null) {
@@ -190,7 +188,7 @@ async function pendienteOFallar(atencionId: string): Promise<TrasladoPendiente> 
   }
   return pendiente
 }
- 
+
 export async function obtenerFormatoTrasladoConRespaldo(
   atencionId: string,
 ): Promise<FormatoTraslado | null> {
@@ -200,7 +198,7 @@ export async function obtenerFormatoTrasladoConRespaldo(
   }
   return obtenerEncabezadoTraslado(Number(atencionId))
 }
- 
+
 export async function guardarEncabezadoTrasladoConRespaldo(
   atencionId: string,
   datos: FormatoTrasladoEncabezado,
@@ -212,7 +210,7 @@ export async function guardarEncabezadoTrasladoConRespaldo(
   }
   await guardarEncabezadoTraslado(Number(atencionId), datos)
 }
- 
+
 /** Issue #9 — a diferencia del encabezado, todos los campos son
  * opcionales: se guarda el avance clínico tal como esté hasta el
  * momento, sin necesidad de llenar todo de una. */
@@ -227,7 +225,7 @@ export async function guardarClinicoTrasladoConRespaldo(
   }
   await guardarClinicoTraslado(Number(atencionId), datos)
 }
- 
+
 /** Issue #17 — mismo patrón que `obtenerFormatoTrasladoConRespaldo`,
  * para el formato de accidente SOAT. */
 export async function obtenerFormatoAccidenteSoatConRespaldo(
@@ -239,7 +237,7 @@ export async function obtenerFormatoAccidenteSoatConRespaldo(
   }
   return obtenerEncabezadoAccidenteSoat(Number(atencionId))
 }
- 
+
 export async function guardarEncabezadoAccidenteSoatConRespaldo(
   atencionId: string,
   datos: FormatoAccidenteSoatEncabezado,
@@ -251,7 +249,7 @@ export async function guardarEncabezadoAccidenteSoatConRespaldo(
   }
   await guardarEncabezadoAccidenteSoat(Number(atencionId), datos)
 }
- 
+
 export async function guardarClinicoAccidenteSoatConRespaldo(
   atencionId: string,
   datos: FormatoAccidenteSoatClinico,
@@ -263,12 +261,12 @@ export async function guardarClinicoAccidenteSoatConRespaldo(
   }
   await guardarClinicoAccidenteSoat(Number(atencionId), datos)
 }
- 
+
 export interface ResultadoCerrarAtencion {
   /** true si se encoló para cerrar cuando se recupere conexión. */
   guardadoSinConexion: boolean
 }
- 
+
 /** Cierra la atención con el PIN de firma (issue #12, ADR-0010) --
  * mismo formulario y mismo endpoint sin importar el tipo de atención
  * (issue #17 no cambia nada acá). Si la atención todavía es local (ni
@@ -286,7 +284,7 @@ export async function cerrarAtencionConRespaldo(
     await guardarPendiente({ ...pendiente, cierre: { pin } })
     return { guardadoSinConexion: true }
   }
- 
+
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     await guardarCierrePendiente({
       atencionId,
@@ -296,7 +294,7 @@ export async function cerrarAtencionConRespaldo(
     })
     return { guardadoSinConexion: true }
   }
- 
+
   try {
     await cerrarAtencion(Number(atencionId), pin)
     return { guardadoSinConexion: false }
@@ -311,7 +309,7 @@ export async function cerrarAtencionConRespaldo(
     return { guardadoSinConexion: true }
   }
 }
- 
+
 export async function contarPendientes(): Promise<number> {
   const [traslados, cierres] = await Promise.all([
     contarPendientesSinSincronizar(),
@@ -319,12 +317,12 @@ export async function contarPendientes(): Promise<number> {
   ])
   return traslados + cierres.length
 }
- 
+
 export interface ResultadoSincronizacion {
   sincronizados: number
   fallidos: number
 }
- 
+
 /** Sube a la API todo lo que se alcanzó a guardar localmente, en
  * orden: crear la atención (si aún no tiene id real), luego el
  * encabezado, luego lo clínico — mismos endpoints que usa la app en
@@ -338,7 +336,7 @@ export async function sincronizarPendientes(): Promise<ResultadoSincronizacion> 
   const pendientes = await listarPendientes()
   let sincronizados = 0
   let fallidos = 0
- 
+
   for (const pendiente of pendientes) {
     if (pendiente.sincronizado) continue
     try {
@@ -352,7 +350,7 @@ export async function sincronizarPendientes(): Promise<ResultadoSincronizacion> 
       })
     }
   }
- 
+
   const cierres = await listarCierresPendientes()
   for (const cierre of cierres) {
     try {
@@ -367,10 +365,10 @@ export async function sincronizarPendientes(): Promise<ResultadoSincronizacion> 
       })
     }
   }
- 
+
   return { sincronizados, fallidos }
 }
- 
+
 async function sincronizarUno(pendiente: TrasladoPendiente): Promise<void> {
   let atencionId = pendiente.atencionId
   if (atencionId === null) {
@@ -378,9 +376,9 @@ async function sincronizarUno(pendiente: TrasladoPendiente): Promise<void> {
     atencionId = atencion.id
     await guardarPendiente({ ...pendiente, atencionId })
   }
- 
+
   const esSoat = pendiente.atencion.tipo === 'atencion_soat'
- 
+
   if (pendiente.encabezado !== null) {
     if (esSoat) {
       await guardarEncabezadoAccidenteSoat(

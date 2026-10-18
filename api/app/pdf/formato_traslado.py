@@ -1,10 +1,10 @@
 """Genera el PDF del formato de traslado asistencial (TAP-LAFS-002),
 issue #13 — ver ADR-0011.
- 
+
 Una sola plantilla HTML (Jinja2) + WeasyPrint para convertirla a PDF;
 nada de LaTeX ni de herramientas externas, ya que el único consumidor
 es este mismo proceso (ver ADR-0001: un solo lenguaje de backend).
- 
+
 `generar_pdf_formato_traslado` es la única función pública: recibe la
 `Atencion` y su `FormatoTraslado` ya cargados (con las relaciones de
 `Atencion` — ambulancia/conductor/responsable — precargadas, para no
@@ -12,12 +12,12 @@ disparar una consulta perezosa por cada una) y devuelve los bytes del
 PDF. No sabe nada de HTTP ni de la base de datos — eso lo maneja quien
 la llama, en `app/api/routes/atenciones.py`.
 """
- 
+
 from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, time
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from jinja2 import Environment
 
@@ -28,12 +28,19 @@ from jinja2 import Environment
 # cwd=api/ (como hace el CI), un override en la raíz no se encuentra.
 from weasyprint import HTML  # type: ignore[import-untyped]
 
-from app.models.formato_traslado import LesionTipo, ReflejoPupilar, TratamientoAplicado
+from app.models.formato_traslado import (
+    LesionLado,
+    LesionTipo,
+    LesionVista,
+    LesionZona,
+    ReflejoPupilar,
+    TratamientoAplicado,
+)
 
 if TYPE_CHECKING:
     from app.models.atencion import Atencion
     from app.models.formato_traslado import FormatoTraslado
- 
+
 # Mismas etiquetas en español que ya usa el frontend
 # (app/src/pages/ClinicoTrasladoPage.tsx) — se repiten aquí porque el
 # backend no tiene ninguna capa de traducción compartida con el
@@ -55,7 +62,7 @@ ETIQUETAS_TRATAMIENTO: dict[TratamientoAplicado, str] = {
     TratamientoAplicado.asepsia: "Asepsia",
     TratamientoAplicado.otros: "Otros",
 }
- 
+
 ETIQUETAS_REFLEJO: dict[ReflejoPupilar, str] = {
     ReflejoPupilar.midriatica: "Midriática",
     ReflejoPupilar.miotica: "Miótica",
@@ -63,7 +70,7 @@ ETIQUETAS_REFLEJO: dict[ReflejoPupilar, str] = {
     ReflejoPupilar.anisocorica: "Anisocórica",
     ReflejoPupilar.no_reactiva: "No reactiva",
 }
- 
+
 ETIQUETAS_LESION: dict[LesionTipo, str] = {
     LesionTipo.tce: "TCE",
     LesionTipo.amputacion: "Amputación",
@@ -91,19 +98,82 @@ ETIQUETAS_LESION: dict[LesionTipo, str] = {
     LesionTipo.avulsion: "Avulsión",
     LesionTipo.dolor: "Dolor",
 }
- 
+
+# Issue #54: etiquetas del DÓNDE de cada lesión (zona/vista del diagrama
+# corporal) -- el lado ("derecho"/"izquierdo") no se traduce aparte,
+# porque su género gramatical depende de la zona (ver `_lado_texto`).
+ETIQUETAS_ZONA_LESION: dict[LesionZona, str] = {
+    LesionZona.cabeza: "Cabeza",
+    LesionZona.cuello: "Cuello",
+    LesionZona.torax: "Tórax",
+    LesionZona.abdomen: "Abdomen",
+    LesionZona.hombro: "Hombro",
+    LesionZona.brazo: "Brazo",
+    LesionZona.antebrazo: "Antebrazo",
+    LesionZona.mano: "Mano",
+    LesionZona.muslo: "Muslo",
+    LesionZona.pierna: "Pierna",
+    LesionZona.pie: "Pie",
+}
+
+ETIQUETAS_VISTA_LESION: dict[LesionVista, str] = {
+    LesionVista.frontal: "vista frontal",
+    LesionVista.posterior: "vista posterior",
+}
+
+# Zonas laterales cuyo nombre es femenino en español -- afecta solo el
+# "derecho"/"derecha" ("izquierdo"/"izquierda") del lado, nunca la
+# etiqueta de la zona misma (esa siempre sale de ETIQUETAS_ZONA_LESION).
+_ZONAS_FEMENINAS = frozenset({LesionZona.mano, LesionZona.pierna})
+
+
+def _lado_texto(zona: LesionZona, lado: LesionLado) -> str:
+    """Texto del lado (precedido por un espacio, listo para concatenar),
+    con el género gramatical correcto según la zona -- "pierna derecha",
+    nunca "pierna derecho". Vacío para zonas centrales (cabeza, cuello,
+    tórax, abdomen), que no tienen lado.
+    """
+    if lado == LesionLado.central:
+        return ""
+    femenino = zona in _ZONAS_FEMENINAS
+    if lado == LesionLado.derecho:
+        return " derecha" if femenino else " derecho"
+    return " izquierda" if femenino else " izquierdo"
+
+
+def _lesiones_localizadas_texto(lesiones: list[dict[str, Any]]) -> list[str]:
+    """Una línea de texto por lesión marcada en el diagrama corporal
+    (issue #54), p.ej. "Hematoma — Pierna derecha (vista frontal)".
+    Reemplaza el checklist-con-X que tenía el papel: ahora cada lesión
+    lleva su propia ubicación, no solo el tipo, y puede haber varias.
+    """
+    lineas = []
+    for lesion in lesiones:
+        tipo = LesionTipo(lesion["tipo"])
+        if tipo == LesionTipo.otro:
+            etiqueta_tipo = lesion.get("tipo_otro") or "Otro"
+        else:
+            etiqueta_tipo = ETIQUETAS_LESION[tipo]
+        zona = LesionZona(lesion["zona"])
+        lado = LesionLado(lesion["lado"])
+        vista = LesionVista(lesion["vista"])
+        zona_texto = ETIQUETAS_ZONA_LESION[zona] + _lado_texto(zona, lado)
+        lineas.append(f"{etiqueta_tipo} — {zona_texto} ({ETIQUETAS_VISTA_LESION[vista]})")
+    return lineas
+
+
 ETIQUETAS_SEXO = {"m": "Masculino", "f": "Femenino"}
 ETIQUETAS_TIPO_DOCUMENTO = {"rc": "R.C.", "ti": "T.I.", "cc": "C.C.", "ce": "C.E.", "ppt": "PPT"}
 ETIQUETAS_COMPLEJIDAD = {"alta": "Alta", "baja": "Baja"}
 ETIQUETAS_CATEGORIA = {"neonato": "Neonato", "pediatrico": "Pediátrico", "adulto": "Adulto"}
 ETIQUETAS_NIVEL_SERVICIO = {"basico": "Básico", "medicalizado": "Medicalizado"}
 ETIQUETAS_MODALIDAD = {"sencillo": "Sencillo", "redondo": "Redondo"}
- 
- 
+
+
 def _fecha_hora(fecha: date, hora: time) -> str:
     return f"{fecha.strftime('%d/%m/%Y')} {hora.strftime('%H:%M')}"
- 
- 
+
+
 _ClaveEtiqueta = TypeVar("_ClaveEtiqueta")
 
 
@@ -116,8 +186,8 @@ def _checklist(
     marcada).
     """
     return [(etiqueta, valor in seleccionados) for valor, etiqueta in etiquetas.items()]
- 
- 
+
+
 _PLANTILLA = Environment(autoescape=True).from_string(
     """
 <!doctype html>
@@ -156,7 +226,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
 </style>
 </head>
 <body>
- 
+
 <div class="encabezado">
   <div>
     <h1>Traslado Asistencial de Pacientes</h1>
@@ -166,7 +236,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     {{ 'CERRADO' if cerrada else 'BORRADOR — AÚN ABIERTO' }}
   </div>
 </div>
- 
+
 <h2>Datos del paciente</h2>
 <table class="datos">
   <tr>
@@ -189,7 +259,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     <td class="etiqueta">Teléfono</td><td colspan="3">{{ paciente_telefono or '—' }}</td>
   </tr>
 </table>
- 
+
 <h2>Acompañante</h2>
 {% if acompanante_nombres_apellidos %}
 <table class="datos">
@@ -204,7 +274,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
 {% else %}
 <p class="vacio">El paciente viajó sin acompañante.</p>
 {% endif %}
- 
+
 <h2>Recepción y entrega</h2>
 <div class="columnas">
   <div>
@@ -226,7 +296,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     </table>
   </div>
 </div>
- 
+
 <h2>Tipo de traslado</h2>
 <table class="datos">
   <tr>
@@ -238,7 +308,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     <td class="etiqueta">Modalidad</td><td>{{ modalidad }}</td>
   </tr>
 </table>
- 
+
 <h2>Tripulación a cargo del traslado</h2>
 <table class="datos">
   <tr>
@@ -249,10 +319,10 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     <td class="etiqueta">Responsable</td><td colspan="3">{{ responsable_nombre }} &middot; C.C. {{ responsable_cedula }}</td>
   </tr>
 </table>
- 
+
 <h2>Estado del paciente</h2>
 <p>{{ diagnostico or '—' }}</p>
- 
+
 <h2>Tratamiento</h2>
 <ul class="checklist">
   {% for etiqueta, marcada in tratamiento %}
@@ -262,7 +332,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   {% endfor %}
 </ul>
 {% if tratamiento_otro %}<p>Otros: {{ tratamiento_otro }}</p>{% endif %}
- 
+
 <h2>Reflejo pupilar</h2>
 <table class="datos">
   <tr>
@@ -270,7 +340,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     <td class="etiqueta">Izquierda</td><td>{{ pupila_izquierda or 'Sin registrar' }}</td>
   </tr>
 </table>
- 
+
 <h2>Signos vitales</h2>
 {% if signos_vitales %}
 <table class="signos">
@@ -287,17 +357,16 @@ _PLANTILLA = Environment(autoescape=True).from_string(
 {% else %}
 <p class="vacio">Sin mediciones registradas.</p>
 {% endif %}
- 
+
 <h2>Localización de lesiones</h2>
-<ul class="checklist">
-  {% for etiqueta, marcada in lesiones %}
-  <li class="{{ 'marcada' if marcada else '' }}">
-    <span class="casilla">{{ 'X' if marcada else '' }}</span>{{ etiqueta }}
-  </li>
-  {% endfor %}
-</ul>
-{% if lesion_otro %}<p>Otra: {{ lesion_otro }}</p>{% endif %}
- 
+{% if lesiones_localizadas %}
+<ol>
+  {% for linea in lesiones_localizadas %}<li>{{ linea }}</li>{% endfor %}
+</ol>
+{% else %}
+<p class="vacio">Sin lesiones registradas.</p>
+{% endif %}
+
 <h2>Escala de Glasgow</h2>
 <table class="datos">
   <tr>
@@ -307,7 +376,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   </tr>
   <tr><td class="etiqueta">Total</td><td colspan="5"><strong>{{ glasgow_total if glasgow_total is not none else '—' }}/15</strong></td></tr>
 </table>
- 
+
 <h2>Insumos entregados</h2>
 {% if insumos_entregados %}
 <ol>
@@ -316,7 +385,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
 {% else %}
 <p class="vacio">Sin insumos registrados.</p>
 {% endif %}
- 
+
 <h2>Notas y firmas</h2>
 <div class="firmas">
   <div>
@@ -340,18 +409,18 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     {% endif %}
   </div>
 </div>
- 
+
 <p class="pie">
   Generado automáticamente por el sistema L.A.F.S. Ambulancias el {{ generado_en }}.
   {% if cerrada %}Atención cerrada el {{ cerrada_en }}.{% endif %}
 </p>
- 
+
 </body>
 </html>
 """
 )
- 
- 
+
+
 def generar_pdf_formato_traslado(atencion: Atencion, formato: FormatoTraslado) -> bytes:
     """Renderiza la plantilla HTML con los datos actuales del
     encabezado + parte clínica + tripulación (issue #13) y la
@@ -420,8 +489,7 @@ def generar_pdf_formato_traslado(atencion: Atencion, formato: FormatoTraslado) -
         if formato.pupila_izquierda
         else None,
         "signos_vitales": formato.signos_vitales,
-        "lesiones": _checklist(formato.lesiones, ETIQUETAS_LESION),
-        "lesion_otro": formato.lesion_otro,
+        "lesiones_localizadas": _lesiones_localizadas_texto(formato.lesiones_localizadas),
         "glasgow_ocular": formato.glasgow_ocular,
         "glasgow_verbal": formato.glasgow_verbal,
         "glasgow_motora": formato.glasgow_motora,
@@ -440,7 +508,7 @@ def generar_pdf_formato_traslado(atencion: Atencion, formato: FormatoTraslado) -
         "evolucionado_por": formato.evolucionado_por,
         "firma_evolucionado_por": formato.firma_evolucionado_por,
     }
- 
+
     html = _PLANTILLA.render(**contexto)
     # `write_pdf` no tiene stubs (ver override de WeasyPrint arriba), así
     # que mypy solo ve `Any` — se anota el cast explícitamente en vez de
