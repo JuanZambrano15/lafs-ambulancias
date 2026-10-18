@@ -145,7 +145,7 @@ export function HomePage(): JSX.Element {
         </button>
       </header>
  
-      <main className="mx-auto max-w-2xl px-4 py-6">
+      <main className="mx-auto max-w-2xl px-4 py-6 lg:max-w-4xl">
         {atencionesEnCurso.length > 0 && (
           <ul className="mb-6 flex flex-col gap-3">
             {atencionesEnCurso.map((atencion) => {

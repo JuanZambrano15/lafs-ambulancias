@@ -46,7 +46,7 @@ export function ConfigurarFirmaPage(): JSX.Element {
  
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6">
-      <div className="mx-auto max-w-sm">
+      <div className="mx-auto max-w-sm sm:max-w-2xl lg:max-w-3xl">
         <button onClick={() => navigate(-1)} className="mb-4 text-sm font-medium text-slate-500">
           ← Volver
         </button>
