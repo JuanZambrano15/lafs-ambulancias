@@ -8,6 +8,7 @@ import type { JSX, ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
  
 import { useAuth } from '../auth/AuthContext'
+import logoLafs from '../assets/logo-lafs.png'
  
 const ENLACES = [
   { to: '/', etiqueta: 'Pendientes' },
@@ -36,7 +37,10 @@ export function Layout({ children }: { children: ReactNode }): JSX.Element {
     <div className="flex min-h-screen bg-slate-50">
       <aside className="flex w-56 flex-col justify-between border-r border-slate-200 bg-white p-4">
         <div>
-          <h1 className="mb-6 px-4 text-lg font-semibold text-slate-900">L.A.F.S. Admin</h1>
+          <div className="mb-6 flex items-center gap-2 px-4">
+            <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="h-8 w-auto" />
+            <h1 className="text-base font-semibold text-slate-900">L.A.F.S. Admin</h1>
+          </div>
           <nav className="space-y-1">
             {ENLACES.map((enlace) => (
               // `end` en "/" evita que NavLink lo marque "activo" en
