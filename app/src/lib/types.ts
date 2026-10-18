@@ -210,8 +210,13 @@ export interface FormatoTrasladoClinico {
   nota_medica: string | null
   evolucionado_por: string | null
   firma_evolucionado_por: string | null
+  /** Profesional que recibe al paciente en la IPS/ESE de destino
+   * (issue #75) — personal de la institución, no de LAFS. */
+  profesional_recibe_nombre: string | null
+  profesional_recibe_cedula: string | null
+  firma_profesional_recibe: string | null
 }
- 
+
 export interface FormatoTraslado extends FormatoTrasladoEncabezado, FormatoTrasladoClinico {
   atencion_id: number
   glasgow_total: number | null

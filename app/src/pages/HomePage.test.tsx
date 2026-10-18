@@ -109,9 +109,12 @@ const ENCABEZADO_YA_GUARDADO: FormatoTraslado = {
   nota_medica: null,
   evolucionado_por: null,
   firma_evolucionado_por: null,
+  profesional_recibe_nombre: null,
+  profesional_recibe_cedula: null,
+  firma_profesional_recibe: null,
   glasgow_total: null,
 }
- 
+
 const ATENCION_SOAT_EN_CURSO: Atencion = {
   ...ATENCION_EN_CURSO,
   id: 9,

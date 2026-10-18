@@ -521,6 +521,9 @@ _CAMPOS_VERSIONADOS = (
     "firma_atendido_por",
     "evolucionado_por",
     "firma_evolucionado_por",
+    "profesional_recibe_nombre",
+    "profesional_recibe_cedula",
+    "firma_profesional_recibe",
 )
  
  

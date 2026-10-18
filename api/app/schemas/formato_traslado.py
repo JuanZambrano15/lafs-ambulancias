@@ -115,6 +115,14 @@ class FormatoTrasladoClinico(BaseModel):
     nota_medica: str | None = Field(default=None, max_length=2000)
     evolucionado_por: str | None = None
     firma_evolucionado_por: str | None = Field(default=None, max_length=300_000)
+
+    # Profesional que recibe al paciente en la IPS/ESE de destino
+    # (issue #75): personal de la institución, no de LAFS. La firma
+    # siempre se dibuja a mano en pantalla, nunca se autocompleta de
+    # ningún perfil -- mismo límite de tamaño que el resto de firmas.
+    profesional_recibe_nombre: str | None = None
+    profesional_recibe_cedula: str | None = None
+    firma_profesional_recibe: str | None = Field(default=None, max_length=300_000)
  
  
 class FormatoTrasladoOut(FormatoTrasladoEncabezado, FormatoTrasladoClinico):

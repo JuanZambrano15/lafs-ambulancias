@@ -18,6 +18,11 @@
  * todavía no configuró la suya) se dibuja en pantalla, sin guardarla
  * en su perfil — solo queda en este formato puntual.
  *
+ * Después de esa sección va "Profesional que recibe" (issue #75):
+ * nombre, cédula y firma de quien recibe al paciente en la IPS/ESE de
+ * destino — personal de la institución, no de LAFS, así que su firma
+ * siempre se dibuja a mano, nunca se autocompleta de ningún perfil.
+ *
  * "Cerrar atención" (issue #12, ADR-0010) es una acción aparte del
  * "Guardar": pide el PIN de firma, lo valida contra el hash local de
  * este dispositivo si hay uno (feedback instantáneo, sin red) y manda
@@ -86,8 +91,13 @@ interface EstadoClinico {
   notaMedica: string
   evolucionadoPor: string
   firmaEvolucionadoExistente: string | null
+  /** Profesional que recibe al paciente en la IPS/ESE de destino
+   * (issue #75) — personal de la institución, no de LAFS. */
+  profesionalRecibeNombre: string
+  profesionalRecibeCedula: string
+  firmaProfesionalRecibeExistente: string | null
 }
- 
+
 const ESTADO_VACIO: EstadoClinico = {
   diagnostico: '',
   tratamiento: [],
@@ -107,6 +117,9 @@ const ESTADO_VACIO: EstadoClinico = {
   notaMedica: '',
   evolucionadoPor: '',
   firmaEvolucionadoExistente: null,
+  profesionalRecibeNombre: '',
+  profesionalRecibeCedula: '',
+  firmaProfesionalRecibeExistente: null,
 }
  
 const TRATAMIENTO_OPCIONES: { valor: TratamientoAplicado; etiqueta: string }[] = [
@@ -244,6 +257,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const tieneAmbosRoles = tieneRolAuxiliar && tieneRolMedico
   const firmaAtendidoRef = useRef<FirmaCanvasHandle>(null)
   const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
+  const firmaProfesionalRecibeRef = useRef<FirmaCanvasHandle>(null)
  
   const [campos, setCampos] = useState<EstadoClinico>(ESTADO_VACIO)
   // Nivel de servicio del encabezado (issue #57) -- decide si la nota
@@ -332,6 +346,9 @@ export function ClinicoTrasladoPage(): JSX.Element {
           evolucionadoPor:
             existente.evolucionado_por ?? (tieneRolMedico && nombrePerfil ? nombrePerfil : ''),
           firmaEvolucionadoExistente: existente.firma_evolucionado_por,
+          profesionalRecibeNombre: existente.profesional_recibe_nombre ?? '',
+          profesionalRecibeCedula: existente.profesional_recibe_cedula ?? '',
+          firmaProfesionalRecibeExistente: existente.firma_profesional_recibe,
         })
         setNivelServicio(existente.nivel_servicio)
       })
@@ -481,6 +498,12 @@ export function ClinicoTrasladoPage(): JSX.Element {
           ? firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente
           : perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
         : firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente,
+      profesional_recibe_nombre: campos.profesionalRecibeNombre || null,
+      profesional_recibe_cedula: campos.profesionalRecibeCedula || null,
+      // Issue #75 -- es personal de la IPS/ESE, no de LAFS: nunca tiene
+      // una firma guardada en esta app, siempre se dibuja a mano.
+      firma_profesional_recibe:
+        firmaProfesionalRecibeRef.current?.exportar() ?? campos.firmaProfesionalRecibeExistente,
     }
   }
  
@@ -965,7 +988,34 @@ export function ClinicoTrasladoPage(): JSX.Element {
               canvasRef={firmaEvolucionadoRef}
             />
           )}
- 
+
+          <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
+            Profesional que recibe en la IPS/ESE
+          </h2>
+          {campoTexto(
+            'Nombre de quien recibe',
+            'profesional-recibe-nombre',
+            campos.profesionalRecibeNombre,
+            (valor) => setCampos((anterior) => ({ ...anterior, profesionalRecibeNombre: valor })),
+          )}
+          {campoTexto(
+            'Cédula de quien recibe',
+            'profesional-recibe-cedula',
+            campos.profesionalRecibeCedula,
+            (valor) => setCampos((anterior) => ({ ...anterior, profesionalRecibeCedula: valor })),
+          )}
+          <FirmaField
+            etiqueta="Firma de quien recibe"
+            // Es personal de la IPS/ESE, no de LAFS -- nunca tiene una
+            // firma guardada en esta app, así que siempre se dibuja a
+            // mano (el sello físico que la acompaña en el papel no se
+            // captura acá).
+            firmaGuardada={null}
+            pista="Lo firma la persona que recibe al paciente en la institución, no el personal de LAFS."
+            imagenInicial={campos.firmaProfesionalRecibeExistente}
+            canvasRef={firmaProfesionalRecibeRef}
+          />
+
           {error && (
             <p role="alert" className="mb-4 mt-4 text-sm text-red-600">
               {error}
