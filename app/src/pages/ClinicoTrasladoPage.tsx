@@ -97,7 +97,7 @@ interface EstadoClinico {
   profesionalRecibeCedula: string
   firmaProfesionalRecibeExistente: string | null
 }
-
+ 
 const ESTADO_VACIO: EstadoClinico = {
   diagnostico: '',
   tratamiento: [],
@@ -969,6 +969,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
               }
               imagenInicial={campos.firmaEvolucionadoExistente}
               canvasRef={firmaEvolucionadoRef}
+              disabled={campos.evolucionadoPor.trim() === ''}
             />
           ) : (
             <FirmaField
@@ -983,12 +984,17 @@ export function ClinicoTrasladoPage(): JSX.Element {
               // `exportar()` da `null` y no pasa nada -- el campo es
               // tan opcional como el nombre de arriba.
               firmaGuardada={null}
-              pista="El médico firma aquí, en el dispositivo, si participó en este traslado — no se completa sola aunque esté de planta."
+              pista={
+                campos.evolucionadoPor.trim() === ''
+                  ? 'Elige un médico o escribe su nombre para habilitar la firma.'
+                  : 'El médico firma aquí, en el dispositivo, si participó en este traslado — no se completa sola aunque esté de planta.'
+              }
               imagenInicial={campos.firmaEvolucionadoExistente}
               canvasRef={firmaEvolucionadoRef}
+              disabled={campos.evolucionadoPor.trim() === ''}
             />
           )}
-
+ 
           <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
             Profesional que recibe en la IPS/ESE
           </h2>
@@ -1015,7 +1021,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
             imagenInicial={campos.firmaProfesionalRecibeExistente}
             canvasRef={firmaProfesionalRecibeRef}
           />
-
+ 
           {error && (
             <p role="alert" className="mb-4 mt-4 text-sm text-red-600">
               {error}
@@ -1127,6 +1133,7 @@ function FirmaField({
   imagenInicial,
   canvasRef,
   pista,
+  disabled,
 }: {
   etiqueta: string
   firmaGuardada: string | null
@@ -1136,6 +1143,10 @@ function FirmaField({
    * firma guardada a propósito porque la misma persona ya la usó
    * para el otro rol. */
   pista?: string
+  /** Bloquea el trazo (p. ej. mientras no haya a quien atribuirle la
+   * firma -- issue #75, QA). No aplica cuando se muestra la firma
+   * guardada como vista previa (<img>), solo al canvas. */
+  disabled?: boolean
 }): JSX.Element {
   return (
     <div className="mb-4">
@@ -1148,7 +1159,7 @@ function FirmaField({
           className="h-20 w-full rounded-lg border border-slate-300 bg-white object-contain"
         />
       ) : (
-        <FirmaCanvas ref={canvasRef} imagenInicial={imagenInicial} alto={120} />
+        <FirmaCanvas ref={canvasRef} imagenInicial={imagenInicial} alto={120} disabled={disabled} />
       )}
     </div>
   )
