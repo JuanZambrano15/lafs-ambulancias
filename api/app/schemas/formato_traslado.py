@@ -166,6 +166,11 @@ class FormatoTrasladoClinico(BaseModel):
     profesional_recibe_cedula: str | None = None
     firma_profesional_recibe: str | None = Field(default=None, max_length=300_000)
 
+    # Issue #66: campo "OBSERVACIONES" del papel (TAP-LAFS-002, página
+    # 2) -- no se versiona en `formato_version` (ver ADR-0012: el
+    # diagnóstico y las notas quedan fuera del historial).
+    observaciones: str | None = Field(default=None, max_length=2000)
+
 
 class FormatoTrasladoOut(FormatoTrasladoEncabezado, FormatoTrasladoClinico):
     model_config = ConfigDict(from_attributes=True)
