@@ -249,6 +249,10 @@ export interface FormatoTrasladoClinico {
   profesional_recibe_nombre: string | null
   profesional_recibe_cedula: string | null
   firma_profesional_recibe: string | null
+  /** Issue #66 — campo "OBSERVACIONES" del papel (TAP-LAFS-002,
+   * página 2), antes de la tripulación. No existía ninguna columna
+   * para esto; el PDF generado no coincidía con el formato real. */
+  observaciones: string | null
 }
 
 export interface FormatoTraslado extends FormatoTrasladoEncabezado, FormatoTrasladoClinico {

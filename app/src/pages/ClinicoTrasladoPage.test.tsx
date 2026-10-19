@@ -82,6 +82,7 @@ const FORMATO: FormatoTraslado = {
   profesional_recibe_nombre: 'Carlos Gómez',
   profesional_recibe_cedula: '900000002',
   firma_profesional_recibe: null,
+  observaciones: null,
   glasgow_total: 15,
 }
 

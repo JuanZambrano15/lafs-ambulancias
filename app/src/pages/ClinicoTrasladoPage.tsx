@@ -97,6 +97,9 @@ interface EstadoClinico {
   profesionalRecibeNombre: string
   profesionalRecibeCedula: string
   firmaProfesionalRecibeExistente: string | null
+  /** Issue #66 — campo "Observaciones" del papel real, que faltaba
+   * por completo en el sistema (por eso el PDF no coincidía). */
+  observaciones: string
 }
 
 const ESTADO_VACIO: EstadoClinico = {
@@ -120,6 +123,7 @@ const ESTADO_VACIO: EstadoClinico = {
   profesionalRecibeNombre: '',
   profesionalRecibeCedula: '',
   firmaProfesionalRecibeExistente: null,
+  observaciones: '',
 }
 
 const TRATAMIENTO_OPCIONES: { valor: TratamientoAplicado; etiqueta: string }[] = [
@@ -320,6 +324,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
           profesionalRecibeNombre: existente.profesional_recibe_nombre ?? '',
           profesionalRecibeCedula: existente.profesional_recibe_cedula ?? '',
           firmaProfesionalRecibeExistente: existente.firma_profesional_recibe,
+          observaciones: existente.observaciones ?? '',
         })
         setNivelServicio(existente.nivel_servicio)
       })
@@ -474,6 +479,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
       // una firma guardada en esta app, siempre se dibuja a mano.
       firma_profesional_recibe:
         firmaProfesionalRecibeRef.current?.exportar() ?? campos.firmaProfesionalRecibeExistente,
+      observaciones: campos.observaciones || null,
     }
   }
 
@@ -977,6 +983,15 @@ export function ClinicoTrasladoPage(): JSX.Element {
             canvasRef={firmaProfesionalRecibeRef}
           />
 
+          <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">Observaciones</h2>
+          <textarea
+            value={campos.observaciones}
+            onChange={(e) => setCampos((anterior) => ({ ...anterior, observaciones: e.target.value }))}
+            maxLength={2000}
+            rows={3}
+            className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+          />
+ 
           {error && (
             <p role="alert" className="mb-4 mt-4 text-sm text-brand-orange-dark">
               {error}

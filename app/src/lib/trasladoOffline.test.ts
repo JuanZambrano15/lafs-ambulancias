@@ -100,6 +100,7 @@ const CLINICO: FormatoTrasladoClinico = {
   profesional_recibe_nombre: null,
   profesional_recibe_cedula: null,
   firma_profesional_recibe: null,
+  observaciones: null,
 }
 
 function conEstadoDeRed(enLinea: boolean): () => void {
