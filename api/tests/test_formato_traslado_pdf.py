@@ -72,6 +72,10 @@ CLINICO_VALIDO = {
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
         "CAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
     ),
+    "profesional_recibe_nombre": "Dr. Juan Torres",
+    "profesional_recibe_cedula": "900111222",
+    # Issue #66 -- campo nuevo, "Observaciones" del papel real.
+    "observaciones": "Paciente trasladado sin complicaciones adicionales.",
 }
 
 
@@ -323,6 +327,34 @@ class TestContenidoDelPdf:
             headers=auxiliar_headers,
         )
         assert guardar.status_code == 200
+
+        respuesta = client.get(
+            f"/atenciones/{atencion_id}/formato-traslado/pdf", headers=auxiliar_headers
+        )
+        assert respuesta.status_code == 200
+        assert respuesta.content.startswith(b"%PDF")
+
+    def test_pdf_con_traslado_basico_no_falla(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        """Issue #66 -- "profesional que entrega" (fin de la página 1
+        del papel) es condicional: auxiliar en traslado básico, médico
+        en medicalizado. No se parsea el PDF (ver docstring de la
+        clase), pero esto ejercita la rama "básico" del render -- el
+        resto de pruebas ya usan ENCABEZADO_VALIDO, que es
+        medicalizado.
+        """
+        basico = {**ENCABEZADO_VALIDO, "nivel_servicio": "basico"}
+        atencion_id = _crear_atencion(client, db, auxiliar_headers)
+        guardar = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado", json=basico, headers=auxiliar_headers
+        )
+        assert guardar.status_code == 200
+        client.put(
+            f"/atenciones/{atencion_id}/formato-traslado/clinico",
+            json=CLINICO_VALIDO,
+            headers=auxiliar_headers,
+        )
 
         respuesta = client.get(
             f"/atenciones/{atencion_id}/formato-traslado/pdf", headers=auxiliar_headers
