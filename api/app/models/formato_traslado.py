@@ -301,6 +301,15 @@ class FormatoTraslado(Base):
     profesional_recibe_cedula: Mapped[str | None] = mapped_column(String(20), default=None)
     firma_profesional_recibe: Mapped[str | None] = mapped_column(Text, default=None)
 
+    # Issue #66: el papel (TAP-LAFS-002) trae un campo "OBSERVACIONES"
+    # en la página 2, después de la evolución médica y antes de la
+    # tripulación -- no existía ninguna columna para esto todavía. Es
+    # texto libre como nota_auxiliar/nota_medica, así que sigue la
+    # misma decisión de ADR-0012 de no versionarse en
+    # `formato_version` (ver ese modelo y el ADR: "diagnóstico/notas"
+    # quedan fuera del historial por decisión explícita del cliente).
+    observaciones: Mapped[str | None] = mapped_column(Text, default=None)
+
     # El total de Glasgow (suma de las tres escalas) no es una columna
     # — se calcula en `FormatoTrasladoOut.glasgow_total`
     # (app/schemas/formato_traslado.py), no aquí. Un `@property` del

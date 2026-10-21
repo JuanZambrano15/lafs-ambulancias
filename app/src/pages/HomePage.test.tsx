@@ -110,6 +110,7 @@ const ENCABEZADO_YA_GUARDADO: FormatoTraslado = {
   firma_evolucionado_por: null,
   profesional_recibe_nombre: null,
   profesional_recibe_cedula: null,
+  observaciones: null,
   firma_profesional_recibe: null,
   glasgow_total: null,
 }

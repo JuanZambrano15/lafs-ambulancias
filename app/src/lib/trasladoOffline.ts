@@ -94,6 +94,7 @@ const CLINICO_TRASLADO_VACIO: FormatoTrasladoClinico = {
   profesional_recibe_nombre: null,
   profesional_recibe_cedula: null,
   firma_profesional_recibe: null,
+  observaciones: null,
 }
 
 const CLINICO_SOAT_VACIO: FormatoAccidenteSoatClinico = {
