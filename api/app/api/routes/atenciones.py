@@ -35,6 +35,7 @@ from app.models.formato_version import FormatoVersion
 from app.models.rol import Rol
 from app.models.usuario import Usuario
 from app.models.usuario_rol import UsuarioRol
+from app.pdf.formato_accidente_soat import generar_pdf_formato_accidente_soat
 from app.pdf.formato_traslado import generar_pdf_formato_traslado
 from app.schemas.ambulancia import AmbulanciaOut
 from app.schemas.atencion import AtencionCerradaOut, AtencionCreate, AtencionOut
@@ -476,6 +477,18 @@ def _regenerar_pdf(atencion: Atencion, formato: FormatoTraslado, db: DbSession) 
     db.commit()
 
 
+def _regenerar_pdf_soat(
+    atencion: Atencion, formato: FormatoAccidenteSoat, db: DbSession
+) -> None:
+    """Igual que `_regenerar_pdf`, pero para el formato de accidente
+    SOAT (issue #71) -- mismo motivo (ADR-0011): se llama después de
+    cada guardado de encabezado o clínico, y al cerrar la atención.
+    """
+    formato.pdf_generado = generar_pdf_formato_accidente_soat(atencion, formato)
+    formato.pdf_generado_en = datetime.now(UTC)
+    db.commit()
+
+
 # Campos que se copian a FormatoVersion antes de aplicar una corrección
 # (issue #14, ADR-0012)
 _CAMPOS_VERSIONADOS = (
@@ -834,6 +847,9 @@ def cerrar_atencion(
     formato = db.get(FormatoTraslado, atencion_id)
     if formato is not None:
         _regenerar_pdf(atencion, formato, db)
+    formato_soat = db.get(FormatoAccidenteSoat, atencion_id)
+    if formato_soat is not None:
+        _regenerar_pdf_soat(atencion, formato_soat, db)
 
     return atencion
 
@@ -924,8 +940,10 @@ _CAMPOS_VERSIONADOS_SOAT = (
     "glasgow_motora",
     "triage",
     "descripcion",
+    "nota_auxiliar",
     "atendido_por",
     "firma_atendido_por",
+    "nota_medica",
     "evolucionado_por",
     "firma_evolucionado_por",
     "profesional_recibe_nombre",
@@ -1051,6 +1069,7 @@ def guardar_encabezado_accidente_soat(
 
     db.commit()
     db.refresh(formato)
+    _regenerar_pdf_soat(atencion, formato, db)
     return formato
 
 
@@ -1105,7 +1124,28 @@ def guardar_clinico_accidente_soat(
 
     db.commit()
     db.refresh(formato)
+    _regenerar_pdf_soat(atencion, formato, db)
     return formato
+
+
+@router.get(
+    "/{atencion_id}/formato-accidente-soat/pdf",
+    dependencies=[Depends(require_personal_clinico_o_admin)],
+)
+def descargar_pdf_formato_accidente_soat(atencion_id: int, db: DbSession) -> Response:
+    """Descarga el último PDF generado del formato de accidente SOAT
+    (issue #71) -- mismo criterio que `descargar_pdf_formato_traslado`:
+    nunca lo genera al vuelo, siempre el que quedó guardado en el
+    último `PUT` de encabezado/clínico, o al cerrar.
+    """
+    _atencion_de_accidente_soat(atencion_id, db)
+    formato = db.get(FormatoAccidenteSoat, atencion_id)
+    if formato is None or formato.pdf_generado is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Esta atención todavía no tiene un PDF generado",
+        )
+    return Response(content=formato.pdf_generado, media_type="application/pdf")
 
 
 @router.get(
