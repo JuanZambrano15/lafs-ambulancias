@@ -123,11 +123,14 @@ export interface FormatoTrasladoEncabezado {
   recepcion_ciudad: string
   recepcion_ips: string
   recepcion_servicio: string
-  entrega_fecha: string
-  entrega_hora: string
-  entrega_ciudad: string
-  entrega_ips: string
-  entrega_servicio: string
+  // Issue #55 (ADR-0014): se piden recién al cerrar la atención, no en
+  // este encabezado inicial (mismo patrón que `hora_entrega` en el
+  // formato SOAT) -- por eso quedan nullable acá.
+  entrega_fecha: string | null
+  entrega_hora: string | null
+  entrega_ciudad: string | null
+  entrega_ips: string | null
+  entrega_servicio: string | null
   complejidad: ComplejidadTraslado
   categoria_paciente: CategoriaPaciente
   nivel_servicio: NivelServicioTraslado
