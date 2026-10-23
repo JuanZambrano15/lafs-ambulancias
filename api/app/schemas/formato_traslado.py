@@ -66,12 +66,15 @@ class FormatoTrasladoEncabezado(BaseModel):
     recepcion_ips: str
     recepcion_servicio: str
 
-    # Entrega del paciente (destino del traslado)
-    entrega_fecha: date
-    entrega_hora: time
-    entrega_ciudad: str
-    entrega_ips: str
-    entrega_servicio: str
+    # Entrega del paciente (destino del traslado) -- issue #55: se pide
+    # recién al cerrar la atención (ver ADR-0014), no en este encabezado
+    # inicial, así que queda opcional. `ClinicoTrasladoPage` la llena al
+    # cerrar reenviando el encabezado completo con estos 5 campos puestos.
+    entrega_fecha: date | None = None
+    entrega_hora: time | None = None
+    entrega_ciudad: str | None = None
+    entrega_ips: str | None = None
+    entrega_servicio: str | None = None
 
     complejidad: ComplejidadTraslado
     categoria_paciente: CategoriaPaciente

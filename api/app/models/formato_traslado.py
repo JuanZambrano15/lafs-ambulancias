@@ -222,12 +222,15 @@ class FormatoTraslado(Base):
     recepcion_ips: Mapped[str] = mapped_column(String(150))
     recepcion_servicio: Mapped[str] = mapped_column(String(100))
 
-    # Entrega del paciente: dónde y cuándo lo entrega la tripulación (destino).
-    entrega_fecha: Mapped[date] = mapped_column(Date)
-    entrega_hora: Mapped[time] = mapped_column(Time)
-    entrega_ciudad: Mapped[str] = mapped_column(String(100))
-    entrega_ips: Mapped[str] = mapped_column(String(150))
-    entrega_servicio: Mapped[str] = mapped_column(String(100))
+    # Entrega del paciente: dónde y cuándo lo entrega la tripulación
+    # (destino). Issue #55 -- se pide recién al cerrar la atención (no
+    # se conoce todavía al recibir al paciente, ver ADR-0014), así que
+    # queda nullable: un traslado que apenas empieza no tiene esto.
+    entrega_fecha: Mapped[date | None] = mapped_column(Date, nullable=True, default=None)
+    entrega_hora: Mapped[time | None] = mapped_column(Time, nullable=True, default=None)
+    entrega_ciudad: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
+    entrega_ips: Mapped[str | None] = mapped_column(String(150), nullable=True, default=None)
+    entrega_servicio: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
 
     complejidad: Mapped[ComplejidadTraslado] = mapped_column(
         Enum(ComplejidadTraslado, name="complejidad_traslado")
