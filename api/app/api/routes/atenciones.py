@@ -699,6 +699,13 @@ def _campos_faltantes_para_cerrar(formato: FormatoTraslado) -> list[str]:
     `basico` sigue siendo opcional, igual que antes -- el campo no se
     oculta, solo no se exige.
 
+    Issue #55 (ADR-0014) -- "entrega del paciente" se agrega acá
+    también: desde que esas 5 columnas pasaron a nullable (se piden
+    recién al cerrar, no en el encabezado inicial), hace falta esta
+    validación para que no se pueda cerrar sin haberlas llenado --
+    antes esto lo garantizaba Pydantic solo con que el campo fuera
+    obligatorio en el schema del encabezado.
+
     No se llama si la atención nunca llegó a tener encabezado (ver el
     único `if formato is not None` en `cerrar_atencion`) -- cerrar sin
     haber empezado a llenar nada sigue permitido, para un servicio que
@@ -719,6 +726,14 @@ def _campos_faltantes_para_cerrar(formato: FormatoTraslado) -> list[str]:
         faltantes.append("nota de enfermería")
     if formato.nivel_servicio == NivelServicioTraslado.medicalizado and not formato.nota_medica:
         faltantes.append("nota médica (obligatoria en traslado medicalizado)")
+    if formato.entrega_fecha is None or formato.entrega_hora is None:
+        faltantes.append("fecha y hora de entrega")
+    if not formato.entrega_ciudad:
+        faltantes.append("ciudad de entrega")
+    if not formato.entrega_ips:
+        faltantes.append("IPS de entrega")
+    if not formato.entrega_servicio:
+        faltantes.append("servicio de entrega")
     return faltantes
 
 

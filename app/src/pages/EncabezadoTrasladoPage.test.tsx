@@ -134,14 +134,6 @@ describe('EncabezadoTrasladoPage', () => {
       screen.getByLabelText('Servicio', { selector: '#recepcion-servicio' }),
       'Urgencias',
     )
-    await usuario.type(screen.getByLabelText('Fecha', { selector: '#entrega-fecha' }), '2027-01-01')
-    await usuario.type(screen.getByLabelText('Hora', { selector: '#entrega-hora' }), '09:30')
-    await usuario.type(screen.getByLabelText('Ciudad', { selector: '#entrega-ciudad' }), 'Cúcuta')
-    await usuario.type(
-      screen.getByLabelText('IPS', { selector: '#entrega-ips' }),
-      'Hospital Universitario',
-    )
-    await usuario.type(screen.getByLabelText('Servicio', { selector: '#entrega-servicio' }), 'UCI')
 
     await usuario.click(screen.getByRole('button', { name: 'Guardar encabezado' }))
 
@@ -151,8 +143,44 @@ describe('EncabezadoTrasladoPage', () => {
     expect(datos.paciente_nombres).toBe('Pepito')
     expect(datos.paciente_edad).toBe(45)
     expect(datos.acompanante_nombres_apellidos).toBeNull()
+    // Issue #55 -- "entrega del paciente" ya no se pide en esta
+    // pantalla: una atención que arranca de cero no tiene nada
+    // guardado todavía, así que se manda en blanco.
+    expect(datos.entrega_fecha).toBeNull()
+    expect(datos.entrega_ciudad).toBeNull()
 
     expect(await screen.findByText('clinico')).toBeInTheDocument()
+  })
+
+  it('no pide ni muestra los campos de entrega del paciente', async () => {
+    vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(ENCABEZADO)
+
+    renderPagina()
+
+    await screen.findByLabelText('Nombres')
+    expect(screen.queryByText('Entrega del paciente')).not.toBeInTheDocument()
+  })
+
+  it('preserva la entrega ya guardada al reeditar la recepción (issue #55)', async () => {
+    const usuario = userEvent.setup()
+    vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(ENCABEZADO)
+    vi.mocked(api.guardarEncabezadoTraslado).mockResolvedValue(ENCABEZADO)
+
+    renderPagina()
+
+    await screen.findByLabelText('Nombres')
+    await usuario.click(screen.getByRole('button', { name: 'Guardar encabezado' }))
+
+    await waitFor(() => expect(api.guardarEncabezadoTraslado).toHaveBeenCalledTimes(1))
+    const [, datos] = vi.mocked(api.guardarEncabezadoTraslado).mock.calls[0]
+    // El encabezado ya traía entrega guardada (ver ENCABEZADO arriba)
+    // -- esta pantalla no la toca, así que debe reenviarla tal cual,
+    // no borrarla con null.
+    expect(datos.entrega_fecha).toBe('2027-01-01')
+    expect(datos.entrega_hora).toBe('09:30:00')
+    expect(datos.entrega_ciudad).toBe('Cúcuta')
+    expect(datos.entrega_ips).toBe('Hospital Universitario')
+    expect(datos.entrega_servicio).toBe('UCI')
   })
 
   it('muestra un error si falla al guardar', async () => {

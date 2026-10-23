@@ -1,18 +1,28 @@
 /**
  * Encabezado del formato de traslado asistencial (issue #8, TAP-LAFS-002):
- * datos del paciente, del acompañante, recepción y entrega del
- * paciente, y la clasificación del traslado.
+ * datos del paciente, del acompañante, recepción del paciente, y la
+ * clasificación del traslado.
  *
  * Mientras la atención sigue abierta se puede reescribir libremente
  * (ver ADR-0002 y ADR-0006) — por eso al entrar se intenta cargar un
  * encabezado ya guardado (si existe) para seguir editándolo, en vez de
  * siempre arrancar en blanco.
+ *
+ * Issue #55 (ADR-0014): "entrega del paciente" ya NO se pide acá —
+ * antes se llenaba todo de una sola vez al recibir al paciente, pero a
+ * esa hora todavía no se sabe dónde ni cuándo se lo va a entregar. Se
+ * pide recién al cerrar la atención, en `ClinicoTrasladoPage`, mismo
+ * patrón que ya usa `hora_entrega` en el formato SOAT (issue #70). Por
+ * eso este componente guarda lo que ya hubiera de entrega al cargar
+ * (`entregaExistente`) y lo reenvía tal cual al guardar: el PUT del
+ * encabezado reemplaza el registro completo, así que no reenviarlo lo
+ * borraría si se vuelve a editar la recepción después de cerrado.
  */
- 
-import { useEffect, useState } from 'react'
+
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
- 
+
 import { ApiError } from '../lib/api'
 import { guardarEncabezadoTrasladoConRespaldo, obtenerFormatoTrasladoConRespaldo } from '../lib/trasladoOffline'
 import type {
@@ -25,10 +35,11 @@ import type {
   TipoDocumentoPaciente,
 } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
- 
+
 /** Mismos campos que `FormatoTrasladoEncabezado`, pero los que son
  * número o texto opcional se manejan como string de formulario (los
- * `<select>` de enums conservan su tipo real). */
+ * `<select>` de enums conservan su tipo real). No incluye los 5 campos
+ * de "entrega" -- esos ya no se piden en esta pantalla (issue #55). */
 interface CamposTexto {
   paciente_tipo_documento: TipoDocumentoPaciente
   paciente_numero_documento: string
@@ -48,17 +59,22 @@ interface CamposTexto {
   recepcion_ciudad: string
   recepcion_ips: string
   recepcion_servicio: string
-  entrega_fecha: string
-  entrega_hora: string
-  entrega_ciudad: string
-  entrega_ips: string
-  entrega_servicio: string
   complejidad: ComplejidadTraslado
   categoria_paciente: CategoriaPaciente
   nivel_servicio: NivelServicioTraslado
   modalidad: ModalidadTraslado
 }
- 
+
+/** Los 5 campos de entrega tal como vienen de `FormatoTrasladoOut` --
+ * se preservan sin tocar, ver nota de módulo. */
+interface EntregaExistente {
+  entrega_fecha: string | null
+  entrega_hora: string | null
+  entrega_ciudad: string | null
+  entrega_ips: string | null
+  entrega_servicio: string | null
+}
+
 const CAMPOS_VACIOS: CamposTexto = {
   paciente_tipo_documento: 'cc',
   paciente_numero_documento: '',
@@ -78,11 +94,6 @@ const CAMPOS_VACIOS: CamposTexto = {
   recepcion_ciudad: '',
   recepcion_ips: '',
   recepcion_servicio: '',
-  entrega_fecha: '',
-  entrega_hora: '',
-  entrega_ciudad: '',
-  entrega_ips: '',
-  entrega_servicio: '',
   complejidad: 'baja',
   categoria_paciente: 'adulto',
   nivel_servicio: 'basico',
@@ -122,11 +133,30 @@ export function EncabezadoTrasladoPage(): JSX.Element {
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
- 
+  // Issue #55 -- esta pantalla ya no pide "entrega del paciente", pero
+  // si ya existía (p. ej. al volver a editar la recepción de una
+  // atención que ya se cerró) hay que preservarla: el PUT reemplaza el
+  // registro completo, así que mandar `null` acá la borraría. Mismo
+  // patrón que `horaEntregaExistente` en `EncabezadoAccidenteSoatPage`.
+  const entregaExistente = useRef<EntregaExistente>({
+    entrega_fecha: null,
+    entrega_hora: null,
+    entrega_ciudad: null,
+    entrega_ips: null,
+    entrega_servicio: null,
+  })
+
   useEffect(() => {
     obtenerFormatoTrasladoConRespaldo(id)
       .then((existente) => {
         if (existente === null) return
+        entregaExistente.current = {
+          entrega_fecha: existente.entrega_fecha,
+          entrega_hora: existente.entrega_hora,
+          entrega_ciudad: existente.entrega_ciudad,
+          entrega_ips: existente.entrega_ips,
+          entrega_servicio: existente.entrega_servicio,
+        }
         setCampos({
           paciente_tipo_documento: existente.paciente_tipo_documento,
           paciente_numero_documento: existente.paciente_numero_documento,
@@ -146,11 +176,6 @@ export function EncabezadoTrasladoPage(): JSX.Element {
           recepcion_ciudad: existente.recepcion_ciudad,
           recepcion_ips: existente.recepcion_ips,
           recepcion_servicio: existente.recepcion_servicio,
-          entrega_fecha: existente.entrega_fecha,
-          entrega_hora: existente.entrega_hora,
-          entrega_ciudad: existente.entrega_ciudad,
-          entrega_ips: existente.entrega_ips,
-          entrega_servicio: existente.entrega_servicio,
           complejidad: existente.complejidad,
           categoria_paciente: existente.categoria_paciente,
           nivel_servicio: existente.nivel_servicio,
@@ -162,11 +187,11 @@ export function EncabezadoTrasladoPage(): JSX.Element {
       })
       .finally(() => setCargando(false))
   }, [id])
- 
+
   function actualizar<K extends keyof CamposTexto>(campo: K, valor: CamposTexto[K]): void {
     setCampos((anterior) => ({ ...anterior, [campo]: valor }))
   }
- 
+
   async function manejarEnvio(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setError(null)
@@ -179,6 +204,10 @@ export function EncabezadoTrasladoPage(): JSX.Element {
         acompanante_nombres_apellidos: campos.acompanante_nombres_apellidos || null,
         acompanante_parentesco: campos.acompanante_parentesco || null,
         acompanante_telefono: campos.acompanante_telefono || null,
+        // Se pide al cerrar, no acá (ver nota de módulo) -- si ya había
+        // algo guardado de una visita anterior a esta pantalla, se
+        // preserva en vez de pisarlo con null.
+        ...entregaExistente.current,
       }
       await guardarEncabezadoTrasladoConRespaldo(id, datos)
       // La parte clínica (issue #9) se llena después, durante el
@@ -211,7 +240,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
           <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
           <h1 className="mb-1 text-xl font-semibold text-slate-900">Encabezado de traslado</h1>
           <p className="mb-6 text-sm text-slate-500">
-            Datos del paciente, acompañante, recepción y entrega.
+            Datos del paciente, acompañante y recepción. La entrega se pide al cerrar la atención.
           </p>
  
           {errorCarga && (
@@ -335,35 +364,6 @@ export function EncabezadoTrasladoPage(): JSX.Element {
             required: true,
             value: campos.recepcion_servicio,
             onChange: (e) => actualizar('recepcion_servicio', e.target.value),
-          })}
- 
-          <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Entrega del paciente</h2>
-          {campoRequerido('Fecha', 'entrega-fecha', {
-            required: true,
-            type: 'date',
-            value: campos.entrega_fecha,
-            onChange: (e) => actualizar('entrega_fecha', e.target.value),
-          })}
-          {campoRequerido('Hora', 'entrega-hora', {
-            required: true,
-            type: 'time',
-            value: campos.entrega_hora,
-            onChange: (e) => actualizar('entrega_hora', e.target.value),
-          })}
-          {campoRequerido('Ciudad', 'entrega-ciudad', {
-            required: true,
-            value: campos.entrega_ciudad,
-            onChange: (e) => actualizar('entrega_ciudad', e.target.value),
-          })}
-          {campoRequerido('IPS', 'entrega-ips', {
-            required: true,
-            value: campos.entrega_ips,
-            onChange: (e) => actualizar('entrega_ips', e.target.value),
-          })}
-          {campoRequerido('Servicio', 'entrega-servicio', {
-            required: true,
-            value: campos.entrega_servicio,
-            onChange: (e) => actualizar('entrega_servicio', e.target.value),
           })}
  
           <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">

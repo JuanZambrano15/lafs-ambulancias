@@ -156,6 +156,37 @@ class TestGeneracionAutomatica:
         assert respuesta.headers["content-type"] == "application/pdf"
         assert respuesta.content.startswith(b"%PDF")
 
+    def test_guardar_encabezado_sin_entrega_genera_pdf_igual(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        """Issue #55 (ADR-0014): la entrega del paciente se pide recién
+        al cerrar, así que el PDF se regenera (ver ADR-0011) con esos 5
+        campos en None bastante antes de eso -- `_fecha_hora()` y el
+        resto del contexto del PDF tienen que mostrar esto en blanco,
+        no reventar con AttributeError sobre None."""
+        atencion_id = _crear_atencion(client, db, auxiliar_headers)
+        sin_entrega = {
+            **ENCABEZADO_VALIDO,
+            "entrega_fecha": None,
+            "entrega_hora": None,
+            "entrega_ciudad": None,
+            "entrega_ips": None,
+            "entrega_servicio": None,
+        }
+        creado = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado",
+            json=sin_entrega,
+            headers=auxiliar_headers,
+        )
+        assert creado.status_code == 200
+
+        respuesta = client.get(
+            f"/atenciones/{atencion_id}/formato-traslado/pdf", headers=auxiliar_headers
+        )
+
+        assert respuesta.status_code == 200
+        assert respuesta.content.startswith(b"%PDF")
+
     def test_guardar_clinico_regenera_el_pdf(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:
