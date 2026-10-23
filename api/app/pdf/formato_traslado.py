@@ -414,7 +414,16 @@ def _opciones_glasgow(valor: int | None, mapa: dict[int, str]) -> list[tuple[int
     return [(puntos, etiqueta, puntos == valor) for puntos, etiqueta in sorted(mapa.items(), reverse=True)]
  
  
-def _fecha_hora(fecha: date, hora: time) -> str:
+def _fecha_hora(fecha: date | None, hora: time | None) -> str:
+    """`recepcion_fecha`/`recepcion_hora` siempre existen (obligatorios
+    desde el encabezado inicial), pero `entrega_fecha`/`entrega_hora`
+    no -- issue #55 (ADR-0014): se piden recién al cerrar la atención,
+    así que el PDF se puede regenerar antes de que existan (se
+    regenera en cada guardado del encabezado, no solo al cerrar). En
+    ese caso se deja en blanco en vez de reventar con AttributeError.
+    """
+    if fecha is None or hora is None:
+        return ""
     return f"{fecha.strftime('%d/%m/%Y')} {hora.strftime('%H:%M')}"
  
  
@@ -659,11 +668,14 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   <td style="width:50%; padding-left:2pt; vertical-align:top;">
     <table class="grid">
       <tr><td colspan="2" class="barra">Entrega del paciente</td></tr>
-      <tr><td><b>Fecha</b></td><td>{{ entrega_fecha }}</td></tr>
-      <tr><td><b>Hora</b></td><td>{{ entrega_hora }}</td></tr>
-      <tr><td><b>Ciudad</b></td><td>{{ entrega_ciudad }}</td></tr>
-      <tr><td><b>IPS</b></td><td>{{ entrega_ips }}</td></tr>
-      <tr><td><b>Servicio</b></td><td>{{ entrega_servicio }}</td></tr>
+      <!-- Issue #55 (ADR-0014): nullable hasta que se cierra la
+           atención -- mismo "or '—'" que ya usan los demás campos
+           opcionales (ver acompanante_telefono arriba). -->
+      <tr><td><b>Fecha</b></td><td>{{ entrega_fecha or '—' }}</td></tr>
+      <tr><td><b>Hora</b></td><td>{{ entrega_hora or '—' }}</td></tr>
+      <tr><td><b>Ciudad</b></td><td>{{ entrega_ciudad or '—' }}</td></tr>
+      <tr><td><b>IPS</b></td><td>{{ entrega_ips or '—' }}</td></tr>
+      <tr><td><b>Servicio</b></td><td>{{ entrega_servicio or '—' }}</td></tr>
     </table>
   </td>
 </tr></table>
@@ -1003,8 +1015,10 @@ def generar_pdf_formato_traslado(atencion: Atencion, formato: FormatoTraslado) -
         "recepcion_ips": formato.recepcion_ips,
         "recepcion_servicio": formato.recepcion_servicio,
         "entrega_fecha_hora": _fecha_hora(formato.entrega_fecha, formato.entrega_hora),
-        "entrega_fecha": formato.entrega_fecha.strftime("%d/%m/%Y"),
-        "entrega_hora": formato.entrega_hora.strftime("%H:%M"),
+        # Issue #55 (ADR-0014): nullable hasta que se cierra la
+        # atención -- en blanco en vez de .strftime() sobre None.
+        "entrega_fecha": formato.entrega_fecha.strftime("%d/%m/%Y") if formato.entrega_fecha else "",
+        "entrega_hora": formato.entrega_hora.strftime("%H:%M") if formato.entrega_hora else "",
         "entrega_ciudad": formato.entrega_ciudad,
         "entrega_ips": formato.entrega_ips,
         "entrega_servicio": formato.entrega_servicio,
