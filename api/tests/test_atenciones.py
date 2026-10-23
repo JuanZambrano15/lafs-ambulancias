@@ -897,10 +897,11 @@ def _guardar_encabezado_para_cierre(
     atencion_id: int,
     headers: dict[str, str],
     nivel_servicio: str = "medicalizado",
+    **overrides: object,
 ) -> None:
     response = client.put(
         f"/atenciones/{atencion_id}/formato-traslado",
-        json={**ENCABEZADO_PARA_CIERRE, "nivel_servicio": nivel_servicio},
+        json={**ENCABEZADO_PARA_CIERRE, "nivel_servicio": nivel_servicio, **overrides},
         headers=headers,
     )
     assert response.status_code == 200
@@ -1071,7 +1072,57 @@ class TestCerrarAtencionValidaCamposClinicos:
         )
  
         assert response.status_code == 200
- 
+
+    def test_no_cierra_sin_fecha_y_hora_de_entrega(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        """Issue #55 (ADR-0014): la entrega del paciente ya no se pide
+        en el encabezado inicial (esas 5 columnas pasaron a nullable),
+        así que esta validación es la que de verdad impide cerrar sin
+        haberla llenado."""
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_para_cierre(
+            client, atencion_id, auxiliar_headers, entrega_fecha=None, entrega_hora=None
+        )
+        _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        assert "entrega" in response.json()["detail"]
+
+    def test_no_cierra_sin_ciudad_ips_ni_servicio_de_entrega(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        atencion_id = _crear_atencion_abierta(client, db, auxiliar_headers)
+        _guardar_encabezado_para_cierre(
+            client,
+            atencion_id,
+            auxiliar_headers,
+            entrega_ciudad=None,
+            entrega_ips=None,
+            entrega_servicio=None,
+        )
+        _guardar_clinico_para_cierre(client, atencion_id, auxiliar_headers)
+        client.put("/auth/pin", json={"pin": "1234"}, headers=auxiliar_headers)
+
+        response = client.put(
+            f"/atenciones/{atencion_id}/cerrar",
+            json={"pin": "1234"},
+            headers=auxiliar_headers,
+        )
+
+        assert response.status_code == 409
+        detalle = response.json()["detail"]
+        assert "ciudad de entrega" in detalle
+        assert "IPS de entrega" in detalle
+        assert "servicio de entrega" in detalle
+
     def test_cierra_sin_restricciones_si_nunca_hubo_encabezado(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:

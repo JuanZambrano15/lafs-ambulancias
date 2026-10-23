@@ -181,6 +181,33 @@ def test_auxiliar_crea_y_lee_el_encabezado(
     assert leido.json()["paciente_apellidos"] == "Pérez"
  
  
+def test_crear_encabezado_sin_entrega_del_paciente(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    """Issue #55 (ADR-0014): la entrega del paciente se pide recién al
+    cerrar la atención (ver `ClinicoTrasladoPage`), no en este
+    encabezado inicial -- así que los 5 campos quedan opcionales. Un
+    traslado que apenas se recibe no tiene nada de esto todavía."""
+    atencion_id = _crear_atencion(client, db, auxiliar_headers)
+
+    sin_entrega = {
+        **ENCABEZADO_VALIDO,
+        "entrega_fecha": None,
+        "entrega_hora": None,
+        "entrega_ciudad": None,
+        "entrega_ips": None,
+        "entrega_servicio": None,
+    }
+    creado = client.put(
+        f"/atenciones/{atencion_id}/formato-traslado", json=sin_entrega, headers=auxiliar_headers
+    )
+
+    assert creado.status_code == 200
+    body = creado.json()
+    assert body["entrega_fecha"] is None
+    assert body["entrega_ciudad"] is None
+
+
 def test_medico_tambien_puede_guardar_el_encabezado(
     client: TestClient,
     db: Session,
