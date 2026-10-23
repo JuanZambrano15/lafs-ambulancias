@@ -1,6 +1,9 @@
 """Esquema de salida del historial de versiones de un formato de
 accidente SOAT (issue #17, mismo mecanismo que `FormatoVersionOut`
 para traslado — issue #14, ADR-0012).
+
+Issue #71: `nota_auxiliar`/`nota_medica` se agregan junto con el resto
+del formato (ver `app/models/formato_accidente_soat_version.py`).
 """
 
 from __future__ import annotations
@@ -60,8 +63,10 @@ class FormatoAccidenteSoatVersionOut(BaseModel):
     glasgow_motora: int | None
     triage: TriageNivel | None
     descripcion: str | None
+    nota_auxiliar: str | None
     atendido_por: str | None
     firma_atendido_por: str | None
+    nota_medica: str | None
     evolucionado_por: str | None
     firma_evolucionado_por: str | None
     profesional_recibe_nombre: str | None

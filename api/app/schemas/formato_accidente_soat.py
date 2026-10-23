@@ -12,6 +12,11 @@ validación de negocio (`_campos_faltantes_para_cerrar_soat`), no una
 restricción del esquema: el esquema solo valida la forma de los
 datos, lo mismo que ya hace `FormatoTrasladoClinico` con sus propios
 campos obligatorios al cierre.
+
+Issue #71: `nota_auxiliar`/`nota_medica` se agregan a
+`FormatoAccidenteSoatClinico` con el mismo `max_length=2000` que sus
+homónimas en `FormatoTrasladoClinico` -- texto libre para la segunda
+página del PDF (ver nota de módulo en `app/models/formato_accidente_soat.py`).
 """
 
 from __future__ import annotations
@@ -71,11 +76,18 @@ class FormatoAccidenteSoatClinico(BaseModel):
     triage: TriageNivel | None = None
     descripcion: str | None = Field(default=None, max_length=2000)
 
+    # Issue #71 -- texto libre para la segunda página del PDF, no una
+    # casilla del papel físico (ver nota de módulo del modelo).
+    nota_auxiliar: str | None = Field(default=None, max_length=2000)
+
     atendido_por: str | None = None
     # Data URL en base64 de la firma dibujada en pantalla (issue #11) --
     # 300_000 caracteres alcanzan de sobra para un PNG pequeño de una
     # firma; es solo para no aceptar un payload arbitrariamente grande.
     firma_atendido_por: str | None = Field(default=None, max_length=300_000)
+
+    # Issue #71 -- mismo criterio que nota_auxiliar, para el médico.
+    nota_medica: str | None = Field(default=None, max_length=2000)
 
     evolucionado_por: str | None = None
     firma_evolucionado_por: str | None = Field(default=None, max_length=300_000)
