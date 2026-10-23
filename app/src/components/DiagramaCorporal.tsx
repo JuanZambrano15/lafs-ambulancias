@@ -1,15 +1,25 @@
 /**
- * Diagrama corporal interactivo para localizar lesiones (issue #54):
- * se toca una zona del cuerpo (frontal o posterior), se elige el tipo
- * de lesión y se agrega a la lista. Se pueden registrar varias
- * lesiones -- distintas o repetidas en zonas distintas -- y cada una
- * se puede quitar si se marcó por error.
+ * Diagrama corporal interactivo para localizar lesiones (issue #54,
+ * reordenado en el issue #81): se elige primero el TIPO de lesión (un
+ * botón, no un desplegable) y después se toca la zona del cuerpo
+ * (frontal o posterior) -- al tocarla, la lesión se agrega directo a
+ * la lista, sin paso de confirmación aparte. El tipo elegido se queda
+ * seleccionado después de agregar, para poder marcar varias zonas
+ * seguidas con el mismo tipo (p. ej. varias laceraciones) sin tener
+ * que volver a elegirlo cada vez; tocar otro botón de tipo lo cambia,
+ * y tocar el tipo ya seleccionado lo deselecciona.
+ *
+ * Issue #81 (feedback del cliente): antes el orden era al revés --
+ * tocar la zona primero hacía aparecer un `<select>` con el tipo, y
+ * revisar una lista desplegable es incómodo en una ambulancia en
+ * movimiento. Mientras no haya un tipo válido elegido (vacío, o
+ * "otro" sin el texto libre todavía), las zonas del diagrama quedan
+ * deshabilitadas -- no tiene sentido tocar una zona sin saber qué
+ * lesión se le va a poner.
  *
  * Es un componente "controlado" (como el resto del formulario): el
  * padre guarda `valor` y recibe los cambios por `onChange`, igual que
  * cualquier otro campo de `ClinicoTrasladoPage`/`ClinicoAccidenteSoatPage`.
- * Reemplaza al checklist plano de tipos (sin ubicación) que tenía el
- * formulario antes de este issue.
  *
  * Convención clínica de lado (ver también `LesionLado` en
  * `app/src/lib/types.ts` y `LesionLado`/`LesionZona`/`LesionVista` en
@@ -19,11 +29,11 @@
  * al revés. `ladoReal` hace esa conversión -- el lado de pantalla
  * (`'izq' | 'der'`) nunca se confunde con el lado real del paciente.
  */
-
+ 
 import { useId, useState } from 'react'
-
+ 
 import type { LesionLado, LesionLocalizada, LesionTipo, LesionVista, LesionZona } from '../lib/types'
-
+ 
 /** Mismas etiquetas que ya usaba el checklist plano (antes
  * `LESION_OPCIONES` en cada página) -- se centralizan aquí porque
  * ahora las usa este único componente, compartido entre traslado y
@@ -56,14 +66,14 @@ export const LESION_ETIQUETAS: { valor: LesionTipo; etiqueta: string }[] = [
   { valor: 'dolor', etiqueta: 'Dolor' },
   { valor: 'otro', etiqueta: 'Otro (especificar)' },
 ]
-
+ 
 const ETIQUETAS_LESION_POR_VALOR = new Map(LESION_ETIQUETAS.map((o) => [o.valor, o.etiqueta]))
-
+ 
 /** Zonas femeninas en español -- afecta solo "derecha"/"izquierda" vs.
  * "derecho"/"izquierdo"; el nombre de la zona siempre sale de
  * `ETIQUETAS_ZONA`. */
 const ZONAS_FEMENINAS = new Set<LesionZona>(['mano', 'pierna'])
-
+ 
 const ETIQUETAS_ZONA: Record<LesionZona, string> = {
   cabeza: 'Cabeza',
   cuello: 'Cuello',
@@ -77,9 +87,9 @@ const ETIQUETAS_ZONA: Record<LesionZona, string> = {
   pierna: 'Pierna',
   pie: 'Pie',
 }
-
+ 
 type LadoPantalla = 'izq' | 'der' | null
-
+ 
 interface ZonaBase {
   zona: LesionZona
   lado: LadoPantalla
@@ -89,7 +99,7 @@ interface ZonaBase {
   h: number
   rx: number
 }
-
+ 
 /** Las 18 regiones clickeables del diagrama (11 zonas, 7 de ellas con
  * lado izquierdo y derecho) -- mismas coordenadas ya validadas en la
  * maqueta aprobada. `viewBox` del SVG es 0 0 200 310. */
@@ -113,7 +123,7 @@ const ZONAS_BASE: ZonaBase[] = [
   { zona: 'pie', lado: 'izq', x: 62, y: 278, w: 32, h: 18, rx: 8 },
   { zona: 'pie', lado: 'der', x: 106, y: 278, w: 32, h: 18, rx: 8 },
 ]
-
+ 
 /** Convierte el lado de PANTALLA (`izq`/`der`, o `null` para zonas sin
  * lado) en el lado REAL del paciente, según la vista activa. */
 function ladoReal(lado: LadoPantalla, vista: LesionVista): LesionLado {
@@ -121,14 +131,14 @@ function ladoReal(lado: LadoPantalla, vista: LesionVista): LesionLado {
   if (vista === 'frontal') return lado === 'izq' ? 'derecho' : 'izquierdo'
   return lado === 'izq' ? 'izquierdo' : 'derecho'
 }
-
+ 
 function textoLado(zona: LesionZona, lado: LesionLado): string {
   if (lado === 'central') return ''
   const femenino = ZONAS_FEMENINAS.has(zona)
   if (lado === 'derecho') return femenino ? ' derecha' : ' derecho'
   return femenino ? ' izquierda' : ' izquierdo'
 }
-
+ 
 function textoEntrada(entrada: LesionLocalizada): string {
   const etiquetaTipo =
     entrada.tipo === 'otro'
@@ -138,232 +148,207 @@ function textoEntrada(entrada: LesionLocalizada): string {
   const vistaTexto = entrada.vista === 'frontal' ? 'vista frontal' : 'vista posterior'
   return `${etiquetaTipo} — ${zonaTexto} (${vistaTexto})`
 }
-
+ 
 interface DiagramaCorporalProps {
   valor: LesionLocalizada[]
   onChange: (valor: LesionLocalizada[]) => void
 }
-
-interface ZonaSeleccionada {
-  zona: LesionZona
-  lado: LesionLado
-}
-
+ 
 export function DiagramaCorporal({ valor, onChange }: DiagramaCorporalProps) {
   const [vista, setVista] = useState<LesionVista>('frontal')
-  const [zonaActual, setZonaActual] = useState<ZonaSeleccionada | null>(null)
   const [tipo, setTipo] = useState<LesionTipo | ''>('')
   const [otro, setOtro] = useState('')
   const idOtro = useId()
-  const idTipo = useId()
-
-  function seleccionarZona(zona: LesionZona, lado: LadoPantalla): void {
-    setZonaActual({ zona, lado: ladoReal(lado, vista) })
-    setTipo('')
+  const idGrupoTipo = useId()
+ 
+  /** Issue #81: tocar el botón ya seleccionado lo deselecciona (para
+   * poder "soltar" el tipo sin tener que elegir otro); tocar
+   * cualquier otro botón simplemente lo cambia. */
+  function elegirTipo(nuevoTipo: LesionTipo): void {
+    setTipo((actual) => (actual === nuevoTipo ? '' : nuevoTipo))
     setOtro('')
   }
-
-  function cancelarSeleccion(): void {
-    setZonaActual(null)
-    setTipo('')
-    setOtro('')
-  }
-
-  function cambiarVista(nuevaVista: LesionVista): void {
-    setVista(nuevaVista)
-    setZonaActual(null)
-    setTipo('')
-    setOtro('')
-  }
-
-  const puedeAgregar = zonaActual !== null && tipo !== '' && (tipo !== 'otro' || otro.trim().length > 0)
-
-  function agregarEntrada(): void {
-    if (!zonaActual || tipo === '') return
+ 
+  const tipoValido = tipo !== '' && (tipo !== 'otro' || otro.trim().length > 0)
+ 
+  const etiquetaTipoActual =
+    tipo === '' ? null : tipo === 'otro' ? otro.trim() || 'Otro' : (ETIQUETAS_LESION_POR_VALOR.get(tipo) ?? tipo)
+ 
+  /** Issue #81: con el tipo ya elegido arriba, tocar la zona agrega
+   * directo -- sin paso de "Agregar a la lista" aparte. El tipo (y el
+   * texto de "otro", si aplica) se mantienen seleccionados después,
+   * para poder marcar varias zonas seguidas con el mismo tipo. */
+  function tocarZona(zona: LesionZona, lado: LadoPantalla): void {
+    // Dos chequeos seguidos (en vez de reusar `tipoValido`) a propósito:
+    // así TypeScript estrecha `tipo` de `LesionTipo | ''` a `LesionTipo`
+    // de forma directa, sin depender de que el compilador infiera la
+    // relación entre `tipoValido` y `tipo` (con algunas versiones de
+    // TS, esa inferencia indirecta puede marcar `tipo === ''` más abajo
+    // como una comparación con tipos que nunca se superponen).
+    if (tipo === '') return
     if (tipo === 'otro' && !otro.trim()) return
     const nueva: LesionLocalizada = {
       tipo,
       tipo_otro: tipo === 'otro' ? otro.trim() : null,
-      zona: zonaActual.zona,
-      lado: zonaActual.lado,
+      zona,
+      lado: ladoReal(lado, vista),
       vista,
     }
     onChange([...valor, nueva])
-    cancelarSeleccion()
   }
-
+ 
   function quitarEntrada(indice: number): void {
     onChange(valor.filter((_, i) => i !== indice))
   }
-
+ 
   const zonasConEstado = ZONAS_BASE.map((z) => {
     const lado = ladoReal(z.lado, vista)
-    const seleccionada = zonaActual !== null && zonaActual.zona === z.zona && zonaActual.lado === lado
     const tieneEntradas = valor.some((e) => e.zona === z.zona && e.lado === lado && e.vista === vista)
     const etiquetaAria = `${ETIQUETAS_ZONA[z.zona]}${textoLado(z.zona, lado)}`
-    return { ...z, ladoReal: lado, seleccionada, tieneEntradas, etiquetaAria }
+    return { ...z, ladoReal: lado, tieneEntradas, etiquetaAria }
   })
-
+ 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
-      <div className="flex flex-col items-center gap-3">
-        <div className="inline-flex gap-1 rounded-lg bg-slate-200 p-1">
-          <button
-            type="button"
-            onClick={() => cambiarVista('frontal')}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-              vista === 'frontal' ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-600'
-            }`}
-          >
-            Vista frontal
-          </button>
-          <button
-            type="button"
-            onClick={() => cambiarVista('posterior')}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-              vista === 'posterior' ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-600'
-            }`}
-          >
-            Vista posterior
-          </button>
-        </div>
-
-        <svg
-          viewBox="0 0 200 310"
-          width={200}
-          height={310}
-          className="rounded-xl border border-slate-200 bg-white"
-        >
-          {zonasConEstado.map((z) => (
-            <rect
-              key={`${z.zona}-${z.lado ?? 'c'}`}
-              role="button"
-              tabIndex={0}
-              aria-label={z.etiquetaAria}
-              aria-pressed={z.seleccionada}
-              x={z.x}
-              y={z.y}
-              width={z.w}
-              height={z.h}
-              rx={z.rx}
-              stroke="#64748b"
-              strokeWidth={1}
-              fill={z.seleccionada ? '#2B6CB0' : z.tieneEntradas ? '#CC8B00' : '#e2e8f0'}
-              className="cursor-pointer"
-              onClick={() => seleccionarZona(z.zona, z.lado)}
-              onKeyDown={(evento) => {
-                if (evento.key === 'Enter' || evento.key === ' ') {
-                  evento.preventDefault()
-                  seleccionarZona(z.zona, z.lado)
-                }
-              }}
-            />
-          ))}
-        </svg>
-
-        <div className="flex gap-3 text-[11px] text-slate-500">
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm border border-slate-400 bg-slate-200" /> Sin
-            marcar
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-brand-amber" /> Ya tiene lesión
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-brand-blue" /> Seleccionada
-          </span>
-        </div>
-      </div>
-
-      <div className="flex flex-1 flex-col gap-3">
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <p className="mb-2 text-sm font-semibold text-slate-800">
-            {zonaActual
-              ? `Zona seleccionada: ${ETIQUETAS_ZONA[zonaActual.zona]}${textoLado(zonaActual.zona, zonaActual.lado)} — vista ${vista}`
-              : 'Toca una parte del diagrama para empezar.'}
-          </p>
-
-          {zonaActual && (
-            <div className="flex flex-col gap-2">
-              <label htmlFor={idTipo} className="sr-only">
-                Tipo de lesión
-              </label>
-              <select
-                id={idTipo}
-                value={tipo}
-                onChange={(evento) => {
-                  const nuevoTipo = evento.target.value as LesionTipo | ''
-                  setTipo(nuevoTipo)
-                  if (nuevoTipo !== 'otro') setOtro('')
-                }}
-                className="rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800"
+    <div className="flex flex-col gap-4">
+      <div>
+        <p id={idGrupoTipo} className="mb-2 text-sm font-semibold text-slate-800">
+          1. Elige el tipo de lesión
+        </p>
+        <div role="group" aria-labelledby={idGrupoTipo} className="flex flex-wrap gap-1.5">
+          {LESION_ETIQUETAS.map((opcion) => {
+            const seleccionado = tipo === opcion.valor
+            return (
+              <button
+                key={opcion.valor}
+                type="button"
+                aria-pressed={seleccionado}
+                onClick={() => elegirTipo(opcion.valor)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                  seleccionado
+                    ? 'border-brand-blue bg-brand-blue text-white'
+                    : 'border-slate-300 bg-white text-slate-700'
+                }`}
               >
-                <option value="">Elige el tipo de lesión…</option>
-                {LESION_ETIQUETAS.map((opcion) => (
-                  <option key={opcion.valor} value={opcion.valor}>
-                    {opcion.etiqueta}
-                  </option>
-                ))}
-              </select>
-
-              {tipo === 'otro' && (
-                <>
-                  <label htmlFor={idOtro} className="sr-only">
-                    Especifica el tipo de lesión
-                  </label>
-                  <input
-                    id={idOtro}
-                    type="text"
-                    value={otro}
-                    onChange={(evento) => setOtro(evento.target.value)}
-                    placeholder="Especifica el tipo de lesión"
-                    className="rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800"
-                  />
-                </>
-              )}
-
-              <div className="flex gap-2">
+                {opcion.etiqueta}
+              </button>
+            )
+          })}
+        </div>
+ 
+        {tipo === 'otro' && (
+          <div className="mt-2">
+            <label htmlFor={idOtro} className="sr-only">
+              Especifica el tipo de lesión
+            </label>
+            <input
+              id={idOtro}
+              type="text"
+              value={otro}
+              onChange={(evento) => setOtro(evento.target.value)}
+              placeholder="Especifica el tipo de lesión"
+              className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800 sm:w-72"
+            />
+          </div>
+        )}
+      </div>
+ 
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+        <div className="flex flex-col items-center gap-3">
+          <div className="inline-flex gap-1 rounded-lg bg-slate-200 p-1">
+            <button
+              type="button"
+              onClick={() => setVista('frontal')}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                vista === 'frontal' ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-600'
+              }`}
+            >
+              Vista frontal
+            </button>
+            <button
+              type="button"
+              onClick={() => setVista('posterior')}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                vista === 'posterior' ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-600'
+              }`}
+            >
+              Vista posterior
+            </button>
+          </div>
+ 
+          <svg
+            viewBox="0 0 200 310"
+            width={200}
+            height={310}
+            className="rounded-xl border border-slate-200 bg-white"
+          >
+            {zonasConEstado.map((z) => (
+              <rect
+                key={`${z.zona}-${z.lado ?? 'c'}`}
+                role="button"
+                tabIndex={tipoValido ? 0 : -1}
+                aria-label={z.etiquetaAria}
+                aria-disabled={!tipoValido}
+                x={z.x}
+                y={z.y}
+                width={z.w}
+                height={z.h}
+                rx={z.rx}
+                stroke="#64748b"
+                strokeWidth={1}
+                fill={z.tieneEntradas ? '#CC8B00' : tipoValido ? '#e2e8f0' : '#f1f5f9'}
+                opacity={tipoValido ? 1 : 0.6}
+                className={tipoValido ? 'cursor-pointer' : 'cursor-not-allowed'}
+                onClick={() => tocarZona(z.zona, z.lado)}
+                onKeyDown={(evento) => {
+                  if (evento.key === 'Enter' || evento.key === ' ') {
+                    evento.preventDefault()
+                    tocarZona(z.zona, z.lado)
+                  }
+                }}
+              />
+            ))}
+          </svg>
+ 
+          <div className="flex gap-3 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm border border-slate-400 bg-slate-200" /> Sin
+              marcar
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-brand-amber" /> Ya tiene lesión
+            </span>
+          </div>
+        </div>
+ 
+        <div className="flex flex-1 flex-col gap-3">
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-semibold text-slate-800">
+              {tipoValido
+                ? `2. Toca la zona del cuerpo — ${etiquetaTipoActual}`
+                : '2. Elige el tipo de lesión arriba para poder tocar una zona.'}
+            </p>
+          </div>
+ 
+          <div className="flex flex-col gap-2">
+            {valor.length === 0 && (
+              <p className="py-2 text-center text-sm text-slate-400">Todavía no hay lesiones registradas.</p>
+            )}
+            {valor.map((entrada, indice) => (
+              <div
+                key={`${entrada.tipo}-${entrada.zona}-${entrada.lado}-${entrada.vista}-${indice}`}
+                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
+              >
+                <span className="text-sm text-slate-800">{textoEntrada(entrada)}</span>
                 <button
                   type="button"
-                  onClick={agregarEntrada}
-                  disabled={!puedeAgregar}
-                  className={`flex-1 rounded-md px-3 py-2 text-sm font-semibold text-white ${
-                    puedeAgregar ? 'bg-brand-blue' : 'bg-slate-400'
-                  }`}
+                  onClick={() => quitarEntrada(indice)}
+                  className="rounded-md border border-brand-orange bg-brand-orange-soft px-2.5 py-1 text-xs font-semibold text-brand-orange-dark"
                 >
-                  Agregar a la lista
-                </button>
-                <button
-                  type="button"
-                  onClick={cancelarSeleccion}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-                >
-                  Cancelar
+                  Quitar
                 </button>
               </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          {valor.length === 0 && (
-            <p className="py-2 text-center text-sm text-slate-400">Todavía no hay lesiones registradas.</p>
-          )}
-          {valor.map((entrada, indice) => (
-            <div
-              key={`${entrada.tipo}-${entrada.zona}-${entrada.lado}-${entrada.vista}-${indice}`}
-              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
-            >
-              <span className="text-sm text-slate-800">{textoEntrada(entrada)}</span>
-              <button
-                type="button"
-                onClick={() => quitarEntrada(indice)}
-                className="rounded-md border border-brand-orange bg-brand-orange-soft px-2.5 py-1 text-xs font-semibold text-brand-orange-dark"
-              >
-                Quitar
-              </button>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </div>

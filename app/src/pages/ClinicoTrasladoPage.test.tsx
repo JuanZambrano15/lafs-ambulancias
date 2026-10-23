@@ -266,11 +266,12 @@ describe('ClinicoTrasladoPage', () => {
     renderPagina()
  
     await screen.findByLabelText('Diagnóstico')
+    // Issue #81: el tipo se elige primero (botón), después se toca la
+    // zona -- se agrega directo, sin paso de confirmación aparte.
     // Lado de pantalla izquierdo, en vista frontal (la que arranca
     // por defecto), es el lado DERECHO real del paciente.
+    await usuario.click(screen.getByRole('button', { name: 'Hematoma' }))
     await usuario.click(screen.getByRole('button', { name: 'Pierna derecha' }))
-    await usuario.selectOptions(screen.getByLabelText('Tipo de lesión'), 'hematoma')
-    await usuario.click(screen.getByRole('button', { name: 'Agregar a la lista' }))
  
     expect(screen.getByText('Hematoma — Pierna derecha (vista frontal)')).toBeInTheDocument()
  
