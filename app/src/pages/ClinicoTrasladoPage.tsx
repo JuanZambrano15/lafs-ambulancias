@@ -28,6 +28,16 @@
  * este dispositivo si hay uno (feedback instantáneo, sin red) y manda
  * el cierre — en línea o encolado, según haya conexión. El servidor
  * siempre revalida el PIN de verdad, la validación local es solo UX.
+ *
+ * Issue #55 (ADR-0014) — "entrega del paciente" (fecha, hora, ciudad,
+ * IPS, servicio) se pide acá mismo, justo antes de cerrar, no en
+ * `EncabezadoTrasladoPage`: es el último dato que se conoce, quien
+ * recibe al paciente no sabe todavía dónde ni cuándo lo va a entregar.
+ * Mismo patrón que `hora_entrega` en `ClinicoAccidenteSoatPage` (issue
+ * #70): este componente guarda el encabezado completo que cargó al
+ * entrar (`encabezadoCargado`) y, al cerrar, lo reenvía entero con los
+ * 5 campos de entrega ya puestos, en vez de mandar solo esos campos —
+ * el PUT del encabezado reemplaza el registro completo.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -42,11 +52,13 @@ import { pinLocalValido } from '../lib/pinLocal'
 import {
   cerrarAtencionConRespaldo,
   guardarClinicoTrasladoConRespaldo,
+  guardarEncabezadoTrasladoConRespaldo,
   obtenerFormatoTrasladoConRespaldo,
 } from '../lib/trasladoOffline'
 import type {
   Empleado,
   FormatoTrasladoClinico,
+  FormatoTrasladoEncabezado,
   LesionLocalizada,
   NivelServicioTraslado,
   ReflejoPupilar,
@@ -240,12 +252,26 @@ export function ClinicoTrasladoPage(): JSX.Element {
   // médica es obligatoria para poder cerrar. `null` mientras carga o
   // si todavía no existe encabezado.
   const [nivelServicio, setNivelServicio] = useState<NivelServicioTraslado | null>(null)
+  // Issue #55 -- encabezado completo cargado al entrar, para poder
+  // reenviarlo entero con "entrega" puesta al cerrar (el PUT del
+  // encabezado reemplaza todo el registro, ver nota de módulo). `null`
+  // mientras carga o si la atención nunca llegó a tener encabezado.
+  const [encabezadoCargado, setEncabezadoCargado] = useState<FormatoTrasladoEncabezado | null>(null)
   const [cargando, setCargando] = useState(true)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
 
   const [mostrarCierre, setMostrarCierre] = useState(false)
+  // Issue #55 -- "entrega del paciente", pedida acá mismo al cerrar
+  // (ver nota de módulo). Se precarga si ya hubiera algo guardado (p.
+  // ej. se abrió el formulario de cierre, se canceló, y se vuelve a
+  // abrir).
+  const [entregaFecha, setEntregaFecha] = useState('')
+  const [entregaHora, setEntregaHora] = useState('')
+  const [entregaCiudad, setEntregaCiudad] = useState('')
+  const [entregaIps, setEntregaIps] = useState('')
+  const [entregaServicio, setEntregaServicio] = useState('')
   const [pinCierre, setPinCierre] = useState('')
   const [cerrando, setCerrando] = useState(false)
   const [errorCierre, setErrorCierre] = useState<string | null>(null)
@@ -327,6 +353,43 @@ export function ClinicoTrasladoPage(): JSX.Element {
           observaciones: existente.observaciones ?? '',
         })
         setNivelServicio(existente.nivel_servicio)
+        setEncabezadoCargado({
+          paciente_tipo_documento: existente.paciente_tipo_documento,
+          paciente_numero_documento: existente.paciente_numero_documento,
+          paciente_eps: existente.paciente_eps,
+          paciente_nombres: existente.paciente_nombres,
+          paciente_apellidos: existente.paciente_apellidos,
+          paciente_edad: existente.paciente_edad,
+          paciente_sexo: existente.paciente_sexo,
+          paciente_direccion_residencial: existente.paciente_direccion_residencial,
+          paciente_ciudad: existente.paciente_ciudad,
+          paciente_telefono: existente.paciente_telefono,
+          acompanante_nombres_apellidos: existente.acompanante_nombres_apellidos,
+          acompanante_parentesco: existente.acompanante_parentesco,
+          acompanante_telefono: existente.acompanante_telefono,
+          recepcion_fecha: existente.recepcion_fecha,
+          recepcion_hora: existente.recepcion_hora,
+          recepcion_ciudad: existente.recepcion_ciudad,
+          recepcion_ips: existente.recepcion_ips,
+          recepcion_servicio: existente.recepcion_servicio,
+          entrega_fecha: existente.entrega_fecha,
+          entrega_hora: existente.entrega_hora,
+          entrega_ciudad: existente.entrega_ciudad,
+          entrega_ips: existente.entrega_ips,
+          entrega_servicio: existente.entrega_servicio,
+          complejidad: existente.complejidad,
+          categoria_paciente: existente.categoria_paciente,
+          nivel_servicio: existente.nivel_servicio,
+          modalidad: existente.modalidad,
+        })
+        // Issue #55 -- si ya había algo de entrega guardado (p. ej. un
+        // intento anterior, o una corrección de administrador), se
+        // precarga en vez de arrancar en blanco.
+        setEntregaFecha(existente.entrega_fecha ?? '')
+        setEntregaHora(existente.entrega_hora ?? '')
+        setEntregaCiudad(existente.entrega_ciudad ?? '')
+        setEntregaIps(existente.entrega_ips ?? '')
+        setEntregaServicio(existente.entrega_servicio ?? '')
       })
       .catch((err: unknown) => {
         setErrorCarga(err instanceof ApiError ? err.message : 'No se pudo cargar lo clínico')
@@ -520,6 +583,16 @@ export function ClinicoTrasladoPage(): JSX.Element {
     evento.preventDefault()
     setErrorCierre(null)
 
+    if (
+      entregaFecha.trim() === '' ||
+      entregaHora.trim() === '' ||
+      entregaCiudad.trim() === '' ||
+      entregaIps.trim() === '' ||
+      entregaServicio.trim() === ''
+    ) {
+      setErrorCierre('Falta completar la entrega del paciente')
+      return
+    }
     if (!PIN_VALIDO.test(pinCierre)) {
       setErrorCierre('El PIN debe ser de 4 dígitos')
       return
@@ -533,6 +606,20 @@ export function ClinicoTrasladoPage(): JSX.Element {
         return
       }
 
+      // Issue #55 -- "entrega del paciente" vive en el encabezado, no
+      // en lo clínico: se reenvía el encabezado completo con esos 5
+      // campos ya puestos antes de cerrar (mismo patrón que
+      // `hora_entrega` en `ClinicoAccidenteSoatPage.manejarCierre`).
+      if (encabezadoCargado !== null) {
+        await guardarEncabezadoTrasladoConRespaldo(id, {
+          ...encabezadoCargado,
+          entrega_fecha: entregaFecha,
+          entrega_hora: entregaHora,
+          entrega_ciudad: entregaCiudad,
+          entrega_ips: entregaIps,
+          entrega_servicio: entregaServicio,
+        })
+      }
       await guardarClinicoTrasladoConRespaldo(id, construirDatosClinico())
       await cerrarAtencionConRespaldo(id, pinCierre)
       navigate('/', { replace: true })
@@ -855,14 +942,33 @@ export function ClinicoTrasladoPage(): JSX.Element {
             />
           )}
 
-          <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">Evolución médica</h2>
+          <label
+            htmlFor="nota-medica"
+            className="mb-3 mt-4 block text-sm font-semibold text-slate-900"
+          >
+            Evolución médica
+          </label>
+          {/* Issue #55, QA -- igual que la firma de más abajo: sin
+              médico elegido (ni del selector ni escrito a mano), no
+              tiene sentido dejar escribir una evolución médica sin
+              nadie a quien atribuírsela -- en básico el médico puede no
+              haber participado; en medicalizado siempre hay uno, así
+              que ahí este bloqueo nunca llega a notarse en la
+              práctica. */}
           <textarea
+            id="nota-medica"
             value={campos.notaMedica}
             onChange={(e) => setCampos((anterior) => ({ ...anterior, notaMedica: e.target.value }))}
             maxLength={2000}
             rows={4}
-            className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+            disabled={campos.evolucionadoPor.trim() === ''}
+            className="mb-1 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
           />
+          {campos.evolucionadoPor.trim() === '' && (
+            <p className="mb-2 text-xs text-slate-500">
+              Elige un médico o escribe su nombre para habilitar la nota médica.
+            </p>
+          )}
           {mostrarSelectorMedico ? (
             <>
               <div className="mb-4">
@@ -1035,9 +1141,39 @@ export function ClinicoTrasladoPage(): JSX.Element {
               <form onSubmit={manejarCierre}>
                 <h2 className="mb-1 text-base font-semibold text-slate-900">Cerrar atención</h2>
                 <p className="mb-4 text-sm text-slate-500">
-                  Ingresa tu PIN de firma para cerrar este formato. Una vez cerrado, no se podrá
-                  editar.
+                  La entrega del paciente es el último dato que se conoce -- se pide acá y no
+                  antes. Ingresa tu PIN de firma para cerrar este formato. Una vez cerrado, no se
+                  podrá editar.
                 </p>
+
+                <h3 className="mb-3 text-sm font-semibold text-slate-900">Entrega del paciente</h3>
+                <div className="mb-4">
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="entrega-fecha">
+                    Fecha
+                  </label>
+                  <input
+                    id="entrega-fecha"
+                    type="date"
+                    value={entregaFecha}
+                    onChange={(e) => setEntregaFecha(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="entrega-hora">
+                    Hora
+                  </label>
+                  <input
+                    id="entrega-hora"
+                    type="time"
+                    value={entregaHora}
+                    onChange={(e) => setEntregaHora(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                  />
+                </div>
+                {campoTexto('Ciudad', 'entrega-ciudad', entregaCiudad, setEntregaCiudad)}
+                {campoTexto('IPS', 'entrega-ips', entregaIps, setEntregaIps)}
+                {campoTexto('Servicio', 'entrega-servicio', entregaServicio, setEntregaServicio)}
 
                 <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pin-cierre">
                   PIN

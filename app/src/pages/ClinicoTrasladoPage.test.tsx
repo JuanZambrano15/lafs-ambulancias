@@ -950,6 +950,44 @@ describe('ClinicoTrasladoPage', () => {
       const [, canvasDespues] = await screen.findAllByLabelText('Recuadro para firmar')
       await waitFor(() => expect(canvasDespues).toHaveAttribute('aria-disabled', 'false'))
     })
+
+    it('issue #55 (QA): bloquea la nota médica mientras no haya nombre de médico', async () => {
+      // Mismo criterio que ya tenía la firma (bug de QA de arriba) --
+      // sin médico elegido ni escrito a mano, no tiene sentido dejar
+      // escribir una evolución médica sin nadie a quien atribuírsela.
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([MEDICO_PLANTA])
+
+      renderPagina()
+
+      await screen.findByLabelText('Médico que evolucionó')
+      expect(screen.getByLabelText('Evolución médica')).toBeDisabled()
+      expect(
+        screen.getByText('Elige un médico o escribe su nombre para habilitar la nota médica.'),
+      ).toBeInTheDocument()
+    })
+
+    it('issue #55 (QA): al elegir un médico se habilita la nota médica que antes estaba bloqueada', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([MEDICO_PLANTA])
+
+      renderPagina()
+
+      const selector = await screen.findByLabelText('Médico que evolucionó')
+      await screen.findByText('Laura Páez')
+      expect(screen.getByLabelText('Evolución médica')).toBeDisabled()
+
+      await usuario.selectOptions(selector, '2')
+
+      await waitFor(() => expect(screen.getByLabelText('Evolución médica')).not.toBeDisabled())
+    })
   })
 
   describe('profesional que recibe en la IPS/ESE (issue #75)', () => {
@@ -1182,6 +1220,85 @@ describe('ClinicoTrasladoPage', () => {
       await usuario.click(screen.getByRole('button', { name: 'Confirmar cierre' }))
 
       expect(await screen.findByRole('alert')).toHaveTextContent('PIN incorrecto')
+    })
+
+    it('issue #55: pide "entrega del paciente" al cerrar y la reenvía en el encabezado completo', async () => {
+      // La entrega ya no se pide en EncabezadoTrasladoPage (issue #55)
+      // -- se pide acá mismo, justo antes del PIN, y se guarda
+      // reenviando el encabezado completo con esos 5 campos puestos
+      // (mismo patrón que `hora_entrega` en el formato SOAT).
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue({
+        ...FORMATO,
+        entrega_fecha: null,
+        entrega_hora: null,
+        entrega_ciudad: null,
+        entrega_ips: null,
+        entrega_servicio: null,
+      })
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(api.guardarEncabezadoTraslado).mockResolvedValue(FORMATO)
+      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+      vi.mocked(pinLocal.pinLocalValido).mockResolvedValue(true)
+      vi.mocked(api.cerrarAtencion).mockResolvedValue(ATENCION_CERRADA)
+
+      renderPagina()
+
+      await usuario.click(await screen.findByRole('button', { name: 'Cerrar atención' }))
+      await usuario.type(screen.getByLabelText('Fecha', { selector: '#entrega-fecha' }), '2027-01-01')
+      await usuario.type(screen.getByLabelText('Hora', { selector: '#entrega-hora' }), '09:30')
+      await usuario.type(screen.getByLabelText('Ciudad', { selector: '#entrega-ciudad' }), 'Cúcuta')
+      await usuario.type(
+        screen.getByLabelText('IPS', { selector: '#entrega-ips' }),
+        'Hospital Universitario',
+      )
+      await usuario.type(screen.getByLabelText('Servicio', { selector: '#entrega-servicio' }), 'UCI')
+      await usuario.type(screen.getByLabelText('PIN'), '1234')
+      await usuario.click(screen.getByRole('button', { name: 'Confirmar cierre' }))
+
+      await waitFor(() => expect(api.cerrarAtencion).toHaveBeenCalledWith(1, '1234'))
+      expect(api.guardarEncabezadoTraslado).toHaveBeenCalledTimes(1)
+      const [atencionId, datos] = vi.mocked(api.guardarEncabezadoTraslado).mock.calls[0]
+      expect(atencionId).toBe(1)
+      expect(datos.entrega_fecha).toBe('2027-01-01')
+      expect(datos.entrega_hora).toBe('09:30')
+      expect(datos.entrega_ciudad).toBe('Cúcuta')
+      expect(datos.entrega_ips).toBe('Hospital Universitario')
+      expect(datos.entrega_servicio).toBe('UCI')
+      // El resto del encabezado (ya existente) viaja tal cual, no se
+      // pierde al reenviarlo entero.
+      expect(datos.paciente_nombres).toBe('Pepito')
+
+      // Se guarda el encabezado (con la entrega) antes de cerrar, no
+      // después -- mismo orden que ya exige lo clínico (issue #63).
+      const ordenEncabezado = vi.mocked(api.guardarEncabezadoTraslado).mock.invocationCallOrder[0]
+      const ordenCerrar = vi.mocked(api.cerrarAtencion).mock.invocationCallOrder[0]
+      expect(ordenEncabezado).toBeLessThan(ordenCerrar)
+    })
+
+    it('issue #55: no permite confirmar el cierre si falta algún dato de la entrega', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerPerfil).mockResolvedValue(
+        perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+      )
+      vi.mocked(pinLocal.pinLocalValido).mockResolvedValue(true)
+
+      renderPagina()
+
+      await usuario.click(await screen.findByRole('button', { name: 'Cerrar atención' }))
+      // FORMATO (el que usa este describe por defecto) ya trae entrega
+      // completa -- se borra la ciudad a mano para dejar justo ese
+      // campo vacío.
+      const ciudad = screen.getByLabelText('Ciudad', { selector: '#entrega-ciudad' })
+      await usuario.clear(ciudad)
+      await usuario.type(screen.getByLabelText('PIN'), '1234')
+      await usuario.click(screen.getByRole('button', { name: 'Confirmar cierre' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('entrega')
+      expect(api.cerrarAtencion).not.toHaveBeenCalled()
+      expect(api.guardarEncabezadoTraslado).not.toHaveBeenCalled()
     })
   })
 
