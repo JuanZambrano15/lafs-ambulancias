@@ -107,11 +107,18 @@ interface EstadoClinico {
   glasgowMotora: string
   triage: TriageNivel | ''
   descripcion: string
+  /** Issue #71 -- texto libre para la segunda página del PDF, no una
+   * casilla del papel físico (AA-LAFS-005). */
+  notaAuxiliar: string
   atendidoPor: string
   /** Lo que ya estaba guardado para este formato -- se precarga en el
    * canvas para no perderlo si quien firma no vuelve a dibujar nada
    * en una visita posterior (issue #11). */
   firmaAtendidoExistente: string | null
+  /** Issue #71 -- mismo criterio que notaAuxiliar, para el médico;
+   * bloqueada mientras no haya nombre de médico (mismo patrón que la
+   * firma de "quien evolucionó", ver FirmaField más abajo). */
+  notaMedica: string
   evolucionadoPor: string
   firmaEvolucionadoExistente: string | null
   profesionalRecibeNombre: string
@@ -131,8 +138,10 @@ const ESTADO_VACIO: EstadoClinico = {
   glasgowMotora: '',
   triage: '',
   descripcion: '',
+  notaAuxiliar: '',
   atendidoPor: '',
   firmaAtendidoExistente: null,
+  notaMedica: '',
   evolucionadoPor: '',
   firmaEvolucionadoExistente: null,
   profesionalRecibeNombre: '',
@@ -342,12 +351,14 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
           glasgowMotora: existente.glasgow_motora === null ? '' : String(existente.glasgow_motora),
           triage: existente.triage ?? '',
           descripcion: existente.descripcion ?? '',
+          notaAuxiliar: existente.nota_auxiliar ?? '',
           // Nunca reemplaza un nombre que ya hubiera quedado guardado
           // -- propio o de otra persona en un turno anterior -- solo
           // precarga cuando el backend no tiene nada todavía.
           atendidoPor:
             existente.atendido_por ?? (tieneRolAuxiliar && nombrePerfil ? nombrePerfil : ''),
           firmaAtendidoExistente: existente.firma_atendido_por,
+          notaMedica: existente.nota_medica ?? '',
           evolucionadoPor:
             existente.evolucionado_por ?? (tieneRolMedico && nombrePerfil ? nombrePerfil : ''),
           firmaEvolucionadoExistente: existente.firma_evolucionado_por,
@@ -465,6 +476,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
       glasgow_motora: aNumeroONulo(campos.glasgowMotora),
       triage: campos.triage || null,
       descripcion: campos.descripcion || null,
+      nota_auxiliar: campos.notaAuxiliar || null,
       atendido_por: campos.atendidoPor || null,
       // La firma solo se recalcula para el rol de quien está logueado
       // ahora mismo; si no le corresponde, se reenvía la que ya
@@ -477,6 +489,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
       firma_atendido_por: tieneRolAuxiliar
         ? perfil?.firma_guardada ?? firmaAtendidoRef.current?.exportar() ?? null
         : campos.firmaAtendidoExistente,
+      nota_medica: campos.notaMedica || null,
       evolucionado_por: campos.evolucionadoPor || null,
       // Issue #63 -- si quien está logueado no es el médico, la firma
       // de "quien evolucionó" siempre se dibuja a mano en el
@@ -839,7 +852,24 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
             className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
           />
 
-          <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Atendido por</h2>
+          <label
+            className="mb-1 mt-6 block text-sm font-semibold text-slate-900"
+            htmlFor="nota-auxiliar"
+          >
+            Notas de enfermería
+          </label>
+          <textarea
+            id="nota-auxiliar"
+            value={campos.notaAuxiliar}
+            onChange={(e) =>
+              setCampos((anterior) => ({ ...anterior, notaAuxiliar: e.target.value }))
+            }
+            maxLength={2000}
+            rows={4}
+            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+          />
+
+          <h2 className="mb-3 text-sm font-semibold text-slate-900">Atendido por</h2>
           {campoTexto('Nombre del auxiliar', 'atendido-por', campos.atendidoPor, (valor) =>
             setCampos((anterior) => ({ ...anterior, atendidoPor: valor })),
           )}
@@ -850,6 +880,29 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
               imagenInicial={campos.firmaAtendidoExistente}
               canvasRef={firmaAtendidoRef}
             />
+          )}
+
+          <label
+            htmlFor="nota-medica"
+            className="mb-1 mt-4 block text-sm font-semibold text-slate-900"
+          >
+            Notas del médico
+          </label>
+          <textarea
+            id="nota-medica"
+            value={campos.notaMedica}
+            onChange={(e) =>
+              setCampos((anterior) => ({ ...anterior, notaMedica: e.target.value }))
+            }
+            maxLength={2000}
+            rows={4}
+            disabled={campos.evolucionadoPor.trim() === ''}
+            className="mb-1 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+          />
+          {campos.evolucionadoPor.trim() === '' && (
+            <p className="mb-2 text-xs text-slate-500">
+              Elige un médico o escribe su nombre para habilitar la nota médica.
+            </p>
           )}
 
           <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">

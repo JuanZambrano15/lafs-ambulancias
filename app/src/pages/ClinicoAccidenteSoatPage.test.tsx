@@ -69,8 +69,10 @@ const FORMATO_BASE: FormatoAccidenteSoat = {
   glasgow_motora: null,
   triage: null,
   descripcion: null,
+  nota_auxiliar: null,
   atendido_por: null,
   firma_atendido_por: null,
+  nota_medica: null,
   evolucionado_por: null,
   firma_evolucionado_por: null,
   profesional_recibe_nombre: null,
@@ -93,6 +95,10 @@ const FORMATO_CLINICO_COMPLETO: FormatoAccidenteSoat = {
   glasgow_motora: 6,
   triage: 'ii',
   descripcion: 'Paciente consciente, trauma leve',
+  // Issue #71 -- nuevas, deben precargarse en el formulario principal
+  // igual que el resto de lo ya guardado.
+  nota_auxiliar: 'Paciente estable durante el traslado.',
+  nota_medica: 'Se recomienda observación por 24 horas.',
   // Ya se habían llenado en una visita anterior -- deben precargarse
   // en el formulario principal.
   profesional_recibe_nombre: 'Ana Ruiz',
@@ -161,6 +167,61 @@ describe('ClinicoAccidenteSoatPage', () => {
     expect(screen.getByLabelText('Cédula de quien recibe')).toHaveValue('800000001')
   })
  
+  it('precarga las notas de enfermería y del médico ya guardadas (issue #71)', async () => {
+    vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(FORMATO_CLINICO_COMPLETO)
+
+    renderPagina()
+
+    expect(await screen.findByLabelText('Notas de enfermería')).toHaveValue(
+      'Paciente estable durante el traslado.',
+    )
+    expect(screen.getByLabelText('Notas del médico')).toHaveValue(
+      'Se recomienda observación por 24 horas.',
+    )
+  })
+
+  it('bloquea la nota del médico mientras no haya nombre de médico (issue #71)', async () => {
+    const usuario = userEvent.setup()
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+    )
+    vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(FORMATO_BASE)
+    vi.mocked(api.listarMedicosDisponibles).mockResolvedValue([])
+
+    renderPagina()
+
+    const selector = await screen.findByLabelText('Médico')
+    await screen.findByText('No hay médicos de planta registrados')
+    const notaMedica = screen.getByLabelText('Notas del médico')
+    expect(notaMedica).toBeDisabled()
+    expect(
+      screen.getByText('Elige un médico o escribe su nombre para habilitar la nota médica.'),
+    ).toBeInTheDocument()
+
+    await usuario.selectOptions(selector, 'otro')
+    await usuario.type(screen.getByLabelText('Nombre del médico'), 'Carlos Mora')
+
+    expect(notaMedica).not.toBeDisabled()
+  })
+
+  it('guarda las notas de enfermería y del médico (issue #71)', async () => {
+    const usuario = userEvent.setup()
+    vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(FORMATO_BASE)
+    vi.mocked(api.guardarClinicoAccidenteSoat).mockResolvedValue(FORMATO_CLINICO_COMPLETO)
+
+    renderPagina()
+
+    await usuario.type(
+      await screen.findByLabelText('Notas de enfermería'),
+      'Paciente estable durante el traslado.',
+    )
+    await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() => expect(api.guardarClinicoAccidenteSoat).toHaveBeenCalledTimes(1))
+    const [, datos] = vi.mocked(api.guardarClinicoAccidenteSoat).mock.calls[0]
+    expect(datos.nota_auxiliar).toBe('Paciente estable durante el traslado.')
+  })
+
   it('no muestra "Cerrar atención" a quien no es auxiliar ni médico', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'conductor', descripcion: null }]),
