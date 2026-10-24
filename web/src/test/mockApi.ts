@@ -38,5 +38,6 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     listarAtencionesPendientes: vi.fn().mockResolvedValue([]),
     listarAtencionesCerradas: vi.fn().mockResolvedValue([]),
     descargarPdfFormatoTraslado: vi.fn(),
+    descargarPdfFormatoAccidenteSoat: vi.fn(),
   }
 }

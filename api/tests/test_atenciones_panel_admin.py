@@ -23,6 +23,54 @@ from app.models.usuario_rol import UsuarioRol
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+# Issue #80 (adelanto): encabezado/clínico mínimos para crear y cerrar
+# un accidente SOAT, igual que `ENCABEZADO_VALIDO`/`CLINICO_VALIDO` de
+# arriba pero para `/atenciones/cerradas` -- antes este endpoint
+# ignoraba por completo los accidentes SOAT.
+ENCABEZADO_SOAT_VALIDO = {
+    "fecha_atencion": "2027-01-01",
+    "hora_atencion": "08:00:00",
+    "hora_entrega": None,
+    "identificado": True,
+    "paciente_tipo_documento": "cc",
+    "paciente_numero_documento": "123456789",
+    "paciente_aseguradora": "SOAT Seguros XYZ",
+    "paciente_nombres": "Pepito",
+    "paciente_apellidos": "Pérez",
+    "paciente_edad": 45,
+    "paciente_sexo": "m",
+    "lugar_ocurrencia": "Av. Gran Colombia con calle 10",
+    "ciudad": "Cúcuta",
+    "telefono_contacto": "3001234567",
+    "rol_victima": "conductor",
+    "poliza_vigente_desde": "2026-01-01",
+    "poliza_vigente_hasta": "2027-01-01",
+    "numero_poliza": "SOAT-0001",
+}
+
+CLINICO_SOAT_VALIDO = {
+    "tratamiento": [],
+    "tratamiento_otro": None,
+    "pupila_derecha": None,
+    "pupila_izquierda": None,
+    "signos_vitales": [{"hora": "08:05", "ta": "120/80", "fc": 88, "fr": 18, "spo2": 97}],
+    "lesiones_localizadas": [],
+    "glasgow_ocular": 4,
+    "glasgow_verbal": 5,
+    "glasgow_motora": 6,
+    "triage": "ii",
+    "descripcion": "Paciente víctima de accidente de tránsito, trasladado estable.",
+    "nota_auxiliar": None,
+    "atendido_por": "Ana Ruiz",
+    "firma_atendido_por": None,
+    "nota_medica": None,
+    "evolucionado_por": None,
+    "firma_evolucionado_por": None,
+    "profesional_recibe_nombre": None,
+    "profesional_recibe_cedula": None,
+    "firma_profesional_recibe": None,
+}
+
 ENCABEZADO_VALIDO = {
     "paciente_tipo_documento": "cc",
     "paciente_numero_documento": "123456789",
@@ -169,6 +217,53 @@ def _crear_y_cerrar_atencion(
     return atencion_id
 
 
+def _crear_y_cerrar_atencion_soat(
+    client: TestClient,
+    db: Session,
+    headers: dict[str, str],
+    documento_responsable: str,
+    *,
+    identificado: bool = True,
+    paciente_nombres: str | None = "Pepito",
+    paciente_apellidos: str | None = "Pérez",
+    paciente_numero_documento: str | None = "123456789",
+) -> int:
+    """Igual que `_crear_y_cerrar_atencion`, pero para un accidente
+    SOAT (issue #80 adelanto) -- usa `_campos_faltantes_para_cerrar_soat`
+    como lo mínimo exigido. Permite dejar el paciente como NN
+    (`identificado=False`, ADR-0002) para probar que esas filas también
+    aparecen en el listado aunque no tengan nombre/documento.
+    """
+    atencion_id = _crear_atencion(client, db, headers, tipo="atencion_soat")
+    encabezado = {
+        **ENCABEZADO_SOAT_VALIDO,
+        "identificado": identificado,
+        "paciente_nombres": paciente_nombres if identificado else None,
+        "paciente_apellidos": paciente_apellidos if identificado else None,
+        "paciente_numero_documento": paciente_numero_documento if identificado else None,
+    }
+    respuesta = client.put(
+        f"/atenciones/{atencion_id}/formato-accidente-soat", json=encabezado, headers=headers
+    )
+    assert respuesta.status_code == 200
+    respuesta = client.put(
+        f"/atenciones/{atencion_id}/formato-accidente-soat/clinico",
+        json=CLINICO_SOAT_VALIDO,
+        headers=headers,
+    )
+    assert respuesta.status_code == 200
+
+    usuario = db.query(Usuario).filter(Usuario.documento == documento_responsable).one()
+    usuario.pin_hash = hash_secret("1234")
+    db.commit()
+
+    cerrar = client.put(
+        f"/atenciones/{atencion_id}/cerrar", json={"pin": "1234"}, headers=headers
+    )
+    assert cerrar.status_code == 200
+    return atencion_id
+
+
 class TestAtencionesPendientes:
     def test_sin_token_da_401(self, client: TestClient) -> None:
         respuesta = client.get("/atenciones/pendientes")
@@ -281,10 +376,79 @@ class TestAtencionesCerradas:
         assert len(filas) == 1
         fila = filas[0]
         assert fila["id"] == atencion_id
+        assert fila["tipo"] == "traslado"
+        assert fila["nivel_servicio"] == "basico"
         assert fila["paciente_nombres"] == "Pepito"
         assert fila["paciente_apellidos"] == "Pérez"
         assert fila["paciente_numero_documento"] == "123456789"
         assert fila["tiene_pdf"] is True
+
+    def test_trae_atenciones_soat_con_tipo_y_sin_nivel_servicio(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        # Issue #80 (adelanto): antes este endpoint solo traía
+        # traslados -- los accidentes SOAT ya cerrados no aparecían en
+        # el panel web, ni siquiera para descargar su PDF (issue #71).
+        atencion_id = _crear_y_cerrar_atencion_soat(client, db, auxiliar_headers, "700000001")
+
+        respuesta = client.get("/atenciones/cerradas", headers=admin_headers)
+
+        assert respuesta.status_code == 200
+        filas = respuesta.json()
+        assert len(filas) == 1
+        fila = filas[0]
+        assert fila["id"] == atencion_id
+        assert fila["tipo"] == "atencion_soat"
+        assert fila["nivel_servicio"] is None
+        assert fila["paciente_nombres"] == "Pepito"
+        assert fila["tiene_pdf"] is True
+
+    def test_atencion_soat_nn_aparece_sin_datos_de_paciente(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        # Un accidente SOAT puede cerrarse sin identificar al paciente
+        # (NN, ADR-0002) -- debería poder listarse igual, sin nombre
+        # ni documento.
+        atencion_id = _crear_y_cerrar_atencion_soat(
+            client, db, auxiliar_headers, "700000001", identificado=False
+        )
+
+        respuesta = client.get("/atenciones/cerradas", headers=admin_headers)
+
+        filas = respuesta.json()
+        assert len(filas) == 1
+        fila = filas[0]
+        assert fila["id"] == atencion_id
+        assert fila["paciente_nombres"] is None
+        assert fila["paciente_apellidos"] is None
+        assert fila["paciente_numero_documento"] is None
+
+    def test_mezcla_traslados_y_soat_ordenados_por_cierre(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        primera = _crear_y_cerrar_atencion(
+            client, db, auxiliar_headers, "700000001", paciente_numero_documento="111111111"
+        )
+        segunda = _crear_y_cerrar_atencion_soat(
+            client, db, auxiliar_headers, "700000001", paciente_numero_documento="222222222"
+        )
+
+        respuesta = client.get("/atenciones/cerradas", headers=admin_headers)
+
+        ids_en_orden = [fila["id"] for fila in respuesta.json()]
+        assert ids_en_orden == [segunda, primera]
 
     def test_no_incluye_abiertas(
         self,

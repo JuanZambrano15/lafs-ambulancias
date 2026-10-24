@@ -12,6 +12,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
  
 from app.models.atencion import EstadoAtencion, TipoAtencion
+from app.models.formato_traslado import NivelServicioTraslado
 from app.schemas.ambulancia import AmbulanciaOut
 from app.schemas.empleado import EmpleadoOut
  
@@ -50,21 +51,36 @@ class AtencionCerradaOut(BaseModel):
     administrador): a diferencia de `AtencionOut`, agrega los datos
     del paciente (para que el administrador pueda buscar/identificar
     el formato que busca) y si tiene un PDF para descargar -- ninguno
-    de los dos vive en `Atencion`, sino en `FormatoTraslado`, así que
-    no se puede construir con `from_attributes` directo sobre el
-    modelo y el endpoint arma cada fila a mano.
+    de los dos vive en `Atencion`, sino en `FormatoTraslado`/
+    `FormatoAccidenteSoat`, así que no se puede construir con
+    `from_attributes` directo sobre el modelo y el endpoint arma cada
+    fila a mano.
+ 
+    Issue #80 (adelanto, panel web): la lista antes solo traía
+    traslados, y no decía qué tipo de servicio era cada fila, así que
+    el panel no podía distinguir un traslado de un accidente SOAT, ni
+    uno básico de uno medicalizado. Se agregan `tipo` y
+    `nivel_servicio` para eso -- `nivel_servicio` queda en `None`
+    para un accidente SOAT, que no tiene esa noción (ver el
+    comentario equivalente en `ClinicoAccidenteSoatPage.tsx`).
+ 
+    Los campos del paciente quedan opcionales porque un accidente
+    SOAT puede seguir sin identificar (NN, ver ADR-0002) incluso ya
+    cerrado.
     """
  
     model_config = ConfigDict(from_attributes=True)
  
     id: int
+    tipo: TipoAtencion
+    nivel_servicio: NivelServicioTraslado | None
     estado: EstadoAtencion
     abierta_en: datetime
     cerrada_en: datetime | None
     ambulancia: AmbulanciaOut
     conductor: EmpleadoOut
     responsable: EmpleadoOut
-    paciente_nombres: str
-    paciente_apellidos: str
-    paciente_numero_documento: str
+    paciente_nombres: str | None
+    paciente_apellidos: str | None
+    paciente_numero_documento: str | None
     tiene_pdf: bool

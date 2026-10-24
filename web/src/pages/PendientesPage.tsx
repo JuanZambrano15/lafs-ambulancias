@@ -14,8 +14,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
  
-import { ApiError, descargarPdfFormatoTraslado, listarAtencionesCerradas, listarAtencionesPendientes } from '../lib/api'
+import {
+  ApiError,
+  descargarPdfFormatoAccidenteSoat,
+  descargarPdfFormatoTraslado,
+  listarAtencionesCerradas,
+  listarAtencionesPendientes,
+} from '../lib/api'
 import type { Atencion, AtencionCerrada } from '../lib/types'
+
+/** Issue #80 (adelanto): etiqueta de tipo de servicio para la columna
+ * nueva de "Formatos cerrados" -- un accidente SOAT no tiene
+ * `nivel_servicio` (es siempre "SOAT"); un traslado sí, y usa las
+ * mismas palabras que ya usa `app/` ("Básico"/"Medicalizado"). */
+function etiquetaTipoServicio(atencion: AtencionCerrada): string {
+  if (atencion.tipo === 'atencion_soat') return 'SOAT'
+  return atencion.nivel_servicio === 'medicalizado' ? 'Medicalizado' : 'Básico'
+}
  
 // Issue #15: no había ninguna definición previa de qué cuenta como
 // "lleva mucho tiempo abierta" -- se decidió 12 horas como primer
@@ -103,7 +118,11 @@ export function PendientesPage(): JSX.Element {
     setErrorDescarga(null)
     setDescargandoId(atencion.id)
     try {
-      await descargarPdfFormatoTraslado(atencion.id)
+      if (atencion.tipo === 'atencion_soat') {
+        await descargarPdfFormatoAccidenteSoat(atencion.id)
+      } else {
+        await descargarPdfFormatoTraslado(atencion.id)
+      }
     } catch (err) {
       setErrorDescarga(err instanceof ApiError ? err.message : 'No se pudo descargar el PDF')
     } finally {
@@ -232,6 +251,7 @@ export function PendientesPage(): JSX.Element {
               <tr className="text-left text-slate-500">
                 <th className="px-3">Paciente</th>
                 <th className="px-3">Documento</th>
+                <th className="px-3">Tipo</th>
                 <th className="px-3">Móvil</th>
                 <th className="px-3">Cerrada</th>
                 <th className="px-3" />
@@ -241,11 +261,14 @@ export function PendientesPage(): JSX.Element {
               {cerradas.map((atencion) => (
                 <tr key={atencion.id} className="rounded-lg bg-white shadow-sm">
                   <td className="px-3 py-2 font-medium text-slate-900">
-                    {atencion.paciente_nombres} {atencion.paciente_apellidos}
+                    {atencion.paciente_nombres
+                      ? `${atencion.paciente_nombres} ${atencion.paciente_apellidos ?? ''}`
+                      : 'NN (sin identificar)'}
                   </td>
                   <td className="px-3 py-2 text-slate-600">
-                    {atencion.paciente_numero_documento}
+                    {atencion.paciente_numero_documento ?? '—'}
                   </td>
+                  <td className="px-3 py-2 text-slate-600">{etiquetaTipoServicio(atencion)}</td>
                   <td className="px-3 py-2 text-slate-600">{atencion.ambulancia.movil}</td>
                   <td className="px-3 py-2 text-slate-600">
                     {atencion.cerrada_en ? formatearFecha(atencion.cerrada_en) : '—'}

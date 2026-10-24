@@ -271,3 +271,13 @@ export async function descargarPdfFormatoTraslado(atencionId: number): Promise<v
   // necesita para mostrar el PDF. El navegador la libera solo al
   // cerrar esa pestaña/documento.
 }
+
+/** Igual que `descargarPdfFormatoTraslado`, para el formato de
+ * accidente SOAT (issue #71 en el backend; issue #80 adelanto acá --
+ * el panel listaba estas atenciones pero no tenía de dónde bajar su
+ * PDF). */
+export async function descargarPdfFormatoAccidenteSoat(atencionId: number): Promise<void> {
+  const blob = await apiFetchBlob(`/atenciones/${atencionId}/formato-accidente-soat/pdf`)
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank')
+}
