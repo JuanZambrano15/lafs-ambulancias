@@ -75,8 +75,13 @@ CLINICO_VALIDO = {
     "glasgow_motora": 6,
     "triage": "ii",
     "descripcion": "Paciente víctima de accidente de tránsito, trasladado estable.",
+    # Issue #71 -- nota de enfermería/médica, nuevas en este issue
+    # (texto libre para la segunda página del PDF, ver nota de módulo
+    # en app/models/formato_accidente_soat.py).
+    "nota_auxiliar": "Paciente estable durante el traslado.",
     "atendido_por": "Ana Ruiz",
     "firma_atendido_por": "data:image/png;base64,AAAA",
+    "nota_medica": "Se recomienda observación por 24 horas.",
     "evolucionado_por": "Laura Gómez",
     "firma_evolucionado_por": "data:image/png;base64,BBBB",
     "profesional_recibe_nombre": "Dra. Carolina Pinto",
@@ -447,6 +452,8 @@ def test_auxiliar_guarda_y_lee_lo_clinico(
     assert body["lesiones_localizadas"] == CLINICO_VALIDO["lesiones_localizadas"]
     assert body["glasgow_total"] == 15
     assert body["triage"] == "ii"
+    assert body["nota_auxiliar"] == "Paciente estable durante el traslado."
+    assert body["nota_medica"] == "Se recomienda observación por 24 horas."
     assert body["firma_atendido_por"] == "data:image/png;base64,AAAA"
     assert body["firma_evolucionado_por"] == "data:image/png;base64,BBBB"
     assert body["profesional_recibe_nombre"] == "Dra. Carolina Pinto"

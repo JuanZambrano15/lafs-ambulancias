@@ -60,6 +60,8 @@ CLINICO_VALIDO = {
     "glasgow_motora": 6,
     "triage": "ii",
     "descripcion": "Paciente víctima de accidente de tránsito, trasladado estable.",
+    # Issue #71
+    "nota_auxiliar": "Paciente estable durante el traslado.",
     "atendido_por": "Ana Ruiz",
     "firma_atendido_por": "data:image/png;base64,AAAA",
     "profesional_recibe_nombre": "Dra. Carolina Pinto",
@@ -271,6 +273,7 @@ class TestCorreccionDeAdministrador:
  
         assert len(historial) == 1
         version = historial[0]
+        assert version["nota_auxiliar"] == "Paciente estable durante el traslado."
         assert version["atendido_por"] == "Ana Ruiz"
         assert version["firma_atendido_por"] == "data:image/png;base64,AAAA"
         assert version["profesional_recibe_nombre"] == "Dra. Carolina Pinto"

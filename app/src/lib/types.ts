@@ -310,8 +310,13 @@ export interface FormatoAccidenteSoatClinico {
   glasgow_motora: number | null
   triage: TriageNivel | null
   descripcion: string | null
+  /** Issue #71 -- texto libre para la segunda página del PDF, no una
+   * casilla del papel físico (AA-LAFS-005). */
+  nota_auxiliar: string | null
   atendido_por: string | null
   firma_atendido_por: string | null
+  /** Issue #71 -- mismo criterio que nota_auxiliar, para el médico. */
+  nota_medica: string | null
   evolucionado_por: string | null
   firma_evolucionado_por: string | null
   profesional_recibe_nombre: string | null

@@ -15,6 +15,9 @@ select = ["E", "F", "B", "I", "UP"]
 # difícil de leer, no más, así que se exceptúa solo E501 en este
 # archivo (el resto de reglas sigue aplicando).
 "api/app/pdf/formato_traslado.py" = ["E501"]
+# Mismo criterio que formato_traslado.py (issue #71): plantilla
+# HTML/CSS de un solo string grande para WeasyPrint/Jinja2.
+"api/app/pdf/formato_accidente_soat.py" = ["E501"]
  
 [tool.mypy]
 python_version = "3.12"
