@@ -18,10 +18,16 @@
  * no sabe a qué hora ni a quién va a entregar el paciente mientras
  * todavía está en camino). Pedirlos en el encabezado, que se llena al
  * recibir al paciente, bloqueaba el flujo sin necesidad. Por el mismo
- * motivo se corrigieron los campos de vehículo y "documento expedido
- * en", que no están en el papel real (ver el fix sobre #17 que
- * acompaña este cambio) y `numero_poliza`, que pasó a ser opcional
- * porque el dato del paciente a veces se completa días después.
+ * motivo se corrigió "documento expedido en", que no está en el papel
+ * real (ver el fix sobre #17 que acompaña ese cambio), y
+ * `numero_poliza`, que pasó a ser opcional porque el dato del paciente
+ * a veces se completa días después.
+ *
+ * Issue #89: los campos del vehículo (`vehiculo_placa`/`vehiculo_tipo`/
+ * `vehiculo_marca`) se habían quitado por el mismo motivo que
+ * "documento expedido en", pero por error -- sí están en el papel
+ * real (AA-LAFS-005) -- así que se vuelven a pedir acá, opcionales por
+ * el mismo motivo que `numero_poliza`.
  */
  
 import { useEffect, useRef, useState } from 'react'
@@ -61,6 +67,9 @@ interface CamposTexto {
   poliza_vigente_desde: string
   poliza_vigente_hasta: string
   numero_poliza: string
+  vehiculo_placa: string
+  vehiculo_tipo: string
+  vehiculo_marca: string
 }
  
 const CAMPOS_VACIOS: CamposTexto = {
@@ -81,6 +90,9 @@ const CAMPOS_VACIOS: CamposTexto = {
   poliza_vigente_desde: '',
   poliza_vigente_hasta: '',
   numero_poliza: '',
+  vehiculo_placa: '',
+  vehiculo_tipo: '',
+  vehiculo_marca: '',
 }
  
 const TIPOS_DOCUMENTO: { valor: TipoDocumentoPaciente; etiqueta: string }[] = [
@@ -165,6 +177,9 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
           poliza_vigente_desde: existente.poliza_vigente_desde ?? '',
           poliza_vigente_hasta: existente.poliza_vigente_hasta ?? '',
           numero_poliza: existente.numero_poliza ?? '',
+          vehiculo_placa: existente.vehiculo_placa ?? '',
+          vehiculo_tipo: existente.vehiculo_tipo ?? '',
+          vehiculo_marca: existente.vehiculo_marca ?? '',
         })
       })
       .catch((err: unknown) => {
@@ -215,6 +230,9 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
         poliza_vigente_desde: campos.poliza_vigente_desde || null,
         poliza_vigente_hasta: campos.poliza_vigente_hasta || null,
         numero_poliza: campos.numero_poliza || null,
+        vehiculo_placa: campos.vehiculo_placa || null,
+        vehiculo_tipo: campos.vehiculo_tipo || null,
+        vehiculo_marca: campos.vehiculo_marca || null,
       }
       await guardarEncabezadoAccidenteSoatConRespaldo(id, datos)
       navigate(`/atenciones/${id}/clinico-accidente-soat`, { replace: true })
@@ -372,6 +390,25 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
             ))}
           </select>
  
+          <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">
+            Vehículo accidentado (opcional)
+          </h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Se puede completar después si todavía no se conoce.
+          </p>
+          {campoRequerido('Placa del vehículo', 'vehiculo-placa', {
+            value: campos.vehiculo_placa,
+            onChange: (e) => actualizar('vehiculo_placa', e.target.value),
+          })}
+          {campoRequerido('Tipo de vehículo', 'vehiculo-tipo', {
+            value: campos.vehiculo_tipo,
+            onChange: (e) => actualizar('vehiculo_tipo', e.target.value),
+          })}
+          {campoRequerido('Marca del vehículo', 'vehiculo-marca', {
+            value: campos.vehiculo_marca,
+            onChange: (e) => actualizar('vehiculo_marca', e.target.value),
+          })}
+
           <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Póliza (opcional)</h2>
           <p className="mb-3 text-sm text-slate-500">
             Se puede completar después si todavía no se conoce.

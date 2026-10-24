@@ -296,6 +296,11 @@ export interface FormatoAccidenteSoatEncabezado {
   /** Opcional -- puede no saberse todavía al recibir al paciente (el
    * dato del paciente a veces se completa días después). */
   numero_poliza: string | null
+  /** Issue #89 -- datos del vehículo accidentado, igual de opcionales
+   * que `numero_poliza` arriba y por el mismo motivo. */
+  vehiculo_placa: string | null
+  vehiculo_tipo: string | null
+  vehiculo_marca: string | null
 }
 
 export interface FormatoAccidenteSoatClinico {

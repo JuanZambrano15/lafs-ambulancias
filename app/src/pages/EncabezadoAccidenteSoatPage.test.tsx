@@ -11,10 +11,12 @@ vi.mock('../lib/api', () => import('../test/mockApi').then((m) => m.construirMoc
 vi.mock('../lib/storage')
 
 // Issue #70 (QA): este fixture ya no incluye `paciente_documento_expedido_en`
-// ni `vehiculo_placa`/`vehiculo_tipo`/`vehiculo_marca` -- se quitaron del
-// formato (ver el fix sobre #17 que acompaña esta revisión), y
-// `hora_entrega` ya no se pide ni se muestra en esta pantalla (se pide
-// al cerrar, en `ClinicoAccidenteSoatPage`).
+// -- se quitó del formato (ver el fix sobre #17 que acompaña esa
+// revisión; a diferencia de `vehiculo_placa`/`vehiculo_tipo`/
+// `vehiculo_marca`, que el #70 también quitó por error y el issue #89
+// vuelve a agregar, ver más abajo) -- y `hora_entrega` ya no se pide
+// ni se muestra en esta pantalla (se pide al cerrar, en
+// `ClinicoAccidenteSoatPage`).
 const ENCABEZADO: FormatoAccidenteSoat = {
   atencion_id: 1,
   fecha_atencion: '2027-01-01',
@@ -35,6 +37,9 @@ const ENCABEZADO: FormatoAccidenteSoat = {
   poliza_vigente_desde: '2026-01-01',
   poliza_vigente_hasta: '2027-01-01',
   numero_poliza: 'POL-001',
+  vehiculo_placa: 'ABC123',
+  vehiculo_tipo: 'Motocicleta',
+  vehiculo_marca: 'Yamaha',
   tratamiento: [],
   tratamiento_otro: null,
   pupila_derecha: null,
@@ -88,7 +93,7 @@ describe('EncabezadoAccidenteSoatPage', () => {
     expect(screen.getByLabelText('Nombres')).toBeInTheDocument()
   })
 
-  it('no pide la hora de entrega ni los campos de vehículo (issue #70 -- se quitaron del formato)', async () => {
+  it('no pide la hora de entrega ni "documento expedido en" (issue #70 -- se quitaron del formato)', async () => {
     vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(null)
 
     renderPagina()
@@ -96,9 +101,17 @@ describe('EncabezadoAccidenteSoatPage', () => {
     await screen.findByLabelText('Lugar de ocurrencia')
     expect(screen.queryByLabelText(/hora de entrega/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/documento expedido en/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/placa del vehículo/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/tipo de vehículo/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/marca del vehículo/i)).not.toBeInTheDocument()
+  })
+
+  it('pide los datos del vehículo, opcionales (issue #89 -- se habían quitado por error en el #70)', async () => {
+    vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(null)
+
+    renderPagina()
+
+    const placa = await screen.findByLabelText('Placa del vehículo')
+    expect(placa).not.toBeRequired()
+    expect(screen.getByLabelText('Tipo de vehículo')).not.toBeRequired()
+    expect(screen.getByLabelText('Marca del vehículo')).not.toBeRequired()
   })
 
   it('el número de póliza no es obligatorio (issue #70 -- a veces se sabe días después)', async () => {
@@ -118,6 +131,9 @@ describe('EncabezadoAccidenteSoatPage', () => {
     expect(await screen.findByLabelText('Nombres')).toHaveValue('Pepito')
     expect(screen.getByLabelText('Apellidos')).toHaveValue('Pérez')
     expect(screen.getByLabelText('Número de póliza')).toHaveValue('POL-001')
+    expect(screen.getByLabelText('Placa del vehículo')).toHaveValue('ABC123')
+    expect(screen.getByLabelText('Tipo de vehículo')).toHaveValue('Motocicleta')
+    expect(screen.getByLabelText('Marca del vehículo')).toHaveValue('Yamaha')
   })
 
   it('oculta los campos de identidad al desmarcar "Paciente identificado" (NN, ADR-0002)', async () => {
@@ -172,8 +188,38 @@ describe('EncabezadoAccidenteSoatPage', () => {
     // que se manda en blanco (issue #70, ver nota de módulo).
     expect(datos.hora_entrega).toBeNull()
     expect(datos.numero_poliza).toBeNull()
+    // Issue #89 -- igual de opcionales que numero_poliza: en blanco si
+    // no se escriben.
+    expect(datos.vehiculo_placa).toBeNull()
+    expect(datos.vehiculo_tipo).toBeNull()
+    expect(datos.vehiculo_marca).toBeNull()
 
     expect(await screen.findByText('clinico')).toBeInTheDocument()
+  })
+
+  it('guarda los datos del vehículo cuando se escriben (issue #89)', async () => {
+    const usuario = userEvent.setup()
+    vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(null)
+    vi.mocked(api.guardarEncabezadoAccidenteSoat).mockResolvedValue(ENCABEZADO)
+
+    renderPagina()
+
+    await screen.findByLabelText('Nombres')
+    await usuario.type(screen.getByLabelText('Fecha'), '2027-01-01')
+    await usuario.type(screen.getByLabelText('Hora de atención'), '08:00')
+    await usuario.type(screen.getByLabelText('Lugar de ocurrencia'), 'Vía Ocaña - Cúcuta km 5')
+    await usuario.type(screen.getByLabelText('Ciudad'), 'Cúcuta')
+    await usuario.type(screen.getByLabelText('Placa del vehículo'), 'ABC123')
+    await usuario.type(screen.getByLabelText('Tipo de vehículo'), 'Motocicleta')
+    await usuario.type(screen.getByLabelText('Marca del vehículo'), 'Yamaha')
+
+    await usuario.click(screen.getByRole('button', { name: 'Guardar encabezado' }))
+
+    await waitFor(() => expect(api.guardarEncabezadoAccidenteSoat).toHaveBeenCalledTimes(1))
+    const [, datos] = vi.mocked(api.guardarEncabezadoAccidenteSoat).mock.calls[0]
+    expect(datos.vehiculo_placa).toBe('ABC123')
+    expect(datos.vehiculo_tipo).toBe('Motocicleta')
+    expect(datos.vehiculo_marca).toBe('Yamaha')
   })
 
   it('al guardar, preserva la hora de entrega que ya existiera (el PUT reemplaza todo el registro)', async () => {
