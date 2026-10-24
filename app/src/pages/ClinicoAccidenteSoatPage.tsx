@@ -394,6 +394,9 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
           poliza_vigente_desde: existente.poliza_vigente_desde,
           poliza_vigente_hasta: existente.poliza_vigente_hasta,
           numero_poliza: existente.numero_poliza,
+          vehiculo_placa: existente.vehiculo_placa,
+          vehiculo_tipo: existente.vehiculo_tipo,
+          vehiculo_marca: existente.vehiculo_marca,
         })
       })
       .catch((err: unknown) => {
@@ -1203,3 +1206,4 @@ function campoTexto(
     </div>
   )
 }
+

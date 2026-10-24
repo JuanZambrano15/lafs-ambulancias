@@ -4,6 +4,10 @@ para traslado — issue #14, ADR-0012).
 
 Issue #71: `nota_auxiliar`/`nota_medica` se agregan junto con el resto
 del formato (ver `app/models/formato_accidente_soat_version.py`).
+
+Issue #89: `vehiculo_placa`/`vehiculo_tipo`/`vehiculo_marca` se
+agregan junto con el resto (ver
+`app/models/formato_accidente_soat_version.py`).
 """
 
 from __future__ import annotations
@@ -51,6 +55,10 @@ class FormatoAccidenteSoatVersionOut(BaseModel):
     poliza_vigente_desde: date | None
     poliza_vigente_hasta: date | None
     numero_poliza: str | None
+
+    vehiculo_placa: str | None
+    vehiculo_tipo: str | None
+    vehiculo_marca: str | None
 
     tratamiento: list[TratamientoAplicado]
     tratamiento_otro: str | None

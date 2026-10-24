@@ -37,6 +37,9 @@ ENCABEZADO_VALIDO = {
     "poliza_vigente_desde": "2026-01-01",
     "poliza_vigente_hasta": "2027-01-01",
     "numero_poliza": "SOAT-0001",
+    "vehiculo_placa": "ABC123",
+    "vehiculo_tipo": "Motocicleta",
+    "vehiculo_marca": "Yamaha",
 }
 
 ENCABEZADO_NN = {
@@ -239,6 +242,9 @@ def test_auxiliar_crea_y_lee_el_encabezado(
     assert body["paciente_nombres"] == "Pepito"
     assert body["rol_victima"] == "conductor"
     assert body["numero_poliza"] == "SOAT-0001"
+    assert body["vehiculo_placa"] == "ABC123"
+    assert body["vehiculo_tipo"] == "Motocicleta"
+    assert body["vehiculo_marca"] == "Yamaha"
 
     leido = client.get(
         f"/atenciones/{atencion_id}/formato-accidente-soat", headers=auxiliar_headers
@@ -369,6 +375,34 @@ def test_numero_poliza_es_opcional(
 
     assert response.status_code == 200
     assert response.json()["numero_poliza"] is None
+
+
+def test_datos_del_vehiculo_son_opcionales(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    """Issue #89: estos tres campos se habían quitado por error en el
+    #70 y se vuelven a agregar -- opcionales por el mismo motivo que
+    `numero_poliza` (ver la prueba de arriba): el dato del vehículo a
+    veces no se conoce al momento de la atención."""
+    atencion_id = _crear_atencion(client, db, auxiliar_headers)
+    sin_vehiculo = {
+        **ENCABEZADO_VALIDO,
+        "vehiculo_placa": None,
+        "vehiculo_tipo": None,
+        "vehiculo_marca": None,
+    }
+
+    response = client.put(
+        f"/atenciones/{atencion_id}/formato-accidente-soat",
+        json=sin_vehiculo,
+        headers=auxiliar_headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["vehiculo_placa"] is None
+    assert body["vehiculo_tipo"] is None
+    assert body["vehiculo_marca"] is None
 
 
 # --- Parte clínica -------------------------------------------------------

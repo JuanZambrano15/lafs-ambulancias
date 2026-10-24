@@ -75,6 +75,11 @@ class FormatoAccidenteSoatVersion(Base):
     poliza_vigente_hasta: Mapped[date | None] = mapped_column(Date, default=None)
     numero_poliza: Mapped[str | None] = mapped_column(String(50), default=None)
 
+    # Issue #89
+    vehiculo_placa: Mapped[str | None] = mapped_column(String(10), default=None)
+    vehiculo_tipo: Mapped[str | None] = mapped_column(String(50), default=None)
+    vehiculo_marca: Mapped[str | None] = mapped_column(String(50), default=None)
+
     tratamiento: Mapped[list[str]] = mapped_column(JSON, default=list)
     tratamiento_otro: Mapped[str | None] = mapped_column(String(255), default=None)
 

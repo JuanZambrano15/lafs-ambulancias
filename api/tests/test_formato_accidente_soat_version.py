@@ -36,9 +36,17 @@ ENCABEZADO_VALIDO = {
     "poliza_vigente_desde": "2026-01-01",
     "poliza_vigente_hasta": "2027-01-01",
     "numero_poliza": "SOAT-0001",
+    "vehiculo_placa": "ABC123",
+    "vehiculo_tipo": "Motocicleta",
+    "vehiculo_marca": "Yamaha",
 }
- 
-ENCABEZADO_CORREGIDO = {**ENCABEZADO_VALIDO, "paciente_edad": 46, "ciudad": "Ocaña"}
+
+ENCABEZADO_CORREGIDO = {
+    **ENCABEZADO_VALIDO,
+    "paciente_edad": 46,
+    "ciudad": "Ocaña",
+    "vehiculo_placa": "XYZ789",
+}
  
 ENCABEZADO_NN = {
     **ENCABEZADO_VALIDO,
@@ -230,7 +238,10 @@ class TestCorreccionDeAdministrador:
         assert respuesta.status_code == 200
         assert respuesta.json()["paciente_edad"] == 46
         assert respuesta.json()["ciudad"] == "Ocaña"
- 
+        # Issue #89 -- el vehículo se versiona igual que el resto del
+        # encabezado.
+        assert respuesta.json()["vehiculo_placa"] == "XYZ789"
+
     def test_admin_corrige_el_clinico_de_atencion_cerrada(
         self,
         client: TestClient,
@@ -356,6 +367,9 @@ class TestHistorial:
         assert len(versiones) == 1
         assert versiones[0]["paciente_edad"] == 45
         assert versiones[0]["ciudad"] == "Cúcuta"
+        # Issue #89 -- el estado anterior del vehículo también queda
+        # en el historial (ENCABEZADO_CORREGIDO cambia la placa).
+        assert versiones[0]["vehiculo_placa"] == "ABC123"
         assert versiones[0]["corregido_por"]["documento"] == "999999999"
  
     def test_conductor_no_puede_ver_el_historial(

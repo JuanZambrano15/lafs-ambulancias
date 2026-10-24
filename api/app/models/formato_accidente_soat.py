@@ -42,12 +42,20 @@ Correcciones sobre el modelado original del issue #17 (antes de que
 hubiera pantallas que lo usaran, al construir el issue #70 se
 encontraron varias cosas que no correspondían con el papel real):
 `vehiculo_placa`, `vehiculo_tipo`, `vehiculo_marca` y
-`paciente_documento_expedido_en` no existen en el formato AA-LAFS-005,
-así que se quitaron (columnas eliminadas por migración, no solo
-dejadas de usar). `numero_poliza` sí está en el papel pero puede no
-saberse al momento de la atención -- el dato del paciente a veces se
-completa días después -- así que pasó a ser opcional, corregible por
-el administrador como cualquier otro campo tras el cierre. Y faltaban
+`paciente_documento_expedido_en` se creyó, por error, que no existían
+en el formato AA-LAFS-005, así que se quitaron (columnas eliminadas
+por migración, no solo dejadas de usar). El PDF del issue #71 -- que
+sí replica el papel fielmente -- mostró que la fila de datos del
+vehículo sí existe; el issue #89 vuelve a agregar `vehiculo_placa`,
+`vehiculo_tipo` y `vehiculo_marca` (ver migración `b2e6d4f8a913`),
+opcionales por el mismo motivo que `numero_poliza` más abajo (el dato
+del vehículo a veces no se conoce al momento de la atención).
+`paciente_documento_expedido_en` sigue sin existir -- eso sí era un
+error real, no corresponde al papel. `numero_poliza` sí está en el
+papel pero puede no saberse al momento de la atención -- el dato del
+paciente a veces se completa días después -- así que pasó a ser
+opcional, corregible por el administrador como cualquier otro campo
+tras el cierre. Y faltaban
 `atendido_por`/`firma_atendido_por`, `evolucionado_por`/
 `firma_evolucionado_por` y `firma_profesional_recibe` (esta última
 columna se agrega junto a `profesional_recibe_nombre`/
@@ -155,6 +163,14 @@ class FormatoAccidenteSoat(Base):
     # nota de módulo), a diferencia de `lugar_ocurrencia`/`ciudad` de
     # arriba, que siempre se conocen aunque el paciente sea NN.
     numero_poliza: Mapped[str | None] = mapped_column(String(50), default=None)
+
+    # Issue #89 -- datos del vehículo accidentado, de nuevo en el
+    # modelo tras el error del #70 (ver nota de módulo). Opcionales por
+    # el mismo motivo que `numero_poliza`: a veces no se conocen al
+    # momento de la atención.
+    vehiculo_placa: Mapped[str | None] = mapped_column(String(10), default=None)
+    vehiculo_tipo: Mapped[str | None] = mapped_column(String(50), default=None)
+    vehiculo_marca: Mapped[str | None] = mapped_column(String(50), default=None)
 
     # --- Parte clínica (issue #17, parte 2) — se llena progresivamente
     # durante la atención, todo nullable (mismo criterio que

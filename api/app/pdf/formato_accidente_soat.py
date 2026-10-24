@@ -261,11 +261,22 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     arriba: label y valor en una sola celda. -->
     <td><b>Vigencia póliza:</b> {{ poliza_vigente_desde or '—' }} / {{ poliza_vigente_hasta or '—' }}</td>
   </tr>
+  <!-- Issue #89: estos tres campos del vehículo se habían quitado por
+  error en el #70 (ver nota de módulo en app/models/formato_accidente_soat.py)
+  y se vuelven a agregar -- mismo patrón label+valor que el resto de
+  la tabla (p. ej. "Nombres"/"Apellidos" más arriba), no el de
+  label-sin-valor que tenía esta fila antes. -->
   <tr>
     <td><b>Placa</b></td>
+    <td>{{ vehiculo_placa or '—' }}</td>
     <td><b>Tipo de vehículo</b></td>
+    <td>{{ vehiculo_tipo or '—' }}</td>
+  </tr>
+  <tr>
     <td><b>Marca</b></td>
-    <td><b>N° Póliza</b>: {{ numero_poliza or '—' }}</td>
+    <td>{{ vehiculo_marca or '—' }}</td>
+    <td><b>N° Póliza</b></td>
+    <td>{{ numero_poliza or '—' }}</td>
   </tr>
 </table>
  
@@ -555,6 +566,10 @@ def generar_pdf_formato_accidente_soat(
             formato.poliza_vigente_hasta.strftime("%d/%m/%Y") if formato.poliza_vigente_hasta else None
         ),
         "numero_poliza": formato.numero_poliza,
+        # Issue #89 -- ver nota de módulo en app/models/formato_accidente_soat.py.
+        "vehiculo_placa": formato.vehiculo_placa,
+        "vehiculo_tipo": formato.vehiculo_tipo,
+        "vehiculo_marca": formato.vehiculo_marca,
         # Tripulación -- Conductor viene de Atencion (ADR-0006), mismo
         # criterio que FormatoTraslado. "Auxiliar" reutiliza
         # atendido_por, que es texto libre sin cédula propia guardada

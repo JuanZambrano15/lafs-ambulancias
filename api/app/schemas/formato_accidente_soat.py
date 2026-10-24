@@ -17,6 +17,11 @@ Issue #71: `nota_auxiliar`/`nota_medica` se agregan a
 `FormatoAccidenteSoatClinico` con el mismo `max_length=2000` que sus
 homónimas en `FormatoTrasladoClinico` -- texto libre para la segunda
 página del PDF (ver nota de módulo en `app/models/formato_accidente_soat.py`).
+
+Issue #89: `vehiculo_placa`/`vehiculo_tipo`/`vehiculo_marca` se agregan
+a `FormatoAccidenteSoatEncabezado` (datos del vehículo, se conocen en
+el mismo momento que el resto del encabezado) -- ver nota de módulo
+en `app/models/formato_accidente_soat.py`.
 """
 
 from __future__ import annotations
@@ -56,6 +61,11 @@ class FormatoAccidenteSoatEncabezado(BaseModel):
     poliza_vigente_desde: date | None = None
     poliza_vigente_hasta: date | None = None
     numero_poliza: str | None = None
+
+    # Issue #89 -- ver nota de módulo en app/models/formato_accidente_soat.py.
+    vehiculo_placa: str | None = None
+    vehiculo_tipo: str | None = None
+    vehiculo_marca: str | None = None
 
 
 class FormatoAccidenteSoatClinico(BaseModel):
