@@ -138,14 +138,24 @@ export interface Atencion {
  * si tiene un PDF para descargar. */
 export interface AtencionCerrada {
   id: number
+  /** Issue #80 (adelanto): antes esta fila no decía si era un
+   * traslado o un accidente SOAT -- el panel ni siquiera podía
+   * mostrar el PDF de los SOAT, porque la búsqueda los ignoraba por
+   * completo. */
+  tipo: TipoAtencion
+  /** `null` en un accidente SOAT -- ese formato no tiene la noción
+   * de básico/medicalizado. */
+  nivel_servicio: 'basico' | 'medicalizado' | null
   estado: EstadoAtencion
   abierta_en: string
   cerrada_en: string | null
   ambulancia: Ambulancia
   conductor: Empleado
   responsable: Empleado
-  paciente_nombres: string
-  paciente_apellidos: string
-  paciente_numero_documento: string
+  /** `null` si el paciente de un accidente SOAT sigue sin
+   * identificar (NN) al momento del cierre. */
+  paciente_nombres: string | null
+  paciente_apellidos: string | null
+  paciente_numero_documento: string | null
   tiene_pdf: boolean
 }

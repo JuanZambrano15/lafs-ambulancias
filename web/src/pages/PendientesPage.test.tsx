@@ -55,6 +55,8 @@ function atencionPendiente(horasAbierta: number, id = 1): Atencion {
 function atencionCerrada(overrides: Partial<AtencionCerrada> = {}): AtencionCerrada {
   return {
     id: 1,
+    tipo: 'traslado',
+    nivel_servicio: 'basico',
     estado: 'cerrado',
     abierta_en: '2026-10-01T08:00:00Z',
     cerrada_en: '2026-10-01T10:00:00Z',
@@ -146,6 +148,55 @@ describe('PendientesPage', () => {
     expect(screen.getByRole('button', { name: 'Descargar PDF' })).toBeInTheDocument()
   })
  
+  it('issue #80 (adelanto): muestra el tipo de servicio -- Básico, Medicalizado o SOAT', async () => {
+    vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([
+      atencionCerrada({ id: 1, nivel_servicio: 'basico' }),
+      atencionCerrada({ id: 2, nivel_servicio: 'medicalizado' }),
+      atencionCerrada({ id: 3, tipo: 'atencion_soat', nivel_servicio: null }),
+    ])
+
+    render(<PendientesPage />)
+
+    // Las tres filas comparten el mismo paciente en este fixture, por
+    // eso `findAllByText` en vez de `findByText`.
+    expect(await screen.findAllByText('Pepito Pérez')).toHaveLength(3)
+    expect(screen.getByText('Básico')).toBeInTheDocument()
+    expect(screen.getByText('Medicalizado')).toBeInTheDocument()
+    expect(screen.getByText('SOAT')).toBeInTheDocument()
+  })
+
+  it('issue #80 (adelanto): un accidente SOAT sin identificar muestra "NN" en vez del nombre', async () => {
+    vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([
+      atencionCerrada({
+        tipo: 'atencion_soat',
+        nivel_servicio: null,
+        paciente_nombres: null,
+        paciente_apellidos: null,
+        paciente_numero_documento: null,
+      }),
+    ])
+
+    render(<PendientesPage />)
+
+    expect(await screen.findByText('NN (sin identificar)')).toBeInTheDocument()
+  })
+
+  it('issue #80 (adelanto): al descargar un accidente SOAT, llama a descargarPdfFormatoAccidenteSoat', async () => {
+    const usuario = userEvent.setup()
+    vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([
+      atencionCerrada({ id: 42, tipo: 'atencion_soat', nivel_servicio: null }),
+    ])
+    vi.mocked(api.descargarPdfFormatoAccidenteSoat).mockResolvedValue(undefined)
+
+    render(<PendientesPage />)
+    await screen.findByText('Pepito Pérez')
+
+    await usuario.click(screen.getByRole('button', { name: 'Descargar PDF' }))
+
+    await waitFor(() => expect(api.descargarPdfFormatoAccidenteSoat).toHaveBeenCalledWith(42))
+    expect(api.descargarPdfFormatoTraslado).not.toHaveBeenCalled()
+  })
+
   it('un formato cerrado sin PDF muestra "Sin PDF" en vez del botón', async () => {
     vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([
       atencionCerrada({ tiene_pdf: false }),
