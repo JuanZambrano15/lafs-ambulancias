@@ -270,11 +270,13 @@ def listar_atenciones_cerradas(
     q: str | None = Query(default=None),
     limit: int = Query(default=30, ge=1, le=100),
 ) -> list[AtencionCerradaOut]:
-    """Atenciones de traslado ya cerradas, para que el administrador
-    encuentre un formato puntual y descargue su PDF (issue #15) -- no
-    hay otra forma de listarlas: `GET
-    /atenciones/{id}/formato-traslado` sirve para consultar una ya
-    sabiendo su id, no para buscarla.
+    """Atenciones ya cerradas (de traslado o de accidente SOAT), para
+    que el administrador encuentre un formato puntual y descargue su
+    PDF (issue #15; issue #80 adelanto: antes solo traía traslados,
+    dejando los accidentes SOAT invisibles en el panel) -- no hay otra
+    forma de listarlas: `GET /atenciones/{id}/formato-traslado` (o el
+    equivalente de SOAT) sirve para consultar una ya sabiendo su id,
+    no para buscarla.
 
     `q` busca coincidencia parcial, sin distinguir mayúsculas, en
     nombres, apellidos o número de documento del paciente. Sin `q`,
@@ -283,11 +285,18 @@ def listar_atenciones_cerradas(
     no hay paginación todavía, solo "las más recientes que
     coincidan".
 
-    Solo trae atenciones que ya tienen `FormatoTraslado` (join, no
-    left join): sin encabezado no hay datos de paciente que mostrar
-    ni PDF que descargar, así que no hay nada útil que listar ahí.
+    Son dos tablas de formato distintas (`FormatoTraslado` y
+    `FormatoAccidenteSoat`), sin una columna en común para unirlas en
+    una sola consulta SQL, así que se traen por separado (cada una ya
+    acotada a `limit`), se juntan y se ordenan en Python antes de
+    cortar al `limit` final -- aceptable mientras no haya paginación
+    real (issue #80).
+
+    Solo trae atenciones que ya tienen su formato (join, no left
+    join): sin encabezado no hay datos de paciente que mostrar ni PDF
+    que descargar, así que no hay nada útil que listar ahí.
     """
-    consulta = (
+    consulta_traslado = (
         select(Atencion, FormatoTraslado)
         .join(FormatoTraslado, FormatoTraslado.atencion_id == Atencion.id)
         .options(
@@ -300,21 +309,46 @@ def listar_atenciones_cerradas(
             Atencion.tipo == TipoAtencion.traslado,
         )
     )
+    consulta_soat = (
+        select(Atencion, FormatoAccidenteSoat)
+        .join(FormatoAccidenteSoat, FormatoAccidenteSoat.atencion_id == Atencion.id)
+        .options(
+            joinedload(Atencion.ambulancia),
+            joinedload(Atencion.conductor),
+            joinedload(Atencion.responsable),
+        )
+        .where(
+            Atencion.estado == EstadoAtencion.cerrado,
+            Atencion.tipo == TipoAtencion.atencion_soat,
+        )
+    )
     if q:
         patron = f"%{q.strip().lower()}%"
-        consulta = consulta.where(
+        consulta_traslado = consulta_traslado.where(
             func.lower(FormatoTraslado.paciente_nombres).like(patron)
             | func.lower(FormatoTraslado.paciente_apellidos).like(patron)
             | func.lower(FormatoTraslado.paciente_numero_documento).like(patron)
         )
-    filas = (
-        db.execute(consulta.order_by(Atencion.cerrada_en.desc()).limit(limit))
+        consulta_soat = consulta_soat.where(
+            func.lower(FormatoAccidenteSoat.paciente_nombres).like(patron)
+            | func.lower(FormatoAccidenteSoat.paciente_apellidos).like(patron)
+            | func.lower(FormatoAccidenteSoat.paciente_numero_documento).like(patron)
+        )
+    filas_traslado = (
+        db.execute(consulta_traslado.order_by(Atencion.cerrada_en.desc()).limit(limit))
         .unique()
         .all()
     )
-    return [
+    filas_soat = (
+        db.execute(consulta_soat.order_by(Atencion.cerrada_en.desc()).limit(limit))
+        .unique()
+        .all()
+    )
+    resultado = [
         AtencionCerradaOut(
             id=atencion.id,
+            tipo=atencion.tipo,
+            nivel_servicio=formato.nivel_servicio,
             estado=atencion.estado,
             abierta_en=atencion.abierta_en,
             cerrada_en=atencion.cerrada_en,
@@ -326,8 +360,28 @@ def listar_atenciones_cerradas(
             paciente_numero_documento=formato.paciente_numero_documento,
             tiene_pdf=formato.pdf_generado is not None,
         )
-        for atencion, formato in filas
+        for atencion, formato in filas_traslado
+    ] + [
+        AtencionCerradaOut(
+            id=atencion.id,
+            tipo=atencion.tipo,
+            # Un accidente SOAT no tiene la noción de básico/medicalizado.
+            nivel_servicio=None,
+            estado=atencion.estado,
+            abierta_en=atencion.abierta_en,
+            cerrada_en=atencion.cerrada_en,
+            ambulancia=AmbulanciaOut.model_validate(atencion.ambulancia),
+            conductor=EmpleadoOut.model_validate(atencion.conductor),
+            responsable=EmpleadoOut.model_validate(atencion.responsable),
+            paciente_nombres=formato.paciente_nombres,
+            paciente_apellidos=formato.paciente_apellidos,
+            paciente_numero_documento=formato.paciente_numero_documento,
+            tiene_pdf=formato.pdf_generado is not None,
+        )
+        for atencion, formato in filas_soat
     ]
+    resultado.sort(key=lambda fila: fila.cerrada_en or fila.abierta_en, reverse=True)
+    return resultado[:limit]
 
 
 def _atencion_por_client_id(client_id: str, db: DbSession) -> Atencion | None:
