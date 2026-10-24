@@ -1,12 +1,15 @@
 """Genera el PDF del formato de atención de accidentes SOAT
 (AA-LAFS-005), issue #71 — ver ADR-0011 (mismo mecanismo que
 `formato_traslado.py`: una sola plantilla HTML/Jinja2 + WeasyPrint).
-
+ 
 `generar_pdf_formato_accidente_soat` es la única función pública:
 recibe la `Atencion` y su `FormatoAccidenteSoat` ya cargados (con
-`atencion.conductor`/`atencion.ambulancia` precargados, igual que
-`generar_pdf_formato_traslado`) y devuelve los bytes del PDF.
-
+`atencion.conductor`/`atencion.ambulancia`/`atencion.responsable`
+-- esta última para la cédula del auxiliar, issue #88 -- precargados
+en algunas rutas y cargados de forma perezosa en otras; cualquiera de
+los dos funciona porque la sesión de SQLAlchemy sigue abierta) y
+devuelve los bytes del PDF.
+ 
 Instrucción explícita del cliente para este issue: el PDF tiene que
 reproducir el papel real (AA-LAFS-005 v2, una sola página física) línea
 por línea -- lo ÚNICO que cambia respecto al papel es "el muñequito del
@@ -18,7 +21,7 @@ vez de duplicarlos (`_COLORES_LESION`, `_diagrama_corporal_con_puntos`,
 etc.): operan sobre los mismos enums `LesionZona`/`LesionLado`/
 `LesionVista`/`LesionTipo`, que este formato ya reutiliza sin duplicar
 (ver `app/models/formato_accidente_soat.py`).
-
+ 
 El papel real es de una sola página, pero el PDF generado por el
 sistema agrega una SEGUNDA página -- a pedido explícito del cliente,
 no por error -- con "Notas de enfermería"/"Notas del médico" por
@@ -30,7 +33,7 @@ no tiene ese campo) y la tripulación sí incluye una fila de Médico
 (aunque el papel físico de SOAT no la trae en su propio pie de
 página -- ahí sigue solo "profesional que recibe", que se queda en la
 página 1 como en el papel real).
-
+ 
 El código de documento (membrete) se deja con "Páginas: 1", igual que
 el papel real, en vez de "2" -- es el único punto donde el PDF generado
 difiere en cantidad de páginas de lo que ese campo describe, pero
@@ -38,18 +41,18 @@ cambiarlo no fue parte de lo pedido ("el resto queda igual como está
 en el PDF") y el papel físico sigue siendo, en efecto, de una sola
 página.
 """
-
+ 
 from __future__ import annotations
-
+ 
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
-
+ 
 from jinja2 import Environment
-
+ 
 # WeasyPrint no distribuye stubs ni marcador py.typed (ver el mismo
 # comentario en formato_traslado.py).
 from weasyprint import HTML  # type: ignore[import-untyped]
-
+ 
 from app.pdf.formato_traslado import (
     _LESION_COLUMNA_DERECHA,
     _LESION_COLUMNA_IZQUIERDA,
@@ -69,12 +72,12 @@ from app.pdf.formato_traslado import (
     _lesiones_localizadas_texto,
     _opciones_glasgow,
 )
-
+ 
 if TYPE_CHECKING:
     from app.models.atencion import Atencion
     from app.models.formato_accidente_soat import FormatoAccidenteSoat
-
-
+ 
+ 
 _PLANTILLA = Environment(autoescape=True).from_string(
     """
 <!doctype html>
@@ -86,7 +89,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   body { font-family: "DejaVu Sans", sans-serif; font-size: 8pt; color: #000; }
   table { border-collapse: collapse; }
   .pagina + .pagina { page-break-before: always; }
-
+ 
   /* --- Membrete (idéntico a formato_traslado.py, mismo diseño) --- */
   table.membrete { width: 100%; margin-bottom: 3pt; }
   table.membrete td { border: 1px solid #000; vertical-align: middle; }
@@ -100,18 +103,18 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   table.codigo { width: 100%; font-size: 7.5pt; }
   table.codigo td { border: 1px solid #000; padding: 1.5pt 4pt; }
   .codigo-etq { width: 50%; }
-
+ 
   .estado-digital { margin-bottom: 4pt; font-size: 7.5pt; color: #555; text-align: right; }
   .estado-digital .estado { font-weight: bold; padding: 1.5pt 6pt; border: 1px solid #333; border-radius: 3pt; }
   .estado-digital .estado.borrador { color: #a15c00; border-color: #a15c00; }
   .estado-digital .estado.cerrado { color: #0a6b2e; border-color: #0a6b2e; }
-
+ 
   table.grid { width: 100%; margin-bottom: 3pt; page-break-inside: avoid; break-inside: avoid; }
   table.grid tr, table.grid td { page-break-inside: avoid; break-inside: avoid; }
   table.grid td { border: 1px solid #000; padding: 0.5pt 4pt; vertical-align: top; font-size: 8pt; }
   .barra td, td.barra { background: #FFD966; font-weight: bold; text-align: center; padding: 2pt; }
   .vacio-fila td { font-style: italic; color: #666; text-align: center; }
-
+ 
   .casilla { display: inline-block; width: 7pt; height: 7pt; border: 1px solid #000;
              margin-right: 3pt; text-align: center; font-size: 6.5pt; line-height: 7pt;
              font-weight: bold; vertical-align: middle; }
@@ -120,17 +123,17 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   ul.checklist-denso { list-style: none; margin: 0; padding: 1pt 3pt; }
   ul.checklist-denso li { margin-bottom: 0.2pt; white-space: nowrap; font-size: 6.8pt; line-height: 1.02; }
   ul.checklist-denso .casilla { width: 6pt; height: 6pt; margin-right: 2pt; }
-
+ 
   .punto-lesion { display: inline-block; width: 5pt; height: 5pt; border-radius: 50%;
                   border: 0.5pt solid rgba(0,0,0,0.45); margin-right: 3pt; vertical-align: middle; }
-
+ 
   table.columnas { width: 100%; margin-bottom: 3pt; page-break-inside: avoid; break-inside: avoid; }
-
+ 
   /* Mismo criterio que formato_traslado.py: "Localización de lesiones"
      (+ diagrama ADELANTE/TRÁS) es una sola caja con rowspan, junto a
      Tratamiento/Reflejo pupilar arriba y Escala de Glasgow abajo. */
   table.maestra-clinica { width: 100%; margin-bottom: 3pt; }
-
+ 
   table.signos { width: 100%; }
   table.signos td, table.signos th { border: 1px solid #000; padding: 1.5pt 3pt; text-align: center; font-size: 7.5pt; }
   table.signos th { background: #F2F2F2; font-weight: bold; }
@@ -139,7 +142,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   ul.checklist-plano { list-style: none; margin: 0; padding: 2pt 4pt; }
   ul.checklist-plano li { margin-bottom: 0.8pt; white-space: nowrap; font-size: 7.5pt; line-height: 1.15; }
   ul.checklist-plano li.glasgow-marcada { font-weight: bold; text-decoration: underline; }
-
+ 
   /* --- Firmas --- */
   table.firmas { width: 100%; margin-bottom: 3pt; page-break-inside: avoid; break-inside: avoid; }
   table.firmas td { width: 50%; vertical-align: top; padding: 0; text-align: center;
@@ -150,19 +153,19 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   .firma-caption { background: #FFD966; font-weight: bold; font-size: 6.5pt; text-align: center; padding: 1pt; }
   .firma-dato { text-align: left; font-size: 6.6pt; padding: 0.2pt 4pt; }
   .sin-firma { display: block; color: #999; font-style: italic; font-size: 7.5pt; margin-top: 4pt; }
-
+ 
   .tripulacion-titulo { background: #FFD966; font-weight: bold; text-align: center;
                                  padding: 2pt; font-size: 8pt; margin: 3pt 0 1pt; }
   table.tripulacion { width: 100%; margin-bottom: 3pt; }
   table.tripulacion td { border: none; padding: 1.5pt 4pt; font-size: 7.5pt; }
   .tripulacion-etq { font-weight: bold; width: 32%; }
   table.tripulacion td.tripulacion-val { border: none; border-bottom: 1px solid #000; }
-
+ 
   .pie { margin-top: 6pt; font-size: 6.5pt; color: #888; }
 </style>
 </head>
 <body>
-
+ 
 {% macro membrete() %}
 <table class="membrete">
   <tr>
@@ -183,15 +186,15 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   <tr><td class="titulo-cell">ATENCIÓN DE ACCIDENTES</td></tr>
 </table>
 {% endmacro %}
-
+ 
 <div class="pagina">
 {{ membrete() }}
-
+ 
 <div class="estado-digital">
   Atención #{{ atencion_id }} — generado por el sistema el {{ generado_en }}
   <span class="estado {{ 'cerrado' if cerrada else 'borrador' }}">{{ 'CERRADO' if cerrada else 'BORRADOR — AÚN ABIERTO' }}</span>
 </div>
-
+ 
 <table class="grid">
   <tr>
     <td style="width:9%;"><b>FECHA</b></td>
@@ -202,7 +205,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     <td style="width:14%;">{{ hora_entrega or '—' }}</td>
   </tr>
 </table>
-
+ 
 <table class="grid">
   <tr><td colspan="4" class="barra">Datos del paciente</td></tr>
   <tr>
@@ -251,8 +254,12 @@ _PLANTILLA = Environment(autoescape=True).from_string(
       &nbsp;&nbsp;Peatón&nbsp;<span class="casilla">{{ 'X' if rol_victima == 'peaton' else '' }}</span>
       &nbsp;&nbsp;Otro&nbsp;<span class="casilla">{{ 'X' if rol_victima == 'otro' else '' }}</span>
     </td>
-    <td><b>Vigencia póliza</b></td>
-    <td>{{ poliza_vigente_desde or '' }} / {{ poliza_vigente_hasta or '' }}</td>
+    <!-- Issue #88: iba en dos <td> sueltos (label + valor) además del
+    colspan="3" de arriba -- 5 "unidades" de columna en una tabla de 4,
+    lo que descuadraba el resto de la tabla en cuanto esta fecha (es
+    opcional) tenía un valor real. Mismo patrón que "ASEGURADORA" más
+    arriba: label y valor en una sola celda. -->
+    <td><b>Vigencia póliza:</b> {{ poliza_vigente_desde or '—' }} / {{ poliza_vigente_hasta or '—' }}</td>
   </tr>
   <tr>
     <td><b>Placa</b></td>
@@ -261,7 +268,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     <td><b>N° Póliza</b>: {{ numero_poliza or '—' }}</td>
   </tr>
 </table>
-
+ 
 <table class="maestra-clinica"><tr>
   <td style="width:30%; vertical-align:top; padding:0 2pt 0 0;">
     <table class="grid">
@@ -386,7 +393,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   </td>
 </tr>
 </table>
-
+ 
 <table class="grid">
   <tr><td class="barra">Descripción de la atención</td></tr>
   <tr><td>
@@ -397,14 +404,14 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   </td></tr>
   <tr><td style="min-height:60pt;">{{ descripcion or '—' }}</td></tr>
 </table>
-
+ 
 <table class="columnas"><tr>
   <td style="width:55%; padding-right:4pt; vertical-align:top;">
     <table class="tripulacion">
       <tr><td class="tripulacion-etq">Conductor</td><td class="tripulacion-val">{{ conductor_nombre }}</td></tr>
       <tr><td class="tripulacion-etq">C.C.</td><td class="tripulacion-val">{{ conductor_cedula }}</td></tr>
       <tr><td class="tripulacion-etq">Auxiliar</td><td class="tripulacion-val">{{ atendido_por or '' }}</td></tr>
-      <tr><td class="tripulacion-etq">C.C.</td><td class="tripulacion-val">{{ atendido_por_cedula or '' }}</td></tr>
+      <tr><td class="tripulacion-etq">C.C.</td><td class="tripulacion-val">{{ atendido_por_cedula if atendido_por else '' }}</td></tr>
       <tr><td class="tripulacion-etq">Placa móvil</td><td class="tripulacion-val">{{ placa }}</td></tr>
     </table>
   </td>
@@ -419,12 +426,12 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     <div class="firma-dato"><b>CEDULA:</b> {{ profesional_recibe_cedula or '' }}</div>
   </td>
 </tr></table>
-
+ 
 </div>
-
+ 
 <div class="pagina">
 {{ membrete() }}
-
+ 
 <table class="columnas"><tr>
   <td style="width:62%; padding-right:2pt; vertical-align:top;">
     <table class="grid">
@@ -447,7 +454,7 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     </table>
   </td>
 </tr></table>
-
+ 
 <table class="columnas"><tr>
   <td style="width:62%; padding-right:2pt; vertical-align:top;">
     <table class="grid">
@@ -470,28 +477,28 @@ _PLANTILLA = Environment(autoescape=True).from_string(
     </table>
   </td>
 </tr></table>
-
+ 
 <div class="tripulacion-titulo">Tripulación a cargo</div>
 <table class="tripulacion">
   <tr><td class="tripulacion-etq">Conductor</td><td class="tripulacion-val">{{ conductor_nombre }} &middot; C.C. {{ conductor_cedula }}</td></tr>
-  <tr><td class="tripulacion-etq">Auxiliar de enfermería</td><td class="tripulacion-val">{{ atendido_por or '' }}</td></tr>
+  <tr><td class="tripulacion-etq">Auxiliar de enfermería</td><td class="tripulacion-val">{{ atendido_por or '' }}{% if atendido_por and atendido_por_cedula %} &middot; C.C. {{ atendido_por_cedula }}{% endif %}</td></tr>
   <tr><td class="tripulacion-etq">Médico</td><td class="tripulacion-val">{{ evolucionado_por or '' }}</td></tr>
   <tr><td class="tripulacion-etq">Placas del vehículo</td><td class="tripulacion-val">{{ placa }} (móvil {{ movil }})</td></tr>
 </table>
-
+ 
 <p class="pie">
   Generado automáticamente por el sistema L.A.F.S. Ambulancias el {{ generado_en }}.
   {% if cerrada %}Atención cerrada el {{ cerrada_en }}.{% endif %}
 </p>
-
+ 
 </div>
-
+ 
 </body>
 </html>
 """
 )
-
-
+ 
+ 
 def generar_pdf_formato_accidente_soat(
     atencion: Atencion, formato: FormatoAccidenteSoat
 ) -> bytes:
@@ -550,14 +557,20 @@ def generar_pdf_formato_accidente_soat(
         "numero_poliza": formato.numero_poliza,
         # Tripulación -- Conductor viene de Atencion (ADR-0006), mismo
         # criterio que FormatoTraslado. "Auxiliar" reutiliza
-        # atendido_por; no hay cédula propia guardada ahí (mismo
-        # comentario que entrega_cedula en formato_traslado.py), así
-        # que se deja sin ella en vez de inventar un dato.
+        # atendido_por, que es texto libre sin cédula propia guardada
+        # (mismo comentario que entrega_cedula en formato_traslado.py)
+        # -- issue #88: el cliente sí quiere ver esa cédula en el PDF,
+        # así que se usa la de `atencion.responsable` (el auxiliar
+        # logueado que llenó el formato), asumiendo que coincide con
+        # "atendido por" -- igual que ese campo ya se autocompleta con
+        # su nombre (ver ClinicoAccidenteSoatPage.tsx). Si alguien
+        # edita el nombre a mano a otra persona, la cédula mostrada
+        # quedaría desajustada; no hay forma de saberlo desde acá.
         "movil": atencion.ambulancia.movil,
         "placa": atencion.ambulancia.placa,
         "conductor_nombre": f"{atencion.conductor.nombres} {atencion.conductor.apellidos}",
         "conductor_cedula": atencion.conductor.cedula,
-        "atendido_por_cedula": None,
+        "atendido_por_cedula": atencion.responsable.cedula,
         # Clínico
         "tratamiento": _checklist(formato.tratamiento, ETIQUETAS_TRATAMIENTO),
         "tratamiento_otro": formato.tratamiento_otro,
@@ -598,7 +611,7 @@ def generar_pdf_formato_accidente_soat(
         "evolucionado_por": formato.evolucionado_por,
         "firma_evolucionado_por": formato.firma_evolucionado_por,
     }
-
+ 
     html = _PLANTILLA.render(**contexto)
     # `write_pdf` no tiene stubs (ver override de WeasyPrint arriba), así
     # que mypy solo ve `Any` -- se anota el cast explícitamente.
