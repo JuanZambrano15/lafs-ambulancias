@@ -36,6 +36,9 @@ ENCABEZADO_VALIDO = {
     "poliza_vigente_desde": "2026-01-01",
     "poliza_vigente_hasta": "2027-01-01",
     "numero_poliza": "SOAT-0001",
+    "vehiculo_placa": "ABC123",
+    "vehiculo_tipo": "Motocicleta",
+    "vehiculo_marca": "Yamaha",
 }
  
 # PNG 1x1 válido (no un string cualquiera) para que WeasyPrint pueda
@@ -512,6 +515,77 @@ class TestVigenciaPolizaYCedulaAuxiliar:
         # dato huérfano, no como una corrección real del bug.
         capturado = self._interceptar_html(monkeypatch)
         _crear_atencion_con_encabezado(client, db, auxiliar_headers)
- 
+
         html = capturado["html"]
         assert "700000001" not in html
+
+
+class TestDatosDelVehiculo:
+    """Issue #89 -- `vehiculo_placa`/`vehiculo_tipo`/`vehiculo_marca`
+    se habían quitado por error en el #70 (ver nota de módulo en
+    `app/models/formato_accidente_soat.py`) y se vuelven a agregar; la
+    fila correspondiente del PDF, antes con labels sin valor, ahora
+    debe mostrar los tres datos reales. Mismo mecanismo de
+    interceptar el HTML que `TestVigenciaPolizaYCedulaAuxiliar`.
+    """
+
+    def _interceptar_html(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+        capturado: dict[str, str] = {}
+
+        class _HTMLFalso:
+            def __init__(self, string: str) -> None:
+                capturado["html"] = string
+
+            def write_pdf(self) -> bytes:
+                return b"%PDF-1.4 (falso, solo para la prueba)"
+
+        monkeypatch.setattr("app.pdf.formato_accidente_soat.HTML", _HTMLFalso)
+        return capturado
+
+    def test_los_datos_del_vehiculo_aparecen_en_el_pdf(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        capturado = self._interceptar_html(monkeypatch)
+        # ENCABEZADO_VALIDO ya trae placa/tipo/marca reales.
+        _crear_atencion_con_encabezado(client, db, auxiliar_headers)
+
+        html = capturado["html"]
+        assert "ABC123" in html
+        assert "Motocicleta" in html
+        assert "Yamaha" in html
+
+    def test_sin_datos_del_vehiculo_muestra_guion(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Igual que numero_poliza, estos campos pueden no conocerse
+        # todavía al recibir al paciente -- no deben quedar en blanco
+        # sin marca visual, mismo criterio que el resto del PDF.
+        capturado = self._interceptar_html(monkeypatch)
+        atencion_id = _crear_atencion(client, db, auxiliar_headers)
+        sin_vehiculo = {
+            **ENCABEZADO_VALIDO,
+            "vehiculo_placa": None,
+            "vehiculo_tipo": None,
+            "vehiculo_marca": None,
+        }
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-accidente-soat",
+            json=sin_vehiculo,
+            headers=auxiliar_headers,
+        )
+        assert respuesta.status_code == 200
+
+        html = capturado["html"]
+        assert "ABC123" not in html
+        inicio = html.index("<b>Placa</b>")
+        fin = html.index("</tr>", inicio)
+        fila_placa = html[inicio:fin]
+        assert "—" in fila_placa
