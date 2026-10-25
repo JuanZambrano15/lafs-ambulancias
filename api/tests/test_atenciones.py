@@ -570,8 +570,26 @@ def test_listar_medicos_disponibles_da_403_a_conductor(
     response = client.get(
         "/atenciones/medicos-disponibles", headers=conductor_headers
     )
- 
+
     assert response.status_code == 403
+
+
+def test_listar_medicos_disponibles_tambien_la_usa_el_administrador(
+    client: TestClient, db: Session, admin_headers: dict[str, str]
+) -> None:
+    """Issue #80 (ajuste): el administrador también la necesita, desde
+    la pantalla de corrección de un formato ya cerrado en el panel
+    web -- antes daba 403 (`require_personal_clinico` lo dejaba
+    afuera), lo que hacía que el selector de médico, al corregir, se
+    viera siempre vacío.
+    """
+    disponible = _crear_medico(db, cedula="900000004")
+
+    response = client.get("/atenciones/medicos-disponibles", headers=admin_headers)
+
+    assert response.status_code == 200
+    cedulas = [m["cedula"] for m in response.json()]
+    assert cedulas == [disponible.cedula]
  
  
 def _crear_atencion_abierta(
