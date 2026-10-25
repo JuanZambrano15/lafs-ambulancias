@@ -1,3 +1,4 @@
+
 import type { JSX } from 'react'
 import { Route, Routes } from 'react-router-dom'
  
@@ -5,6 +6,7 @@ import { AuthProvider } from './auth/AuthContext'
 import { Layout } from './components/Layout'
 import { CambiarPasswordPage } from './pages/CambiarPasswordPage'
 import { EmpleadosPage } from './pages/EmpleadosPage'
+import { FotosAccidenteSoatPage } from './pages/FotosAccidenteSoatPage'
 import { LoginPage } from './pages/LoginPage'
 import { PendientesPage } from './pages/PendientesPage'
 import { RolesPage } from './pages/RolesPage'
@@ -47,6 +49,14 @@ export function App(): JSX.Element {
             element={
               <Layout>
                 <RolesPage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/atenciones/:atencionId/fotos-accidente-soat"
+            element={
+              <Layout>
+                <FotosAccidenteSoatPage />
               </Layout>
             }
           />
