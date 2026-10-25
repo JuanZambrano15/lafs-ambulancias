@@ -529,7 +529,6 @@ _PLANTILLA = Environment(autoescape=True).from_string(
 <div class="pagina foto-pagina">
   <div class="foto-titulo">Foto {{ loop.index }} de {{ loop.length }}</div>
   <img src="{{ foto.data_uri }}" alt="Foto {{ loop.index }} del accidente">
-  <p class="foto-dato">Subida por el usuario con C.C. {{ foto.subida_por }} el {{ foto.subida_en }}.</p>
 </div>
 {% endfor %}
  
@@ -671,8 +670,6 @@ def generar_pdf_formato_accidente_soat(
                 # tiene por qué -- ver nota en app/models/usuario.py),
                 # así que se usa el documento, igual que
                 # `UsuarioResumenOut` en el resto del formato.
-                "subida_por": foto.subida_por.documento,
-                "subida_en": foto.subida_en.strftime("%d/%m/%Y %H:%M"),
             }
             for foto in (fotos or [])
         ],
