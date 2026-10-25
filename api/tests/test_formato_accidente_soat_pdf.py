@@ -5,6 +5,7 @@ pruebas que `test_formato_traslado_pdf.py`, adaptadas a este formato
 página).
 """
  
+import base64
 from datetime import date
  
 import pytest
@@ -515,11 +516,11 @@ class TestVigenciaPolizaYCedulaAuxiliar:
         # dato huérfano, no como una corrección real del bug.
         capturado = self._interceptar_html(monkeypatch)
         _crear_atencion_con_encabezado(client, db, auxiliar_headers)
-
+ 
         html = capturado["html"]
         assert "700000001" not in html
-
-
+ 
+ 
 class TestDatosDelVehiculo:
     """Issue #89 -- `vehiculo_placa`/`vehiculo_tipo`/`vehiculo_marca`
     se habían quitado por error en el #70 (ver nota de módulo en
@@ -528,20 +529,20 @@ class TestDatosDelVehiculo:
     debe mostrar los tres datos reales. Mismo mecanismo de
     interceptar el HTML que `TestVigenciaPolizaYCedulaAuxiliar`.
     """
-
+ 
     def _interceptar_html(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
         capturado: dict[str, str] = {}
-
+ 
         class _HTMLFalso:
             def __init__(self, string: str) -> None:
                 capturado["html"] = string
-
+ 
             def write_pdf(self) -> bytes:
                 return b"%PDF-1.4 (falso, solo para la prueba)"
-
+ 
         monkeypatch.setattr("app.pdf.formato_accidente_soat.HTML", _HTMLFalso)
         return capturado
-
+ 
     def test_los_datos_del_vehiculo_aparecen_en_el_pdf(
         self,
         client: TestClient,
@@ -552,12 +553,12 @@ class TestDatosDelVehiculo:
         capturado = self._interceptar_html(monkeypatch)
         # ENCABEZADO_VALIDO ya trae placa/tipo/marca reales.
         _crear_atencion_con_encabezado(client, db, auxiliar_headers)
-
+ 
         html = capturado["html"]
         assert "ABC123" in html
         assert "Motocicleta" in html
         assert "Yamaha" in html
-
+ 
     def test_sin_datos_del_vehiculo_muestra_guion(
         self,
         client: TestClient,
@@ -582,10 +583,133 @@ class TestDatosDelVehiculo:
             headers=auxiliar_headers,
         )
         assert respuesta.status_code == 200
-
+ 
         html = capturado["html"]
         assert "ABC123" not in html
         inicio = html.index("<b>Placa</b>")
         fin = html.index("</tr>", inicio)
         fila_placa = html[inicio:fin]
         assert "—" in fila_placa
+ 
+ 
+class TestFotosAlFinalDelPdf:
+    """Issue #18 -- requisito explícito del cliente: las fotos del
+    accidente, adjuntadas después del cierre, tienen que verse al
+    final del PDF, no mezcladas con el resto del formato. Mismo
+    mecanismo de interceptar el HTML que `TestDatosDelVehiculo`, en
+    vez de parsear el PDF ya generado.
+    """
+ 
+    # PNG 1x1 real -- igual que `_FIRMA_PNG`, pero como bytes crudos
+    # (lo que el endpoint de subida espera en el cuerpo multipart).
+    _FOTO_PNG_BYTES = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
+        "CAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    )
+ 
+    def _interceptar_html(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+        capturado: dict[str, str] = {}
+ 
+        class _HTMLFalso:
+            def __init__(self, string: str) -> None:
+                capturado["html"] = string
+ 
+            def write_pdf(self) -> bytes:
+                return b"%PDF-1.4 (falso, solo para la prueba)"
+ 
+        monkeypatch.setattr("app.pdf.formato_accidente_soat.HTML", _HTMLFalso)
+        return capturado
+ 
+    def _cerrar(
+        self, client: TestClient, db: Session, headers: dict[str, str], atencion_id: int
+    ) -> None:
+        client.put(
+            f"/atenciones/{atencion_id}/formato-accidente-soat/clinico",
+            json=CLINICO_VALIDO,
+            headers=headers,
+        )
+        usuario = db.query(Usuario).filter(Usuario.documento == "700000001").one()
+        usuario.pin_hash = hash_secret("1234")
+        db.commit()
+        cerrar = client.put(
+            f"/atenciones/{atencion_id}/cerrar", json={"pin": "1234"}, headers=headers
+        )
+        assert cerrar.status_code == 200
+ 
+    def test_sin_fotos_no_hay_bloque_de_fotos(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        capturado = self._interceptar_html(monkeypatch)
+        atencion_id = _crear_atencion_con_encabezado(client, db, auxiliar_headers)
+        self._cerrar(client, db, auxiliar_headers, atencion_id)
+ 
+        assert '<div class="pagina foto-pagina">' not in capturado["html"]
+ 
+    def test_las_fotos_quedan_despues_del_contenido_principal_y_en_orden(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        atencion_id = _crear_atencion_con_encabezado(client, db, auxiliar_headers)
+        self._cerrar(client, db, auxiliar_headers, atencion_id)
+ 
+        capturado = self._interceptar_html(monkeypatch)
+        subida_1 = client.post(
+            f"/atenciones/{atencion_id}/formato-accidente-soat/fotos",
+            headers=auxiliar_headers,
+            files={"archivo": ("primera.png", self._FOTO_PNG_BYTES, "image/png")},
+        )
+        assert subida_1.status_code == 201
+        subida_2 = client.post(
+            f"/atenciones/{atencion_id}/formato-accidente-soat/fotos",
+            headers=auxiliar_headers,
+            files={"archivo": ("segunda.png", self._FOTO_PNG_BYTES, "image/png")},
+        )
+        assert subida_2.status_code == 201
+ 
+        # El HTML interceptado es el de la segunda subida (la que
+        # queda guardada como el PDF actual) -- debe traer ambas
+        # fotos, no solo la última.
+        html = capturado["html"]
+        fin_contenido_principal = html.index("Generado automáticamente por el sistema")
+        indice_foto_1 = html.index("Foto 1 de 2")
+        indice_foto_2 = html.index("Foto 2 de 2")
+        fin_body = html.index("</body>")
+ 
+        # Las dos fotos van después de todo el contenido del formato...
+        assert indice_foto_1 > fin_contenido_principal
+        # ... en el orden en que se subieron...
+        assert indice_foto_1 < indice_foto_2
+        # ... y antes del cierre del documento (no hay nada más abajo).
+        assert indice_foto_2 < fin_body
+ 
+    def test_borrar_la_foto_la_quita_del_pdf(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        atencion_id = _crear_atencion_con_encabezado(client, db, auxiliar_headers)
+        self._cerrar(client, db, auxiliar_headers, atencion_id)
+        subida = client.post(
+            f"/atenciones/{atencion_id}/formato-accidente-soat/fotos",
+            headers=auxiliar_headers,
+            files={"archivo": ("foto.png", self._FOTO_PNG_BYTES, "image/png")},
+        )
+        foto_id = subida.json()["id"]
+ 
+        capturado = self._interceptar_html(monkeypatch)
+        borrar = client.delete(
+            f"/atenciones/{atencion_id}/formato-accidente-soat/fotos/{foto_id}",
+            headers=auxiliar_headers,
+        )
+        assert borrar.status_code == 204
+ 
+        assert '<div class="pagina foto-pagina">' not in capturado["html"]
