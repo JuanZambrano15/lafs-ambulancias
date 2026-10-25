@@ -1,15 +1,16 @@
+
 /**
  * Tipos que reflejan los esquemas de la API (ver `api/app/schemas/`).
  * Se mantienen a mano porque el backend es pequeño todavía — si crece
  * mucho más, vale la pena generarlos desde el OpenAPI (`/openapi.json`).
  */
-
+ 
 export interface Rol {
   id: number
   nombre: string
   descripcion: string | null
 }
-
+ 
 export interface TokenResponse {
   access_token: string
   refresh_token: string
@@ -17,12 +18,12 @@ export interface TokenResponse {
   pin_configurado: boolean
   debe_cambiar_password: boolean
 }
-
+ 
 export interface AccessTokenResponse {
   access_token: string
   token_type: string
 }
-
+ 
 export interface MeResponse {
   documento: string
   activo: boolean
@@ -42,12 +43,12 @@ export interface MeResponse {
    * firma. */
   empleado_nombre_completo: string | null
 }
-
+ 
 /** Nombres de rol tal como los siembra la migración del backend. */
 export type NombreRol = 'administrador' | 'auxiliar_enfermeria' | 'medico' | 'conductor' | 'contador'
-
+ 
 export type TipoAmbulancia = 'basica' | 'medicalizada'
-
+ 
 export interface Ambulancia {
   id: number
   movil: string
@@ -57,9 +58,9 @@ export interface Ambulancia {
   vencimiento_tecnomecanica: string
   activa: boolean
 }
-
+ 
 export type TipoVinculacion = 'planta' | 'ocasional'
-
+ 
 export interface Empleado {
   id: number
   nombres: string
@@ -69,11 +70,11 @@ export interface Empleado {
   tipo_vinculacion: TipoVinculacion
   activo: boolean
 }
-
+ 
 /** Issue #7: iniciar una atención y elegir el móvil. */
 export type TipoAtencion = 'traslado' | 'atencion_soat'
 export type EstadoAtencion = 'abierto' | 'cerrado'
-
+ 
 export interface AtencionCreate {
   tipo: TipoAtencion
   ambulancia_id: number
@@ -84,7 +85,7 @@ export interface AtencionCreate {
    * en línea sin mandarlo. */
   client_id?: string
 }
-
+ 
 export interface Atencion {
   id: number
   tipo: TipoAtencion
@@ -95,7 +96,7 @@ export interface Atencion {
   conductor: Empleado
   responsable: Empleado
 }
-
+ 
 /** Issue #8: encabezado del formato de traslado asistencial (TAP-LAFS-002). */
 export type TipoDocumentoPaciente = 'rc' | 'ti' | 'cc' | 'ce' | 'ppt'
 export type SexoPaciente = 'm' | 'f'
@@ -103,7 +104,7 @@ export type ComplejidadTraslado = 'alta' | 'baja'
 export type CategoriaPaciente = 'neonato' | 'pediatrico' | 'adulto'
 export type NivelServicioTraslado = 'basico' | 'medicalizado'
 export type ModalidadTraslado = 'sencillo' | 'redondo'
-
+ 
 export interface FormatoTrasladoEncabezado {
   paciente_tipo_documento: TipoDocumentoPaciente
   paciente_numero_documento: string
@@ -136,7 +137,7 @@ export interface FormatoTrasladoEncabezado {
   nivel_servicio: NivelServicioTraslado
   modalidad: ModalidadTraslado
 }
-
+ 
 /** Issue #9: parte clínica del formato de traslado (mismo registro
  * que el encabezado — se llena progresivamente durante el traslado,
  * por eso todo es opcional). */
@@ -155,9 +156,9 @@ export type TratamientoAplicado =
   | 'vendaje'
   | 'asepsia'
   | 'otros'
-
+ 
 export type ReflejoPupilar = 'midriatica' | 'miotica' | 'isocorica' | 'anisocorica' | 'no_reactiva'
-
+ 
 export type LesionTipo =
   | 'tce'
   | 'amputacion'
@@ -185,7 +186,7 @@ export type LesionTipo =
   | 'avulsion'
   | 'dolor'
   | 'otro'
-
+ 
 /** Issue #54: zona general del cuerpo donde está la lesión -- a
  * propósito, no es anatómicamente exacta ("brazo", no "tercio medio
  * del húmero"). No incluye lado -- eso es `LesionLado`, aparte. */
@@ -201,15 +202,15 @@ export type LesionZona =
   | 'muslo'
   | 'pierna'
   | 'pie'
-
+ 
 /** Lado del cuerpo DEL PACIENTE, no de la pantalla -- en la vista
  * frontal el paciente da la cara a quien mira, así que su lado
  * derecho queda a la izquierda de la pantalla; en la vista posterior
  * es al revés. `central` es para las zonas sin lado. */
 export type LesionLado = 'izquierdo' | 'derecho' | 'central'
-
+ 
 export type LesionVista = 'frontal' | 'posterior'
-
+ 
 /** Una lesión marcada en el diagrama corporal (issue #54): el QUÉ
  * (`tipo`) y el DÓNDE (`zona` + `lado` + `vista`). */
 export interface LesionLocalizada {
@@ -219,7 +220,7 @@ export interface LesionLocalizada {
   lado: LesionLado
   vista: LesionVista
 }
-
+ 
 export interface SignoVitalItem {
   hora: string
   ta: string | null
@@ -227,7 +228,7 @@ export interface SignoVitalItem {
   fr: number | null
   spo2: number | null
 }
-
+ 
 export interface FormatoTrasladoClinico {
   diagnostico: string | null
   tratamiento: TratamientoAplicado[]
@@ -257,12 +258,12 @@ export interface FormatoTrasladoClinico {
    * para esto; el PDF generado no coincidía con el formato real. */
   observaciones: string | null
 }
-
+ 
 export interface FormatoTraslado extends FormatoTrasladoEncabezado, FormatoTrasladoClinico {
   atencion_id: number
   glasgow_total: number | null
 }
-
+ 
 /** Issue #17: formato de atención de accidentes SOAT (AA-LAFS-005) --
  * mismo criterio que el formato de traslado de arriba (encabezado +
  * parte clínica en el mismo registro), con varias casillas que
@@ -271,7 +272,7 @@ export interface FormatoTraslado extends FormatoTrasladoEncabezado, FormatoTrasl
  * usa la empresa en los dos documentos de papel. */
 export type RolVictima = 'conductor' | 'pasajero' | 'parrillero' | 'peaton' | 'otro'
 export type TriageNivel = 'i' | 'ii' | 'iii'
-
+ 
 export interface FormatoAccidenteSoatEncabezado {
   fecha_atencion: string
   hora_atencion: string
@@ -302,7 +303,7 @@ export interface FormatoAccidenteSoatEncabezado {
   vehiculo_tipo: string | null
   vehiculo_marca: string | null
 }
-
+ 
 export interface FormatoAccidenteSoatClinico {
   tratamiento: TratamientoAplicado[]
   tratamiento_otro: string | null
@@ -328,10 +329,23 @@ export interface FormatoAccidenteSoatClinico {
   profesional_recibe_cedula: string | null
   firma_profesional_recibe: string | null
 }
-
+ 
 export interface FormatoAccidenteSoat
   extends FormatoAccidenteSoatEncabezado,
     FormatoAccidenteSoatClinico {
   atencion_id: number
   glasgow_total: number | null
+}
+ 
+/** Issue #18 -- foto del accidente, adjuntada después del cierre.
+ * `subida_por` reusa el mismo criterio que el resto del formato
+ * (documento, no nombres/apellidos: `Usuario` no siempre tiene un
+ * `Empleado` con esos datos). */
+export interface FormatoAccidenteSoatFoto {
+  id: number
+  atencion_id: number
+  content_type: string
+  tamanio_bytes: number
+  subida_por: { id: number; documento: string }
+  subida_en: string
 }

@@ -1,5 +1,7 @@
+
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
  
 import * as api from '../lib/api'
@@ -84,7 +86,11 @@ describe('PendientesPage', () => {
       atencionPendiente(1, 2),
     ])
  
-    render(<PendientesPage />)
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
  
     // Las dos filas muestran el mismo móvil/responsable en este test
     // (mismos fixtures) -- por eso `findAllByText`, y lo que distingue
@@ -95,7 +101,11 @@ describe('PendientesPage', () => {
   })
  
   it('sin pendientes, muestra el mensaje vacío', async () => {
-    render(<PendientesPage />)
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
  
     expect(await screen.findByText('No hay atenciones abiertas en este momento.')).toBeInTheDocument()
   })
@@ -103,14 +113,22 @@ describe('PendientesPage', () => {
   it('un error al cargar pendientes se muestra sin tumbar la página', async () => {
     vi.mocked(api.listarAtencionesPendientes).mockRejectedValue(new ApiError(500, 'Error raro'))
  
-    render(<PendientesPage />)
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
  
     expect(await screen.findByRole('alert')).toHaveTextContent('Error raro')
   })
  
   it('el botón Actualizar de Pendientes vuelve a pedir las pendientes', async () => {
     const usuario = userEvent.setup()
-    render(<PendientesPage />)
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
     await screen.findByText('No hay atenciones abiertas en este momento.')
  
     // Hay un "Actualizar" por sección (issue #15: un formato recién
@@ -125,7 +143,11 @@ describe('PendientesPage', () => {
  
   it('el botón Actualizar de Formatos cerrados vuelve a pedir las cerradas con la búsqueda actual', async () => {
     const usuario = userEvent.setup()
-    render(<PendientesPage />)
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
     await screen.findByText('No se encontraron formatos cerrados.')
  
     await usuario.type(
@@ -141,7 +163,11 @@ describe('PendientesPage', () => {
   it('lista los formatos cerrados con botón de descargar', async () => {
     vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([atencionCerrada()])
  
-    render(<PendientesPage />)
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
  
     expect(await screen.findByText('Pepito Pérez')).toBeInTheDocument()
     expect(screen.getByText('123456789')).toBeInTheDocument()
@@ -154,9 +180,13 @@ describe('PendientesPage', () => {
       atencionCerrada({ id: 2, nivel_servicio: 'medicalizado' }),
       atencionCerrada({ id: 3, tipo: 'atencion_soat', nivel_servicio: null }),
     ])
-
-    render(<PendientesPage />)
-
+ 
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
+ 
     // Las tres filas comparten el mismo paciente en este fixture, por
     // eso `findAllByText` en vez de `findByText`.
     expect(await screen.findAllByText('Pepito Pérez')).toHaveLength(3)
@@ -164,7 +194,7 @@ describe('PendientesPage', () => {
     expect(screen.getByText('Medicalizado')).toBeInTheDocument()
     expect(screen.getByText('SOAT')).toBeInTheDocument()
   })
-
+ 
   it('issue #80 (adelanto): un accidente SOAT sin identificar muestra "NN" en vez del nombre', async () => {
     vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([
       atencionCerrada({
@@ -175,34 +205,74 @@ describe('PendientesPage', () => {
         paciente_numero_documento: null,
       }),
     ])
-
-    render(<PendientesPage />)
-
+ 
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
+ 
     expect(await screen.findByText('NN (sin identificar)')).toBeInTheDocument()
   })
-
+ 
   it('issue #80 (adelanto): al descargar un accidente SOAT, llama a descargarPdfFormatoAccidenteSoat', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([
       atencionCerrada({ id: 42, tipo: 'atencion_soat', nivel_servicio: null }),
     ])
     vi.mocked(api.descargarPdfFormatoAccidenteSoat).mockResolvedValue(undefined)
-
-    render(<PendientesPage />)
+ 
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
     await screen.findByText('Pepito Pérez')
-
+ 
     await usuario.click(screen.getByRole('button', { name: 'Descargar PDF' }))
-
+ 
     await waitFor(() => expect(api.descargarPdfFormatoAccidenteSoat).toHaveBeenCalledWith(42))
     expect(api.descargarPdfFormatoTraslado).not.toHaveBeenCalled()
   })
-
+ 
+  it('issue #18: un accidente SOAT cerrado tiene enlace a "Fotos"', async () => {
+    vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([
+      atencionCerrada({ id: 42, tipo: 'atencion_soat', nivel_servicio: null }),
+    ])
+ 
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
+ 
+    const enlace = await screen.findByRole('link', { name: 'Fotos' })
+    expect(enlace).toHaveAttribute('href', '/atenciones/42/fotos-accidente-soat')
+  })
+ 
+  it('issue #18: un traslado cerrado no tiene enlace a "Fotos"', async () => {
+    vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([atencionCerrada({ id: 7 })])
+ 
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
+ 
+    await screen.findByText('Pepito Pérez')
+    expect(screen.queryByRole('link', { name: 'Fotos' })).not.toBeInTheDocument()
+  })
+ 
   it('un formato cerrado sin PDF muestra "Sin PDF" en vez del botón', async () => {
     vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([
       atencionCerrada({ tiene_pdf: false }),
     ])
  
-    render(<PendientesPage />)
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
  
     await screen.findByText('Pepito Pérez')
     expect(screen.queryByRole('button', { name: 'Descargar PDF' })).not.toBeInTheDocument()
@@ -214,7 +284,11 @@ describe('PendientesPage', () => {
     vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([atencionCerrada({ id: 42 })])
     vi.mocked(api.descargarPdfFormatoTraslado).mockResolvedValue(undefined)
  
-    render(<PendientesPage />)
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
     await screen.findByText('Pepito Pérez')
  
     await usuario.click(screen.getByRole('button', { name: 'Descargar PDF' }))
@@ -229,7 +303,11 @@ describe('PendientesPage', () => {
       new ApiError(404, 'Esta atención todavía no tiene un PDF generado'),
     )
  
-    render(<PendientesPage />)
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
     await screen.findByText('Pepito Pérez')
     await usuario.click(screen.getByRole('button', { name: 'Descargar PDF' }))
  
@@ -240,7 +318,11 @@ describe('PendientesPage', () => {
  
   it('buscar llama a listarAtencionesCerradas con el texto escrito', async () => {
     const usuario = userEvent.setup()
-    render(<PendientesPage />)
+    render(
+      <MemoryRouter>
+        <PendientesPage />
+      </MemoryRouter>,
+    )
     await screen.findByText('No se encontraron formatos cerrados.')
  
     await usuario.type(

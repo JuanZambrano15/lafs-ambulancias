@@ -1,3 +1,4 @@
+
 /**
  * Pantalla principal: muestra solo las secciones que le corresponden
  * al rol (o roles) del usuario logueado. Las secciones todavía no
@@ -14,6 +15,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import {
   listarAtencionesEnCurso,
+  listarMisAtencionesCerradas,
   obtenerEncabezadoAccidenteSoat,
   obtenerEncabezadoTraslado,
 } from '../lib/api'
@@ -93,6 +95,11 @@ export function HomePage(): JSX.Element {
   const { perfil, roles, cerrarSesion } = useAuth()
   const [atencionesEnCurso, setAtencionesEnCurso] = useState<Atencion[]>([])
   const [rutasContinuar, setRutasContinuar] = useState<Map<number, string | null>>(new Map())
+  // Issue #18 -- de dónde sale el auxiliar/médico para llegar a la
+  // pantalla de fotos de una atención de accidente SOAT que ya cerró
+  // (antes de esto no había ninguna forma de ver, desde el celular,
+  // una atención que ya no está "en curso").
+  const [atencionesCerradas, setAtencionesCerradas] = useState<Atencion[]>([])
  
   useEffect(() => {
     if (!puedeTenerAtencionesEnCurso(roles)) return
@@ -111,6 +118,12 @@ export function HomePage(): JSX.Element {
       .catch(() => {
         // Si falla, Home sigue funcionando igual -- no es más grave
         // que no ver el aviso de "servicio en curso" esta vez.
+      })
+    listarMisAtencionesCerradas()
+      .then(setAtencionesCerradas)
+      .catch(() => {
+        // Mismo criterio que arriba -- esta sección es un acceso
+        // rápido, no algo sin lo cual Home deje de servir.
       })
   }, [roles])
  
@@ -182,6 +195,32 @@ export function HomePage(): JSX.Element {
               )
             })}
           </ul>
+        )}
+        {/* Issue #18 -- solo las de accidente SOAT llevan a algo (la
+            pantalla de fotos); una cerrada de traslado no tiene nada
+            que hacer acá todavía, así que no se le muestra fila. */}
+        {atencionesCerradas.filter((atencion) => atencion.tipo === 'atencion_soat').length >
+          0 && (
+          <div className="mb-6 rounded-xl bg-white p-4 shadow-sm">
+            <h2 className="mb-3 font-medium text-slate-900">Atenciones cerradas recientes</h2>
+            <ul className="flex flex-col gap-2">
+              {atencionesCerradas
+                .filter((atencion) => atencion.tipo === 'atencion_soat')
+                .map((atencion) => (
+                  <li key={atencion.id} className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-slate-600">
+                      Móvil {atencion.ambulancia.movil} · Atención SOAT
+                    </span>
+                    <Link
+                      to={`/atenciones/${atencion.id}/fotos-accidente-soat`}
+                      className="shrink-0 text-sm font-medium text-brand-blue"
+                    >
+                      Ver fotos
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+          </div>
         )}
         {sinDuplicados.length === 0 ? (
           <p className="text-slate-500">Tu usuario no tiene secciones asignadas todavía.</p>

@@ -1,15 +1,16 @@
+
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
+ 
 import * as api from '../lib/api'
 import { AuthProvider } from '../auth/AuthContext'
 import type { Atencion, FormatoAccidenteSoat, FormatoTraslado, MeResponse } from '../lib/types'
 import { HomePage } from './HomePage'
-
+ 
 vi.mock('../lib/api', () => import('../test/mockApi').then((m) => m.construirMockApi()))
 vi.mock('../lib/storage')
-
+ 
 function perfilCon(
   roles: MeResponse['roles'],
   tipoVinculacion: MeResponse['empleado_tipo_vinculacion'] = null,
@@ -26,7 +27,7 @@ function perfilCon(
     empleado_nombre_completo: null,
   }
 }
-
+ 
 const ATENCION_EN_CURSO: Atencion = {
   id: 7,
   tipo: 'traslado',
@@ -61,7 +62,7 @@ const ATENCION_EN_CURSO: Atencion = {
     activo: true,
   },
 }
-
+ 
 const ENCABEZADO_YA_GUARDADO: FormatoTraslado = {
   atencion_id: 7,
   paciente_tipo_documento: 'cc',
@@ -114,13 +115,30 @@ const ENCABEZADO_YA_GUARDADO: FormatoTraslado = {
   firma_profesional_recibe: null,
   glasgow_total: null,
 }
-
+ 
 const ATENCION_SOAT_EN_CURSO: Atencion = {
   ...ATENCION_EN_CURSO,
   id: 9,
   tipo: 'atencion_soat',
 }
-
+ 
+// Issue #18 -- para la sección "Atenciones cerradas recientes".
+const ATENCION_SOAT_CERRADA: Atencion = {
+  ...ATENCION_EN_CURSO,
+  id: 11,
+  tipo: 'atencion_soat',
+  estado: 'cerrado',
+  cerrada_en: '2027-01-01T10:00:00+00:00',
+}
+ 
+const ATENCION_TRASLADO_CERRADA: Atencion = {
+  ...ATENCION_EN_CURSO,
+  id: 12,
+  tipo: 'traslado',
+  estado: 'cerrado',
+  cerrada_en: '2027-01-01T10:00:00+00:00',
+}
+ 
 const ENCABEZADO_SOAT_YA_GUARDADO: FormatoAccidenteSoat = {
   atencion_id: 9,
   fecha_atencion: '2027-01-01',
@@ -166,7 +184,7 @@ const ENCABEZADO_SOAT_YA_GUARDADO: FormatoAccidenteSoat = {
   firma_profesional_recibe: null,
   glasgow_total: null,
 }
-
+ 
 function renderHome(): void {
   render(
     <MemoryRouter>
@@ -176,25 +194,25 @@ function renderHome(): void {
     </MemoryRouter>,
   )
 }
-
+ 
 beforeEach(() => {
   vi.clearAllMocks()
 })
-
+ 
 describe('HomePage', () => {
   it('muestra solo las secciones del rol conductor', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'conductor', descripcion: null }]),
     )
-
+ 
     renderHome()
-
+ 
     await waitFor(() => expect(screen.getByText('Chequeo de ambulancia')).toBeInTheDocument())
     expect(screen.getByText('Iniciar atención')).toBeInTheDocument()
     expect(screen.queryByText('Usuarios y roles')).not.toBeInTheDocument()
     expect(screen.queryByText('Atención SOAT')).not.toBeInTheDocument()
   })
-
+ 
   it('muestra las secciones combinadas cuando el usuario tiene varios roles', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([
@@ -202,9 +220,9 @@ describe('HomePage', () => {
         { id: 2, nombre: 'conductor', descripcion: null },
       ]),
     )
-
+ 
     renderHome()
-
+ 
     await waitFor(() => expect(screen.getByText('Atención SOAT')).toBeInTheDocument())
     // "Formato de traslado" la comparten medico y auxiliar — no debe duplicarse.
     expect(screen.getAllByText('Formato de traslado')).toHaveLength(1)
@@ -212,63 +230,63 @@ describe('HomePage', () => {
     expect(screen.getAllByText('Iniciar atención')).toHaveLength(1)
     expect(screen.getByText('Chequeo de ambulancia')).toBeInTheDocument()
   })
-
+ 
   it('el enlace de "Iniciar atención" apunta a /atenciones/nueva', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
     )
-
+ 
     renderHome()
-
+ 
     const enlace = await screen.findByRole('link', { name: 'Empezar' })
     expect(enlace).toHaveAttribute('href', '/atenciones/nueva')
   })
-
+ 
   it('avisa cuando el usuario no tiene secciones asignadas', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(perfilCon([]))
-
+ 
     renderHome()
-
+ 
     expect(
       await screen.findByText('Tu usuario no tiene secciones asignadas todavía.'),
     ).toBeInTheDocument()
   })
-
+ 
   it('muestra "Mi firma" solo si el empleado es de planta (issue #11)', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }], 'planta'),
     )
-
+ 
     renderHome()
-
+ 
     expect(await screen.findByText('Mi firma')).toBeInTheDocument()
   })
-
+ 
   it('no muestra "Mi firma" para personal ocasional', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }], 'ocasional'),
     )
-
+ 
     renderHome()
-
+ 
     await screen.findByText('Formato de traslado')
     expect(screen.queryByText('Mi firma')).not.toBeInTheDocument()
   })
-
+ 
   it('enlaza al encabezado si todavía no se ha guardado ninguno (issue #51)', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
     )
     vi.mocked(api.listarAtencionesEnCurso).mockResolvedValue([ATENCION_EN_CURSO])
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(null)
-
+ 
     renderHome()
-
+ 
     expect(await screen.findByText(/Servicio en curso — móvil M-03/)).toBeInTheDocument()
     const enlace = screen.getByRole('link', { name: 'Continuar' })
     expect(enlace).toHaveAttribute('href', '/atenciones/7/encabezado-traslado')
   })
-
+ 
   it('enlaza directo al clínico si el encabezado ya se guardó (issue #51)', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
@@ -277,50 +295,74 @@ describe('HomePage', () => {
     // No importa el contenido exacto -- solo que ya exista un formato
     // guardado es lo que indica que el encabezado ya se llenó.
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(ENCABEZADO_YA_GUARDADO)
-
+ 
     renderHome()
-
+ 
     expect(await screen.findByText(/Servicio en curso — móvil M-03/)).toBeInTheDocument()
     const enlace = screen.getByRole('link', { name: 'Continuar' })
     expect(enlace).toHaveAttribute('href', '/atenciones/7/clinico-traslado')
   })
-
+ 
   it('enlaza al encabezado SOAT si todavía no se ha guardado ninguno (issue #70)', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
     )
     vi.mocked(api.listarAtencionesEnCurso).mockResolvedValue([ATENCION_SOAT_EN_CURSO])
     vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(null)
-
+ 
     renderHome()
-
+ 
     expect(await screen.findByText(/Servicio en curso — móvil M-03/)).toBeInTheDocument()
     const enlace = screen.getByRole('link', { name: 'Continuar' })
     expect(enlace).toHaveAttribute('href', '/atenciones/9/encabezado-accidente-soat')
   })
-
+ 
   it('enlaza directo al clínico SOAT si el encabezado ya se guardó (issue #70)', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
     )
     vi.mocked(api.listarAtencionesEnCurso).mockResolvedValue([ATENCION_SOAT_EN_CURSO])
     vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(ENCABEZADO_SOAT_YA_GUARDADO)
-
+ 
     renderHome()
-
+ 
     expect(await screen.findByText(/Servicio en curso — móvil M-03/)).toBeInTheDocument()
     const enlace = screen.getByRole('link', { name: 'Continuar' })
     expect(enlace).toHaveAttribute('href', '/atenciones/9/clinico-accidente-soat')
   })
-
+ 
   it('no pregunta por servicios en curso si el rol no puede ser responsable', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'conductor', descripcion: null }]),
     )
-
+ 
     renderHome()
-
+ 
     await screen.findByText('Chequeo de ambulancia')
     expect(api.listarAtencionesEnCurso).not.toHaveBeenCalled()
+  })
+ 
+  it('muestra un enlace a fotos por cada atención SOAT ya cerrada (issue #18)', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+    )
+    vi.mocked(api.listarMisAtencionesCerradas).mockResolvedValue([ATENCION_SOAT_CERRADA])
+ 
+    renderHome()
+ 
+    const enlace = await screen.findByRole('link', { name: 'Ver fotos' })
+    expect(enlace).toHaveAttribute('href', '/atenciones/11/fotos-accidente-soat')
+  })
+ 
+  it('no muestra enlace de fotos para una atención de traslado cerrada (issue #18)', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+    )
+    vi.mocked(api.listarMisAtencionesCerradas).mockResolvedValue([ATENCION_TRASLADO_CERRADA])
+ 
+    renderHome()
+ 
+    await screen.findByText('Formato de traslado')
+    expect(screen.queryByText('Atenciones cerradas recientes')).not.toBeInTheDocument()
   })
 })

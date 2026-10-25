@@ -1,3 +1,4 @@
+
 /**
  * Tipos que reflejan los esquemas de la API (ver `api/app/schemas/`).
  * Se mantienen a mano porque el backend es pequeño todavía — si crece
@@ -158,4 +159,17 @@ export interface AtencionCerrada {
   paciente_apellidos: string | null
   paciente_numero_documento: string | null
   tiene_pdf: boolean
+}
+ 
+/** Issue #18 -- foto del accidente, adjuntada después del cierre.
+ * `subida_por` reusa el mismo criterio que el resto del formato
+ * (documento, no nombres/apellidos: `Usuario` no siempre tiene un
+ * `Empleado` con esos datos). */
+export interface FormatoAccidenteSoatFoto {
+  id: number
+  atencion_id: number
+  content_type: string
+  tamanio_bytes: number
+  subida_por: { id: number; documento: string }
+  subida_en: string
 }

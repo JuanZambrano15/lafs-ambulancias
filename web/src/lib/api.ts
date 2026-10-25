@@ -1,3 +1,4 @@
+
 /**
  * Cliente HTTP para la API de LAFS Ambulancias.
  *
@@ -19,6 +20,7 @@ import type {
   Empleado,
   EmpleadoCreate,
   EmpleadoUpdate,
+  FormatoAccidenteSoatFoto,
   MeResponse,
   Rol,
   RolCreate,
@@ -160,6 +162,42 @@ async function apiFetchBlob(path: string): Promise<Blob> {
   return await response.blob()
 }
  
+/**
+ * Igual que `apiFetch`, pero para subir un archivo (`multipart/form-data`,
+ * issue #18) -- no se puede reusar `apiFetch` porque ese siempre manda
+ * `Content-Type: application/json` y serializa el cuerpo con
+ * `JSON.stringify`; acá el cuerpo es un `FormData` y el browser debe
+ * poner su propio `Content-Type` (con el `boundary` del multipart).
+ */
+async function apiFetchFormData<T>(path: string, formData: FormData): Promise<T> {
+  const headers: Record<string, string> = {}
+  const { accessToken } = leerTokens()
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+ 
+  const hacerPeticion = async (): Promise<Response> =>
+    fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData })
+ 
+  let response = await hacerPeticion()
+ 
+  if (response.status === 401) {
+    try {
+      refreshEnCurso ??= refrescarAccessToken().finally(() => {
+        refreshEnCurso = null
+      })
+      const nuevoAccessToken = await refreshEnCurso
+      headers.Authorization = `Bearer ${nuevoAccessToken}`
+      response = await hacerPeticion()
+    } catch {
+      await leerError(response)
+    }
+  }
+ 
+  if (!response.ok) {
+    await leerError(response)
+  }
+  return (await response.json()) as T
+}
+ 
 export async function login(documento: string, password: string): Promise<TokenResponse> {
   return apiFetch<TokenResponse>('/auth/login', {
     method: 'POST',
@@ -271,7 +309,7 @@ export async function descargarPdfFormatoTraslado(atencionId: number): Promise<v
   // necesita para mostrar el PDF. El navegador la libera solo al
   // cerrar esa pestaña/documento.
 }
-
+ 
 /** Igual que `descargarPdfFormatoTraslado`, para el formato de
  * accidente SOAT (issue #71 en el backend; issue #80 adelanto acá --
  * el panel listaba estas atenciones pero no tenía de dónde bajar su
@@ -280,4 +318,49 @@ export async function descargarPdfFormatoAccidenteSoat(atencionId: number): Prom
   const blob = await apiFetchBlob(`/atenciones/${atencionId}/formato-accidente-soat/pdf`)
   const url = URL.createObjectURL(blob)
   window.open(url, '_blank')
+}
+ 
+// --- Fotos del accidente SOAT, adjuntadas después del cierre (issue #18) ---
+// A diferencia de `app/` (que solo las sube el auxiliar/médico que
+// atendió), el panel también puede subir -- decisión explícita del
+// cliente para este issue, no el criterio por defecto.
+ 
+export async function listarFotosAccidenteSoat(
+  atencionId: number,
+): Promise<FormatoAccidenteSoatFoto[]> {
+  return apiFetch<FormatoAccidenteSoatFoto[]>(
+    `/atenciones/${atencionId}/formato-accidente-soat/fotos`,
+  )
+}
+ 
+/** El nombre del archivo (`nombreArchivo`) no se guarda en ningún
+ * lado -- el backend solo necesita el contenido y el `Content-Type`
+ * -- pero `FormData` lo exige para armar la parte del multipart. */
+export async function subirFotoAccidenteSoat(
+  atencionId: number,
+  archivo: Blob,
+  nombreArchivo: string,
+): Promise<FormatoAccidenteSoatFoto> {
+  const formData = new FormData()
+  formData.append('archivo', archivo, nombreArchivo)
+  return apiFetchFormData<FormatoAccidenteSoatFoto>(
+    `/atenciones/${atencionId}/formato-accidente-soat/fotos`,
+    formData,
+  )
+}
+ 
+export async function descargarFotoAccidenteSoat(
+  atencionId: number,
+  fotoId: number,
+): Promise<Blob> {
+  return apiFetchBlob(`/atenciones/${atencionId}/formato-accidente-soat/fotos/${fotoId}`)
+}
+ 
+export async function eliminarFotoAccidenteSoat(
+  atencionId: number,
+  fotoId: number,
+): Promise<void> {
+  await apiFetch<void>(`/atenciones/${atencionId}/formato-accidente-soat/fotos/${fotoId}`, {
+    method: 'DELETE',
+  })
 }

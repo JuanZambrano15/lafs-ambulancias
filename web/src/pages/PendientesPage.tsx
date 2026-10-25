@@ -1,3 +1,4 @@
+
 /**
  * Pantalla de inicio del panel (issue #15): atenciones de traslado
  * todavía abiertas ("la parte 1 sin cerrar" del issue, que en el
@@ -13,6 +14,7 @@
  
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
+import { Link } from 'react-router-dom'
  
 import {
   ApiError,
@@ -22,7 +24,7 @@ import {
   listarAtencionesPendientes,
 } from '../lib/api'
 import type { Atencion, AtencionCerrada } from '../lib/types'
-
+ 
 /** Issue #80 (adelanto): etiqueta de tipo de servicio para la columna
  * nueva de "Formatos cerrados" -- un accidente SOAT no tiene
  * `nivel_servicio` (es siempre "SOAT"); un traslado sí, y usa las
@@ -274,18 +276,30 @@ export function PendientesPage(): JSX.Element {
                     {atencion.cerrada_en ? formatearFecha(atencion.cerrada_en) : '—'}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    {atencion.tiene_pdf ? (
-                      <button
-                        type="button"
-                        disabled={descargandoId === atencion.id}
-                        onClick={() => void manejarDescargar(atencion)}
-                        className="text-brand-blue hover:underline disabled:text-slate-400"
-                      >
-                        {descargandoId === atencion.id ? 'Descargando…' : 'Descargar PDF'}
-                      </button>
-                    ) : (
-                      <span className="text-slate-400">Sin PDF</span>
-                    )}
+                    <div className="flex items-center justify-end gap-3">
+                      {/* Issue #18 -- solo un accidente SOAT puede
+                          tener fotos adjuntas; un traslado no. */}
+                      {atencion.tipo === 'atencion_soat' && (
+                        <Link
+                          to={`/atenciones/${atencion.id}/fotos-accidente-soat`}
+                          className="text-brand-blue hover:underline"
+                        >
+                          Fotos
+                        </Link>
+                      )}
+                      {atencion.tiene_pdf ? (
+                        <button
+                          type="button"
+                          disabled={descargandoId === atencion.id}
+                          onClick={() => void manejarDescargar(atencion)}
+                          className="text-brand-blue hover:underline disabled:text-slate-400"
+                        >
+                          {descargandoId === atencion.id ? 'Descargando…' : 'Descargar PDF'}
+                        </button>
+                      ) : (
+                        <span className="text-slate-400">Sin PDF</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

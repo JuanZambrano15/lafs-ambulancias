@@ -1,21 +1,33 @@
-"""Iniciar una atención: elegir móvil, tipo y conductor (issue #7).
 
+"""Iniciar una atención: elegir móvil, tipo y conductor (issue #7).
+ 
 Solo el personal operativo (auxiliar de enfermería, médico, conductor)
 puede iniciar una atención — ver `require_personal_operativo` en
 `app/api/deps.py` y ADR-0005 para el porqué de cada decisión.
-
+ 
 El responsable (quien llena el formato) es siempre quien está logueado,
 nunca un dato que mande el cliente: sale de `usuario.empleado_id`.
 """
-
+ 
 from __future__ import annotations
-
+ 
+import io
 from datetime import UTC, datetime
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+ 
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
+from PIL import Image
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
-
+ 
 from app.api.deps import (
     CurrentUser,
     DbSession,
@@ -29,6 +41,7 @@ from app.models.ambulancia import Ambulancia
 from app.models.atencion import Atencion, EstadoAtencion, TipoAtencion
 from app.models.empleado import Empleado
 from app.models.formato_accidente_soat import FormatoAccidenteSoat
+from app.models.formato_accidente_soat_foto import FormatoAccidenteSoatFoto
 from app.models.formato_accidente_soat_version import FormatoAccidenteSoatVersion
 from app.models.formato_traslado import FormatoTraslado, NivelServicioTraslado
 from app.models.formato_version import FormatoVersion
@@ -46,6 +59,7 @@ from app.schemas.formato_accidente_soat import (
     FormatoAccidenteSoatEncabezado,
     FormatoAccidenteSoatOut,
 )
+from app.schemas.formato_accidente_soat_foto import FormatoAccidenteSoatFotoOut
 from app.schemas.formato_accidente_soat_version import FormatoAccidenteSoatVersionOut
 from app.schemas.formato_traslado import (
     FormatoTrasladoClinico,
@@ -53,13 +67,13 @@ from app.schemas.formato_traslado import (
     FormatoTrasladoOut,
 )
 from app.schemas.formato_version import FormatoVersionOut
-
+ 
 router = APIRouter(
     prefix="/atenciones",
     tags=["atenciones"],
 )
-
-
+ 
+ 
 def _empleado_del_usuario(usuario: Usuario, db: DbSession) -> Empleado:
     """El responsable de la atención es el empleado ligado al usuario
     logueado — no todo usuario tiene uno (ver ADR-0003), así que hay
@@ -77,22 +91,22 @@ def _empleado_del_usuario(usuario: Usuario, db: DbSession) -> Empleado:
             detail="El empleado ligado a tu usuario no está activo",
         )
     return empleado
-
-
+ 
+ 
 def _ambulancias_con_atencion_abierta(db: DbSession) -> set[int]:
     filas = db.execute(
         select(Atencion.ambulancia_id).where(Atencion.estado == EstadoAtencion.abierto)
     )
     return {fila[0] for fila in filas}
-
-
+ 
+ 
 def _conductores_con_atencion_abierta(db: DbSession) -> set[int]:
     filas = db.execute(
         select(Atencion.conductor_id).where(Atencion.estado == EstadoAtencion.abierto)
     )
     return {fila[0] for fila in filas}
-
-
+ 
+ 
 @router.get(
     "/ambulancias-disponibles",
     response_model=list[AmbulanciaOut],
@@ -108,8 +122,8 @@ def listar_ambulancias_disponibles(db: DbSession) -> list[Ambulancia]:
     if ocupadas:
         query = query.filter(Ambulancia.id.notin_(ocupadas))
     return list(query.order_by(Ambulancia.movil).all())
-
-
+ 
+ 
 @router.get(
     "/conductores-disponibles",
     response_model=list[EmpleadoOut],
@@ -118,7 +132,7 @@ def listar_ambulancias_disponibles(db: DbSession) -> list[Ambulancia]:
 def listar_conductores_disponibles(usuario: CurrentUser, db: DbSession) -> list[Empleado]:
     """Empleados activos cuyo usuario tiene el rol "conductor", y que
     no están ya manejando otra atención abierta.
-
+ 
     Issue #62: tampoco se ofrece a quien está logueado, aunque tenga
     el rol de conductor además del suyo (roles mixtos) — quien inicia
     la atención es el responsable, y el responsable no puede ser
@@ -143,8 +157,8 @@ def listar_conductores_disponibles(usuario: CurrentUser, db: DbSession) -> list[
     if usuario.empleado_id is not None:
         query = query.filter(Empleado.id != usuario.empleado_id)
     return list(query.order_by(Empleado.apellidos, Empleado.nombres).all())
-
-
+ 
+ 
 @router.get(
     "/medicos-disponibles",
     response_model=list[EmpleadoOut],
@@ -155,7 +169,7 @@ def listar_medicos_disponibles(db: DbSession) -> list[Empleado]:
     quien diligencia lo clínico de un traslado medicalizado (issue
     #63) pueda elegir, de una lista, al médico que va en la ambulancia
     cuando quien está logueado es el auxiliar y no el médico.
-
+ 
     A diferencia de `listar_conductores_disponibles`, aquí no aplica
     el concepto de "ocupado" (eso es propio de un conductor por
     ambulancia) ni el de autoexclusión del usuario logueado (issue
@@ -177,8 +191,8 @@ def listar_medicos_disponibles(db: DbSession) -> list[Empleado]:
         )
     )
     return list(query.order_by(Empleado.apellidos, Empleado.nombres).all())
-
-
+ 
+ 
 @router.get(
     "/en-curso",
     response_model=list[AtencionOut],
@@ -187,7 +201,7 @@ def listar_medicos_disponibles(db: DbSession) -> list[Empleado]:
 def listar_atenciones_en_curso(usuario: CurrentUser, db: DbSession) -> list[Atencion]:
     """Atenciones abiertas donde el usuario logueado es el responsable
     (issue #51).
-
+ 
     Sin esto, salir de la pantalla del formato clínico sin cerrar la
     atención (se va la señal, se cierra el navegador, se le olvida)
     la deja sin ninguna forma de retomarla desde la navegación normal
@@ -217,8 +231,50 @@ def listar_atenciones_en_curso(usuario: CurrentUser, db: DbSession) -> list[Aten
         .all()
     )
     return list(atenciones)
-
-
+ 
+ 
+@router.get(
+    "/mis-cerradas",
+    response_model=list[AtencionOut],
+    dependencies=[Depends(require_personal_clinico)],
+)
+def listar_mis_atenciones_cerradas(usuario: CurrentUser, db: DbSession) -> list[Atencion]:
+    """Atenciones ya cerradas donde el usuario logueado es el
+    responsable, las más recientes primero (issue #18).
+ 
+    Sin esto, el auxiliar/médico no tiene desde dónde llegar a la
+    pantalla de fotos (issue #18 solo se puede subir fotos a una
+    atención ya cerrada, ver `_puede_gestionar_fotos_soat`) -- a
+    diferencia de `GET /atenciones/cerradas` (issue #15), que es solo
+    para el administrador y no filtra por responsable. `limit` fijo
+    en 20: es solo para navegar a "la que acabo de cerrar" o alguna
+    de los últimos días, no un historial completo (para eso está el
+    panel web).
+    """
+    if usuario.empleado_id is None:
+        return []
+    atenciones = (
+        db.execute(
+            select(Atencion)
+            .options(
+                joinedload(Atencion.ambulancia),
+                joinedload(Atencion.conductor),
+                joinedload(Atencion.responsable),
+            )
+            .where(
+                Atencion.estado == EstadoAtencion.cerrado,
+                Atencion.responsable_id == usuario.empleado_id,
+            )
+            .order_by(Atencion.cerrada_en.desc())
+            .limit(20)
+        )
+        .unique()
+        .scalars()
+        .all()
+    )
+    return list(atenciones)
+ 
+ 
 @router.get(
     "/pendientes",
     response_model=list[AtencionOut],
@@ -234,7 +290,7 @@ def listar_atenciones_pendientes(db: DbSession) -> list[Atencion]:
     básica del issue ("lleva mucho tiempo abierta") se calcula en el
     panel a partir de `abierta_en`, no acá, así que conviene que las
     más urgentes queden primero.
-
+ 
     Solo atenciones de traslado: el formato de accidentes SOAT (issue
     #17) ya existe, pero este panel todavía no se extendió para
     mostrarlo -- queda para cuando se amplíe el panel admin a SOAT.
@@ -258,8 +314,8 @@ def listar_atenciones_pendientes(db: DbSession) -> list[Atencion]:
         .all()
     )
     return list(atenciones)
-
-
+ 
+ 
 @router.get(
     "/cerradas",
     response_model=list[AtencionCerradaOut],
@@ -277,21 +333,21 @@ def listar_atenciones_cerradas(
     forma de listarlas: `GET /atenciones/{id}/formato-traslado` (o el
     equivalente de SOAT) sirve para consultar una ya sabiendo su id,
     no para buscarla.
-
+ 
     `q` busca coincidencia parcial, sin distinguir mayúsculas, en
     nombres, apellidos o número de documento del paciente. Sin `q`,
     simplemente trae las más recientes. `limit` (30 por defecto, tope
     100) evita traer de una vez un historial que solo va a crecer --
     no hay paginación todavía, solo "las más recientes que
     coincidan".
-
+ 
     Son dos tablas de formato distintas (`FormatoTraslado` y
     `FormatoAccidenteSoat`), sin una columna en común para unirlas en
     una sola consulta SQL, así que se traen por separado (cada una ya
     acotada a `limit`), se juntan y se ordenan en Python antes de
     cortar al `limit` final -- aceptable mientras no haya paginación
     real (issue #80).
-
+ 
     Solo trae atenciones que ya tienen su formato (join, no left
     join): sin encabezado no hay datos de paciente que mostrar ni PDF
     que descargar, así que no hay nada útil que listar ahí.
@@ -382,14 +438,14 @@ def listar_atenciones_cerradas(
     ]
     resultado.sort(key=lambda fila: fila.cerrada_en or fila.abierta_en, reverse=True)
     return resultado[:limit]
-
-
+ 
+ 
 def _atencion_por_client_id(client_id: str, db: DbSession) -> Atencion | None:
     return db.execute(
         select(Atencion).where(Atencion.client_id == client_id)
     ).scalar_one_or_none()
-
-
+ 
+ 
 @router.post(
     "",
     response_model=AtencionOut,
@@ -409,9 +465,9 @@ def crear_atencion(
         if existente is not None:
             response.status_code = status.HTTP_200_OK
             return existente
-
+ 
     responsable = _empleado_del_usuario(usuario, db)
-
+ 
     ambulancia = db.get(Ambulancia, datos.ambulancia_id)
     if ambulancia is None:
         raise HTTPException(
@@ -426,7 +482,7 @@ def crear_atencion(
             status_code=status.HTTP_409_CONFLICT,
             detail="Esa ambulancia ya tiene una atención abierta",
         )
-
+ 
     conductor = db.get(Empleado, datos.conductor_id)
     if conductor is None:
         raise HTTPException(
@@ -453,7 +509,7 @@ def crear_atencion(
             status_code=status.HTTP_409_CONFLICT,
             detail="No puedes ser el conductor de tu propia atención",
         )
-
+ 
     atencion = Atencion(
         tipo=datos.tipo,
         ambulancia_id=ambulancia.id,
@@ -465,7 +521,7 @@ def crear_atencion(
     )
     db.add(atencion)
     db.commit()
-
+ 
     # Recargar con las relaciones ya cargadas: AtencionOut las necesita
     # anidadas (ambulancia, conductor, responsable) y por defecto
     # SQLAlchemy las traería perezosamente, una consulta por cada una.
@@ -480,8 +536,8 @@ def crear_atencion(
         .where(Atencion.id == atencion_id)
     ).scalar_one()
     return atencion
-
-
+ 
+ 
 def _atencion_de_accidente_soat(atencion_id: int, db: DbSession) -> Atencion:
     """Igual que `_atencion_de_traslado`, pero para el formato de
     accidente SOAT (issue #17) -- el encabezado de este formato no
@@ -498,8 +554,8 @@ def _atencion_de_accidente_soat(atencion_id: int, db: DbSession) -> Atencion:
             detail="Esta atencion no es de accidente SOAT, no tiene este formato",
         )
     return atencion
-
-
+ 
+ 
 def _atencion_de_traslado(atencion_id: int, db: DbSession) -> Atencion:
     """Valida que la atención exista y sea de tipo `traslado` — el
     encabezado de este formato no aplica a una atención SOAT (issue #17
@@ -516,8 +572,8 @@ def _atencion_de_traslado(atencion_id: int, db: DbSession) -> Atencion:
             detail="Esta atención no es de traslado, no tiene encabezado de traslado",
         )
     return atencion
-
-
+ 
+ 
 def _regenerar_pdf(atencion: Atencion, formato: FormatoTraslado, db: DbSession) -> None:
     """Regenera el PDF del formato completo y lo guarda (issue #13,
     ADR-0011) — se llama después de cada guardado de encabezado o
@@ -529,20 +585,36 @@ def _regenerar_pdf(atencion: Atencion, formato: FormatoTraslado, db: DbSession) 
     formato.pdf_generado = generar_pdf_formato_traslado(atencion, formato)
     formato.pdf_generado_en = datetime.now(UTC)
     db.commit()
-
-
+ 
+ 
 def _regenerar_pdf_soat(
     atencion: Atencion, formato: FormatoAccidenteSoat, db: DbSession
 ) -> None:
     """Igual que `_regenerar_pdf`, pero para el formato de accidente
     SOAT (issue #71) -- mismo motivo (ADR-0011): se llama después de
     cada guardado de encabezado o clínico, y al cerrar la atención.
+ 
+    Issue #18: también se llama después de subir o borrar una foto,
+    para que el PDF guardado siempre incluya las fotos que haya en
+    ese momento (van al final, ver `generar_pdf_formato_accidente_soat`)
+    -- por eso acá mismo se consultan, en vez de que cada llamador
+    tenga que acordarse de pasarlas.
     """
-    formato.pdf_generado = generar_pdf_formato_accidente_soat(atencion, formato)
+    fotos = list(
+        db.execute(
+            select(FormatoAccidenteSoatFoto)
+            .options(joinedload(FormatoAccidenteSoatFoto.subida_por))
+            .where(FormatoAccidenteSoatFoto.atencion_id == atencion.id)
+            .order_by(FormatoAccidenteSoatFoto.subida_en)
+        )
+        .scalars()
+        .all()
+    )
+    formato.pdf_generado = generar_pdf_formato_accidente_soat(atencion, formato, fotos)
     formato.pdf_generado_en = datetime.now(UTC)
     db.commit()
-
-
+ 
+ 
 # Campos que se copian a FormatoVersion antes de aplicar una corrección
 # (issue #14, ADR-0012)
 _CAMPOS_VERSIONADOS = (
@@ -591,8 +663,8 @@ _CAMPOS_VERSIONADOS = (
     "profesional_recibe_cedula",
     "firma_profesional_recibe",
 )
-
-
+ 
+ 
 def _guardar_version(formato: FormatoTraslado, usuario: Usuario, db: DbSession) -> None:
     """Copia el estado actual de `formato` a `formato_version` antes de
     que una corrección de administrador lo sobreescriba (issue #14,
@@ -607,17 +679,81 @@ def _guardar_version(formato: FormatoTraslado, usuario: Usuario, db: DbSession) 
         **{campo: getattr(formato, campo) for campo in _CAMPOS_VERSIONADOS},
     )
     db.add(version)
-
-
+ 
+ 
 def _es_admin(usuario: Usuario) -> bool:
     return any(asignacion.rol.nombre == "administrador" for asignacion in usuario.roles)
-
-
+ 
+ 
 def _es_personal_clinico(usuario: Usuario) -> bool:
     nombres_roles = {asignacion.rol.nombre for asignacion in usuario.roles}
     return bool(nombres_roles & {"auxiliar_enfermeria", "medico"})
-
-
+ 
+ 
+# Issue #18 (corregido tras QA -- ver abajo): formatos aceptados para
+# una foto del accidente. HEIC/HEIF, el formato nativo de la cámara de
+# muchos iPhone, se queda afuera a propósito: no lo sabe mostrar
+# ningún navegador (salvo Safari) ni WeasyPrint sin una conversión
+# aparte -- si el cliente la necesita, es un issue propio, no algo que
+# valga la pena resolver "de paso" acá.
+#
+# El primer intento de esto confiaba en el `content_type` que manda el
+# navegador/app (`UploadFile.content_type`) para decidir qué aceptar
+# -- resultó ser poco confiable en la práctica: un JPG real, bajado de
+# Facebook o reenviado por WhatsApp, puede llegar con un
+# `Content-Type` que el cliente HTTP mandó mal, genérico
+# ("application/octet-stream") o con una variante no estándar
+# ("image/jpg" en vez de "image/jpeg") -- y esta ruta lo rechazaba
+# igual, aunque la foto en sí fuera perfectamente válida. Ahora se
+# decodifica el archivo de verdad con Pillow (`_detectar_formato_foto`
+# más abajo) y se decide por lo que el archivo *es*, no por lo que el
+# cliente dice que es -- lo mismo que ya hace WeasyPrint/Pillow para
+# embeber logo y firma en el PDF.
+_FORMATOS_PILLOW_A_CONTENT_TYPE = {
+    "JPEG": "image/jpeg",
+    "PNG": "image/png",
+    "WEBP": "image/webp",
+    "GIF": "image/gif",
+    "BMP": "image/bmp",
+}
+ 
+ 
+def _detectar_formato_foto(contenido: bytes) -> str | None:
+    """Content-type real de una foto, a partir de sus bytes (no de lo
+    que mande el cliente) -- `None` si Pillow no puede abrirla, o si
+    es un formato que no está en `_FORMATOS_PILLOW_A_CONTENT_TYPE`
+    (p. ej. HEIC, que Pillow sin un plugin aparte ni siquiera logra
+    identificar, así que ya cae solo en el primer caso)."""
+    try:
+        with Image.open(io.BytesIO(contenido)) as imagen:
+            formato = imagen.format
+            imagen.verify()
+    except Exception:
+        # Pillow puede fallar con excepciones bastante distintas según
+        # qué tan roto/qué tan poco una imagen sea un archivo de
+        # imagen -- cualquiera de ellas significa lo mismo acá: "esto
+        # no es una foto válida", 422, no un 500.
+        return None
+    return _FORMATOS_PILLOW_A_CONTENT_TYPE.get(formato or "")
+# 8 MB -- de sobra para una foto ya comprimida por la cámara de un
+# celular (unos pocos MB en JPEG), pero sin dejar subir cualquier cosa
+# sin límite (quedan como blobs en la base de datos).
+_TAMANIO_MAXIMO_FOTO_BYTES = 8 * 1024 * 1024
+ 
+ 
+def _puede_gestionar_fotos_soat(atencion: Atencion, usuario: Usuario) -> bool:
+    """Issue #18: a diferencia del resto del formato -- donde
+    cualquier auxiliar/médico puede editar cualquier atención, ver el
+    comentario en `cerrar_atencion` sobre por qué -- el cliente pidió
+    explícitamente que las fotos solo las pueda subir o borrar el
+    auxiliar/médico que atendió *esa* atención en particular, o
+    cualquier administrador.
+    """
+    if _es_admin(usuario):
+        return True
+    return _es_personal_clinico(usuario) and atencion.responsable_id == usuario.empleado_id
+ 
+ 
 @router.get(
     "/{atencion_id}/formato-traslado",
     response_model=FormatoTrasladoOut,
@@ -632,8 +768,8 @@ def obtener_encabezado_traslado(atencion_id: int, db: DbSession) -> FormatoTrasl
             detail="Esta atención todavía no tiene encabezado de traslado",
         )
     return formato
-
-
+ 
+ 
 @router.put(
     "/{atencion_id}/formato-traslado",
     response_model=FormatoTrasladoOut,
@@ -643,21 +779,21 @@ def guardar_encabezado_traslado(
     atencion_id: int, datos: FormatoTrasladoEncabezado, usuario: CurrentUser, db: DbSession
 ) -> FormatoTraslado:
     """Crea o actualiza el encabezado.
-
+ 
     Mientras la atención sigue `abierta`, el auxiliar o médico la
     reescribe libremente, las veces que haga falta (ADR-0002): no hay
     un endpoint de creación separado de uno de edición, es el mismo
     formulario completo cada vez. El administrador NO edita acá
     mientras está abierta — ese sigue siendo trabajo del auxiliar/
     médico de turno (ADR-0006).
-
+ 
     Una vez `cerrada`, solo el administrador puede seguir editando —
     es una corrección (issue #14, ADR-0012), no el llenado normal — y
     el estado anterior del formato se guarda en `formato_version` antes
     de sobreescribirlo.
     """
     atencion = _atencion_de_traslado(atencion_id, db)
-
+ 
     if atencion.estado == EstadoAtencion.abierto:
         if _es_admin(usuario) and not _es_personal_clinico(usuario):
             raise HTTPException(
@@ -683,16 +819,16 @@ def guardar_encabezado_traslado(
             db.add(formato)
         else:
             _guardar_version(formato, usuario, db)
-
+ 
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
-
+ 
     db.commit()
     db.refresh(formato)
     _regenerar_pdf(atencion, formato, db)
     return formato
-
-
+ 
+ 
 @router.put(
     "/{atencion_id}/formato-traslado/clinico",
     response_model=FormatoTrasladoOut,
@@ -702,25 +838,25 @@ def guardar_clinico_traslado(
     atencion_id: int, datos: FormatoTrasladoClinico, usuario: CurrentUser, db: DbSession
 ) -> FormatoTraslado:
     """Guarda la parte clínica del formato (issue #9).
-
+ 
     A diferencia del encabezado, esta parte se llena progresivamente
     durante el traslado (signos vitales en el tiempo, notas de
     evolución) — por eso `FormatoTrasladoClinico` tiene todo opcional.
     Pero sigue sin haber un PATCH parcial: cada PUT manda el estado
     completo de la parte clínica tal como esté hasta ese momento (ver
     ADR-0007).
-
+ 
     Requiere que el encabezado ya exista — mismo registro (ADR-0006),
     no tiene sentido diligenciar lo clínico de un traslado que ni
     siquiera se ha recibido.
-
+ 
     Igual que el encabezado: una vez `cerrada` la atención, solo el
     administrador puede seguir corrigiendo (issue #14, ADR-0012), y el
     estado anterior se guarda en `formato_version` antes de aplicar la
     corrección.
     """
     atencion = _atencion_de_traslado(atencion_id, db)
-
+ 
     if atencion.estado == EstadoAtencion.abierto:
         if _es_admin(usuario) and not _es_personal_clinico(usuario):
             raise HTTPException(
@@ -749,30 +885,30 @@ def guardar_clinico_traslado(
                 detail="Esta atención no tiene encabezado, no hay nada que corregir",
             )
         _guardar_version(formato, usuario, db)
-
+ 
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
-
+ 
     db.commit()
     db.refresh(formato)
     _regenerar_pdf(atencion, formato, db)
     return formato
-
-
+ 
+ 
 def _campos_faltantes_para_cerrar(formato: FormatoTraslado) -> list[str]:
     """Issue #57 -- qué le falta al formato clínico de un traslado
     para poder cerrarlo. `nota_medica` solo es obligatoria si el
     nivel de servicio es `medicalizado` (siempre va un médico); en
     `basico` sigue siendo opcional, igual que antes -- el campo no se
     oculta, solo no se exige.
-
+ 
     Issue #55 (ADR-0014) -- "entrega del paciente" se agrega acá
     también: desde que esas 5 columnas pasaron a nullable (se piden
     recién al cerrar, no en el encabezado inicial), hace falta esta
     validación para que no se pueda cerrar sin haberlas llenado --
     antes esto lo garantizaba Pydantic solo con que el campo fuera
     obligatorio en el schema del encabezado.
-
+ 
     No se llama si la atención nunca llegó a tener encabezado (ver el
     único `if formato is not None` en `cerrar_atencion`) -- cerrar sin
     haber empezado a llenar nada sigue permitido, para un servicio que
@@ -802,8 +938,8 @@ def _campos_faltantes_para_cerrar(formato: FormatoTraslado) -> list[str]:
     if not formato.entrega_servicio:
         faltantes.append("servicio de entrega")
     return faltantes
-
-
+ 
+ 
 @router.put(
     "/{atencion_id}/cerrar",
     response_model=AtencionOut,
@@ -814,29 +950,29 @@ def cerrar_atencion(
 ) -> Atencion:
     """Cierra la atención con el PIN de firma (issue #12, ADR-0002,
     ADR-0010).
-
+ 
     A partir de este momento, ni el encabezado ni la parte clínica se
     pueden seguir editando "libremente" (ya lo exigen `estado ==
     abierto` las rutas de arriba) — una edición posterior necesita
     permiso del administrador y queda en el historial de versiones
     (issue #14, ADR-0012).
-
+ 
     Cualquier auxiliar/médico puede cerrar cualquier atención abierta
     (no se exige que sea el mismo `responsable_id` que la creó) — es
     el mismo criterio de permiso que ya rige para editar el formato
     clínico, no uno más estricto.
-
+ 
     El PIN se revalida siempre contra el hash real en la base de
     datos, así el dispositivo haya "pre-validado" con un hash local
     más liviano (ver ADR-0010) — ese hash local es solo para dar
     feedback rápido sin conexión, nunca la autorización real.
-
+ 
     Issue #57 — un traslado con encabezado guardado no se puede cerrar
     si le faltan campos clínicos obligatorios (ver
     `_campos_faltantes_para_cerrar`). Un traslado que nunca llegó a
     tener encabezado se puede cerrar igual (servicio cancelado antes
     de atender a nadie, ver ADR-0002).
-
+ 
     Issue #17 — una atención SOAT tiene la misma validación, con su
     propia lista de campos obligatorios (ver
     `_campos_faltantes_para_cerrar_soat`): un paciente NN sin
@@ -881,11 +1017,11 @@ def cerrar_atencion(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="PIN incorrecto"
         )
-
+ 
     atencion.estado = EstadoAtencion.cerrado
     atencion.cerrada_en = datetime.now(UTC)
     db.commit()
-
+ 
     atencion = db.execute(
         select(Atencion)
         .options(
@@ -895,7 +1031,7 @@ def cerrar_atencion(
         )
         .where(Atencion.id == atencion_id)
     ).scalar_one()
-
+ 
     # Si nunca llegó a tener encabezado, no hay nada que renderizar —
     # se puede cerrar igual (ver ADR-0002), simplemente sin PDF.
     formato = db.get(FormatoTraslado, atencion_id)
@@ -904,10 +1040,10 @@ def cerrar_atencion(
     formato_soat = db.get(FormatoAccidenteSoat, atencion_id)
     if formato_soat is not None:
         _regenerar_pdf_soat(atencion, formato_soat, db)
-
+ 
     return atencion
-
-
+ 
+ 
 @router.get(
     "/{atencion_id}/formato-traslado/pdf",
     dependencies=[Depends(require_personal_clinico_o_admin)],
@@ -916,7 +1052,7 @@ def descargar_pdf_formato_traslado(atencion_id: int, db: DbSession) -> Response:
     """Descarga el último PDF generado del formato (issue #13,
     ADR-0011) — no lo genera al vuelo: siempre es el que quedó
     guardado en el último `PUT` de encabezado/clínico, o al cerrar.
-
+ 
     404 si la atención ni siquiera tiene encabezado todavía (nunca se
     generó nada) — no debería pasar que *tenga* encabezado y no tenga
     PDF, porque ambos endpoints de guardado siempre regeneran uno
@@ -930,8 +1066,8 @@ def descargar_pdf_formato_traslado(atencion_id: int, db: DbSession) -> Response:
             detail="Esta atención todavía no tiene un PDF generado",
         )
     return Response(content=formato.pdf_generado, media_type="application/pdf")
-
-
+ 
+ 
 @router.get(
     "/{atencion_id}/formato-traslado/historial",
     response_model=list[FormatoVersionOut],
@@ -941,7 +1077,7 @@ def historial_formato_traslado(atencion_id: int, db: DbSession) -> list[FormatoV
     """Lista las correcciones hechas por un administrador sobre este
     formato (issue #14, ADR-0012), más reciente primero — cada una es
     el estado del formato justo *antes* de esa corrección.
-
+ 
     Vacío (no 404) si nunca hubo una corrección — es un estado normal,
     no un error: la mayoría de atenciones nunca van a tener nada acá.
     """
@@ -953,15 +1089,15 @@ def historial_formato_traslado(atencion_id: int, db: DbSession) -> list[FormatoV
         .order_by(FormatoVersion.corregido_en.desc())
     ).scalars().all()
     return list(versiones)
-
-
+ 
+ 
 # --- Formato de accidente SOAT (issue #17) ---------------------------------
 #
 # Mismo patrón que el formato de traslado de arriba (encabezado + clínico,
 # ambos PUT con el formulario completo cada vez, misma lógica de permisos
 # abierto/cerrado, mismo mecanismo de versionado) -- ver cada función para
 # las diferencias puntuales (el paciente puede ser NN, no hay PDF todavía).
-
+ 
 # Campos que se copian a FormatoAccidenteSoatVersion antes de aplicar una
 # corrección (mismo mecanismo que _CAMPOS_VERSIONADOS para traslado).
 _CAMPOS_VERSIONADOS_SOAT = (
@@ -1007,8 +1143,8 @@ _CAMPOS_VERSIONADOS_SOAT = (
     "profesional_recibe_cedula",
     "firma_profesional_recibe",
 )
-
-
+ 
+ 
 def _guardar_version_soat(
     formato: FormatoAccidenteSoat, usuario: Usuario, db: DbSession
 ) -> None:
@@ -1023,13 +1159,13 @@ def _guardar_version_soat(
         **{campo: getattr(formato, campo) for campo in _CAMPOS_VERSIONADOS_SOAT},
     )
     db.add(version)
-
-
+ 
+ 
 def _campos_faltantes_para_cerrar_soat(formato: FormatoAccidenteSoat) -> list[str]:
     """Qué le falta al formato de accidente SOAT para poder cerrarlo --
     mismo criterio que `_campos_faltantes_para_cerrar` para traslado,
     con sus propios campos obligatorios.
-
+ 
     Si el paciente sigue siendo NN (`identificado=False`) al momento
     del cierre, los campos de identidad NO se exigen -- completarlos
     después es una corrección como cualquier otra (ADR-0002, ver
@@ -1057,8 +1193,8 @@ def _campos_faltantes_para_cerrar_soat(formato: FormatoAccidenteSoat) -> list[st
     ):
         faltantes.append("identidad del paciente (marcado como identificado)")
     return faltantes
-
-
+ 
+ 
 @router.get(
     "/{atencion_id}/formato-accidente-soat",
     response_model=FormatoAccidenteSoatOut,
@@ -1075,8 +1211,8 @@ def obtener_encabezado_accidente_soat(
             detail="Esta atención todavía no tiene formato de accidente SOAT",
         )
     return formato
-
-
+ 
+ 
 @router.put(
     "/{atencion_id}/formato-accidente-soat",
     response_model=FormatoAccidenteSoatOut,
@@ -1094,7 +1230,7 @@ def guardar_encabezado_accidente_soat(
     cada decisión).
     """
     atencion = _atencion_de_accidente_soat(atencion_id, db)
-
+ 
     if atencion.estado == EstadoAtencion.abierto:
         if _es_admin(usuario) and not _es_personal_clinico(usuario):
             raise HTTPException(
@@ -1120,16 +1256,16 @@ def guardar_encabezado_accidente_soat(
             db.add(formato)
         else:
             _guardar_version_soat(formato, usuario, db)
-
+ 
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
-
+ 
     db.commit()
     db.refresh(formato)
     _regenerar_pdf_soat(atencion, formato, db)
     return formato
-
-
+ 
+ 
 @router.put(
     "/{atencion_id}/formato-accidente-soat/clinico",
     response_model=FormatoAccidenteSoatOut,
@@ -1146,7 +1282,7 @@ def guardar_clinico_accidente_soat(
     requerir que el encabezado ya exista.
     """
     atencion = _atencion_de_accidente_soat(atencion_id, db)
-
+ 
     if atencion.estado == EstadoAtencion.abierto:
         if _es_admin(usuario) and not _es_personal_clinico(usuario):
             raise HTTPException(
@@ -1175,16 +1311,16 @@ def guardar_clinico_accidente_soat(
                 detail="Esta atención no tiene encabezado, no hay nada que corregir",
             )
         _guardar_version_soat(formato, usuario, db)
-
+ 
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
-
+ 
     db.commit()
     db.refresh(formato)
     _regenerar_pdf_soat(atencion, formato, db)
     return formato
-
-
+ 
+ 
 @router.get(
     "/{atencion_id}/formato-accidente-soat/pdf",
     dependencies=[Depends(require_personal_clinico_o_admin)],
@@ -1203,8 +1339,8 @@ def descargar_pdf_formato_accidente_soat(atencion_id: int, db: DbSession) -> Res
             detail="Esta atención todavía no tiene un PDF generado",
         )
     return Response(content=formato.pdf_generado, media_type="application/pdf")
-
-
+ 
+ 
 @router.get(
     "/{atencion_id}/formato-accidente-soat/historial",
     response_model=list[FormatoAccidenteSoatVersionOut],
@@ -1224,3 +1360,168 @@ def historial_formato_accidente_soat(
         .order_by(FormatoAccidenteSoatVersion.corregido_en.desc())
     ).scalars().all()
     return list(versiones)
+ 
+ 
+# --- Fotos del accidente SOAT, adjuntadas después del cierre (issue #18) ---
+ 
+ 
+@router.get(
+    "/{atencion_id}/formato-accidente-soat/fotos",
+    response_model=list[FormatoAccidenteSoatFotoOut],
+    dependencies=[Depends(require_personal_clinico_o_admin)],
+)
+def listar_fotos_accidente_soat(
+    atencion_id: int, db: DbSession
+) -> list[FormatoAccidenteSoatFoto]:
+    """Metadatos de las fotos adjuntas (sin el contenido binario, ver
+    `FormatoAccidenteSoatFotoOut`) -- cualquiera que pueda ver el
+    formato puede ver qué fotos tiene, aunque solo el que atendió (o
+    un admin) pueda subir/borrar (`_puede_gestionar_fotos_soat`).
+    """
+    _atencion_de_accidente_soat(atencion_id, db)
+    fotos = db.execute(
+        select(FormatoAccidenteSoatFoto)
+        .options(joinedload(FormatoAccidenteSoatFoto.subida_por))
+        .where(FormatoAccidenteSoatFoto.atencion_id == atencion_id)
+        .order_by(FormatoAccidenteSoatFoto.subida_en)
+    ).scalars().all()
+    return list(fotos)
+ 
+ 
+@router.post(
+    "/{atencion_id}/formato-accidente-soat/fotos",
+    response_model=FormatoAccidenteSoatFotoOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_personal_clinico_o_admin)],
+)
+async def subir_foto_accidente_soat(
+    atencion_id: int,
+    usuario: CurrentUser,
+    db: DbSession,
+    archivo: UploadFile = File(...),
+) -> FormatoAccidenteSoatFoto:
+    """Adjunta una foto del accidente (issue #18): "El auxiliar, el
+    medico o el administrador pueden adjuntar fotos mas adelante, no
+    en el momento del accidente."
+ 
+    Solo se puede subir una vez la atención ya está cerrada (ver nota
+    de módulo en `app/models/formato_accidente_soat_foto.py`) -- y
+    solo el auxiliar/médico que la atendió, o un administrador
+    (`_puede_gestionar_fotos_soat`). El PDF guardado se regenera al
+    final para que ya incluya esta foto (ADR-0011).
+    """
+    atencion = _atencion_de_accidente_soat(atencion_id, db)
+    if atencion.estado != EstadoAtencion.cerrado:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Solo se pueden adjuntar fotos a una atención ya cerrada",
+        )
+    if not _puede_gestionar_fotos_soat(atencion, usuario):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Solo el auxiliar o médico que atendió esta atención, o un "
+                "administrador, puede adjuntar fotos"
+            ),
+        )
+    contenido = await archivo.read()
+    if not contenido:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="El archivo está vacío"
+        )
+    if len(contenido) > _TAMANIO_MAXIMO_FOTO_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="La foto no puede superar los 8 MB",
+        )
+    # No se confía en `archivo.content_type` (lo que mande el
+    # navegador/app) -- ver el comentario de módulo sobre por qué eso
+    # rechazaba JPG reales. Se decide por los bytes de verdad.
+    content_type_real = _detectar_formato_foto(contenido)
+    if content_type_real is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "El archivo no parece ser una foto válida, o es un formato no "
+                "soportado (p. ej. HEIC, el de muchos iPhone -- hay que "
+                "exportarla como JPEG o PNG antes de subirla). Se aceptan "
+                "JPEG, PNG, WEBP, GIF y BMP."
+            ),
+        )
+ 
+    foto = FormatoAccidenteSoatFoto(
+        atencion_id=atencion_id,
+        contenido=contenido,
+        content_type=content_type_real,
+        tamanio_bytes=len(contenido),
+        subida_por_id=usuario.id,
+        subida_en=datetime.now(UTC),
+    )
+    db.add(foto)
+    db.commit()
+ 
+    formato = db.get(FormatoAccidenteSoat, atencion_id)
+    if formato is not None:
+        _regenerar_pdf_soat(atencion, formato, db)
+ 
+    # `_regenerar_pdf_soat` hace su propio commit, que deja `foto`
+    # "expirada" (SQLAlchemy recarga sus atributos en el próximo
+    # acceso) -- se refresca una sola vez acá, después de todo lo
+    # demás, para no hacerlo dos veces.
+    db.refresh(foto)
+    return foto
+ 
+ 
+@router.get(
+    "/{atencion_id}/formato-accidente-soat/fotos/{foto_id}",
+    dependencies=[Depends(require_personal_clinico_o_admin)],
+)
+def descargar_foto_accidente_soat(atencion_id: int, foto_id: int, db: DbSession) -> Response:
+    """Devuelve el contenido binario de una foto puntual -- aparte de
+    `listar_fotos_accidente_soat`, que solo trae metadatos (mismo
+    criterio que el PDF ya guardado,
+    `descargar_pdf_formato_accidente_soat`)."""
+    _atencion_de_accidente_soat(atencion_id, db)
+    foto = db.get(FormatoAccidenteSoatFoto, foto_id)
+    if foto is None or foto.atencion_id != atencion_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Foto no encontrada")
+    return Response(content=foto.contenido, media_type=foto.content_type)
+ 
+ 
+@router.delete(
+    "/{atencion_id}/formato-accidente-soat/fotos/{foto_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    # FastAPI infiere `response_model=NoneType` a partir de `-> None`
+    # (no es lo mismo que `response_model=None`), y eso le basta para
+    # creer que la ruta devuelve cuerpo -- 204 no admite cuerpo, así
+    # que hay que decirle explícitamente que no hay response_model.
+    response_model=None,
+    dependencies=[Depends(require_personal_clinico_o_admin)],
+)
+def eliminar_foto_accidente_soat(
+    atencion_id: int, foto_id: int, usuario: CurrentUser, db: DbSession
+) -> None:
+    """Borra una foto adjunta -- mismo permiso que subirla
+    (`_puede_gestionar_fotos_soat`): el auxiliar/médico que atendió,
+    o un administrador. El PDF guardado se regenera para que deje de
+    incluirla.
+    """
+    atencion = _atencion_de_accidente_soat(atencion_id, db)
+    foto = db.get(FormatoAccidenteSoatFoto, foto_id)
+    if foto is None or foto.atencion_id != atencion_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Foto no encontrada")
+    if not _puede_gestionar_fotos_soat(atencion, usuario):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Solo el auxiliar o médico que atendió esta atención, o un "
+                "administrador, puede borrar fotos"
+            ),
+        )
+ 
+    db.delete(foto)
+    db.commit()
+ 
+    formato = db.get(FormatoAccidenteSoat, atencion_id)
+    if formato is not None:
+        _regenerar_pdf_soat(atencion, formato, db)

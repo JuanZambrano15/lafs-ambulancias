@@ -20,3 +20,8 @@ apscheduler==3.10.4
 # directamente para dibujar el punto de la lesión sobre el diagrama
 # corporal -- se fija explícita para no depender de una transitiva.
 pillow==13.0.0
+# Issue #18: FastAPI necesita esto para parsear `multipart/form-data`
+# (el endpoint de subir fotos usa `UploadFile`) -- no es una
+# dependencia transitiva de nada ya instalado, FastAPI solo la pide
+# en tiempo de ejecución y falla si no está.
+python-multipart==0.0.12

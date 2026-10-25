@@ -40,10 +40,23 @@ difiere en cantidad de páginas de lo que ese campo describe, pero
 cambiarlo no fue parte de lo pedido ("el resto queda igual como está
 en el PDF") y el papel físico sigue siendo, en efecto, de una sola
 página.
+ 
+Issue #18: las fotos adjuntas después del cierre (ver
+`app/models/formato_accidente_soat_foto.py`) van al final del PDF,
+una por página -- el cliente pidió explícitamente que se vean "al
+final del PDF", no mezcladas entre las dos páginas del formato. Cada
+foto se incrusta como un `data:` URI en base64 (mismo mecanismo que
+el logo y las firmas, `_data_uri_foto`), nunca una ruta de archivo:
+WeasyPrint no tiene acceso a ningún disco aparte del proceso que lo
+llama, y el blob ya está en la base de datos (no hay otro lugar del
+que leerlo). `generar_pdf_formato_accidente_soat` recibe la lista de
+fotos ya cargada -- no las consulta él mismo -- mismo criterio que
+recibe `atencion`/`formato` ya cargados.
 """
  
 from __future__ import annotations
  
+import base64
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
  
@@ -76,6 +89,7 @@ from app.pdf.formato_traslado import (
 if TYPE_CHECKING:
     from app.models.atencion import Atencion
     from app.models.formato_accidente_soat import FormatoAccidenteSoat
+    from app.models.formato_accidente_soat_foto import FormatoAccidenteSoatFoto
  
  
 _PLANTILLA = Environment(autoescape=True).from_string(
@@ -162,6 +176,13 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   table.tripulacion td.tripulacion-val { border: none; border-bottom: 1px solid #000; }
  
   .pie { margin-top: 6pt; font-size: 6.5pt; color: #888; }
+ 
+  /* --- Fotos del accidente, issue #18 -- una por página, al final --- */
+  .foto-titulo { background: #FFD966; font-weight: bold; text-align: center;
+                 padding: 2pt; font-size: 8pt; margin-bottom: 3pt; }
+  .foto-pagina { text-align: center; }
+  .foto-pagina img { max-width: 100%; max-height: 24.5cm; }
+  .foto-dato { margin-top: 3pt; font-size: 6.5pt; color: #888; }
 </style>
 </head>
 <body>
@@ -504,6 +525,13 @@ _PLANTILLA = Environment(autoescape=True).from_string(
  
 </div>
  
+{% for foto in fotos %}
+<div class="pagina foto-pagina">
+  <div class="foto-titulo">Foto {{ loop.index }} de {{ loop.length }}</div>
+  <img src="{{ foto.data_uri }}" alt="Foto {{ loop.index }} del accidente">
+</div>
+{% endfor %}
+ 
 </body>
 </html>
 """
@@ -511,12 +539,19 @@ _PLANTILLA = Environment(autoescape=True).from_string(
  
  
 def generar_pdf_formato_accidente_soat(
-    atencion: Atencion, formato: FormatoAccidenteSoat
+    atencion: Atencion,
+    formato: FormatoAccidenteSoat,
+    fotos: list[FormatoAccidenteSoatFoto] | None = None,
 ) -> bytes:
     """Renderiza la plantilla HTML con los datos actuales del
     encabezado + parte clínica (issue #71) y la convierte a PDF con
     WeasyPrint -- mismo mecanismo que `generar_pdf_formato_traslado`
     (ver nota de módulo arriba para las decisiones de esta revisión).
+ 
+    `fotos` (issue #18) va al final, en el orden en que se pasen --
+    quien llama es responsable de ordenarlas (`_regenerar_pdf_soat` las
+    trae por `subida_en` ascendente). `None`/`[]` son equivalentes: la
+    mayoría de atenciones no tiene fotos todavía.
     """
     contexto: dict[str, Any] = {
         "atencion_id": atencion.id,
@@ -625,6 +660,19 @@ def generar_pdf_formato_accidente_soat(
         "nota_medica": formato.nota_medica,
         "evolucionado_por": formato.evolucionado_por,
         "firma_evolucionado_por": formato.firma_evolucionado_por,
+        # Issue #18 -- al final del PDF, una página por foto.
+        "fotos": [
+            {
+                "data_uri": f"data:{foto.content_type};base64,"
+                + base64.b64encode(foto.contenido).decode("ascii"),
+                # `Usuario` no siempre tiene un `Empleado` con
+                # nombres/apellidos (el administrador del sistema no
+                # tiene por qué -- ver nota en app/models/usuario.py),
+                # así que se usa el documento, igual que
+                # `UsuarioResumenOut` en el resto del formato.
+            }
+            for foto in (fotos or [])
+        ],
     }
  
     html = _PLANTILLA.render(**contexto)
