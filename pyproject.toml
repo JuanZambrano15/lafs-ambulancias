@@ -8,6 +8,13 @@ src = ["api/app", "api/tests"]
 # B: flake8-bugbear (bugs comunes) · I: orden de imports · UP: modernizar sintaxis
 select = ["E", "F", "B", "I", "UP"]
  
+[tool.ruff.lint.flake8-bugbear]
+# `Depends(...)`/`Query(...)` ya vienen en la lista por defecto de
+# ruff para B008 (llamada de función como valor por defecto) -- issue
+# #18 agrega `File(...)` para `UploadFile = File(...)`, el mismo
+# patrón de FastAPI, no un caso nuevo.
+extend-immutable-calls = ["fastapi.File"]
+ 
 [tool.ruff.lint.per-file-ignores]
 # La plantilla HTML/CSS del PDF (issue #13) va como un único string
 # grande para que WeasyPrint/Jinja2 la rendericen tal cual — partir
@@ -28,7 +35,7 @@ strict = true
 # de dependencias); se relaja explícitamente eso, no todo el chequeo.
 disallow_untyped_decorators = false
  
-
+ 
  
 [tool.pytest.ini_options]
 testpaths = ["api/tests"]
