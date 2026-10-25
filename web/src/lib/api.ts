@@ -1,4 +1,5 @@
 
+ 
 /**
  * Cliente HTTP para la API de LAFS Ambulancias.
  *
@@ -14,6 +15,7 @@
 import { borrarTokens, guardarAccessToken, leerTokens } from './storage'
 import type {
   AccessTokenResponse,
+  Ambulancia,
   AsignarRolesRequest,
   Atencion,
   AtencionCerrada,
@@ -281,6 +283,13 @@ export async function actualizarRol(id: number, datos: RolUpdate): Promise<Rol> 
  
 export async function eliminarRol(id: number): Promise<void> {
   await apiFetch<void>(`/roles/${id}`, { method: 'DELETE' })
+}
+ 
+// --- Ambulancias (issue #79: estado "en uso" en el dashboard) ---
+ 
+export async function listarAmbulancias(soloActivas = false): Promise<Ambulancia[]> {
+  const query = soloActivas ? '?solo_activas=true' : ''
+  return apiFetch<Ambulancia[]>(`/ambulancias${query}`)
 }
  
 // --- Atenciones de traslado (issue #15: pendientes/cerradas del panel) ---

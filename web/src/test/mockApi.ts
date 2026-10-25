@@ -33,6 +33,8 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     crearRol: vi.fn(),
     actualizarRol: vi.fn(),
     eliminarRol: vi.fn(),
+    // Issue #79 -- mismo criterio que las de abajo.
+    listarAmbulancias: vi.fn().mockResolvedValue([]),
     // Issue #15 -- se mockean con `[]` por defecto (no `undefined`)
     // para que un test que no las toca a propósito (p. ej. uno de
     // otra página) no rompa por un render que las espera resueltas.
