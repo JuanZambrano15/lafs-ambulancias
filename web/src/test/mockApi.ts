@@ -48,15 +48,15 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     subirFotoAccidenteSoat: vi.fn(),
     descargarFotoAccidenteSoat: vi.fn(),
     eliminarFotoAccidenteSoat: vi.fn(),
-    // Issue #80 -- detalle de un servicio cerrado, corrección de
-    // encabezado/clínico (con motivo) e historial de versiones.
+    // Issue #80 -- detalle de un servicio cerrado, corrección
+    // combinada de encabezado+clínico en una sola llamada (ajuste:
+    // antes eran dos, `guardarEncabezadoTraslado`/`guardarClinicoTraslado`
+    // y sus pares de SOAT, ahora eliminadas) e historial de versiones.
     obtenerAtencionCerrada: vi.fn(),
     obtenerFormatoTraslado: vi.fn(),
-    guardarEncabezadoTraslado: vi.fn(),
-    guardarClinicoTraslado: vi.fn(),
+    corregirFormatoTraslado: vi.fn(),
     obtenerFormatoAccidenteSoat: vi.fn(),
-    guardarEncabezadoAccidenteSoat: vi.fn(),
-    guardarClinicoAccidenteSoat: vi.fn(),
+    corregirFormatoAccidenteSoat: vi.fn(),
     historialFormatoTraslado: vi.fn().mockResolvedValue([]),
     historialFormatoAccidenteSoat: vi.fn().mockResolvedValue([]),
   }

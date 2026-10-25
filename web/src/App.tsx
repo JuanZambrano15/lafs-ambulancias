@@ -4,12 +4,10 @@ import { Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
 import { Layout } from './components/Layout'
 import { CambiarPasswordPage } from './pages/CambiarPasswordPage'
-import { ClinicoAccidenteSoatCorregirPage } from './pages/ClinicoAccidenteSoatCorregirPage'
-import { ClinicoTrasladoCorregirPage } from './pages/ClinicoTrasladoCorregirPage'
+import { CorregirFormatoAccidenteSoatPage } from './pages/CorregirFormatoAccidenteSoatPage'
+import { CorregirFormatoTrasladoPage } from './pages/CorregirFormatoTrasladoPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { EmpleadosPage } from './pages/EmpleadosPage'
-import { EncabezadoAccidenteSoatCorregirPage } from './pages/EncabezadoAccidenteSoatCorregirPage'
-import { EncabezadoTrasladoCorregirPage } from './pages/EncabezadoTrasladoCorregirPage'
 import { FotosAccidenteSoatPage } from './pages/FotosAccidenteSoatPage'
 import { LoginPage } from './pages/LoginPage'
 import { RolesPage } from './pages/RolesPage'
@@ -50,34 +48,18 @@ export function App(): JSX.Element {
             }
           />
           <Route
-            path="/atenciones/:atencionId/corregir/encabezado-traslado"
+            path="/atenciones/:atencionId/corregir/traslado"
             element={
               <Layout>
-                <EncabezadoTrasladoCorregirPage />
+                <CorregirFormatoTrasladoPage />
               </Layout>
             }
           />
           <Route
-            path="/atenciones/:atencionId/corregir/clinico-traslado"
+            path="/atenciones/:atencionId/corregir/accidente-soat"
             element={
               <Layout>
-                <ClinicoTrasladoCorregirPage />
-              </Layout>
-            }
-          />
-          <Route
-            path="/atenciones/:atencionId/corregir/encabezado-accidente-soat"
-            element={
-              <Layout>
-                <EncabezadoAccidenteSoatCorregirPage />
-              </Layout>
-            }
-          />
-          <Route
-            path="/atenciones/:atencionId/corregir/clinico-accidente-soat"
-            element={
-              <Layout>
-                <ClinicoAccidenteSoatCorregirPage />
+                <CorregirFormatoAccidenteSoatPage />
               </Layout>
             }
           />

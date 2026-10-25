@@ -344,24 +344,21 @@ export async function obtenerFormatoTraslado(atencionId: number): Promise<Format
   return apiFetch<FormatoTraslado>(`/atenciones/${atencionId}/formato-traslado`)
 }
 
-export async function guardarEncabezadoTraslado(
+/** Corrige, en una sola llamada, el encabezado y la parte clínica de
+ * un formato de traslado ya cerrado (issue #80, ajuste) -- reemplaza
+ * las dos llamadas separadas que había antes (`guardarEncabezadoTraslado`
+ * + `guardarClinicoTraslado`, ahora eliminadas: el backend ya no
+ * acepta correcciones de administrador por esas rutas, ver
+ * `corregir_formato_traslado` en `atenciones.py`), que generaban dos
+ * filas de historial y pedían el motivo dos veces para una sola
+ * corrección lógica. */
+export async function corregirFormatoTraslado(
   atencionId: number,
-  datos: FormatoTrasladoEncabezado,
+  datos: FormatoTrasladoEncabezado & FormatoTrasladoClinico,
   motivo: string,
 ): Promise<FormatoTraslado> {
   return apiFetch<FormatoTraslado>(
-    conMotivo(`/atenciones/${atencionId}/formato-traslado`, motivo),
-    { method: 'PUT', body: datos },
-  )
-}
-
-export async function guardarClinicoTraslado(
-  atencionId: number,
-  datos: FormatoTrasladoClinico,
-  motivo: string,
-): Promise<FormatoTraslado> {
-  return apiFetch<FormatoTraslado>(
-    conMotivo(`/atenciones/${atencionId}/formato-traslado/clinico`, motivo),
+    conMotivo(`/atenciones/${atencionId}/formato-traslado/corregir`, motivo),
     { method: 'PUT', body: datos },
   )
 }
@@ -372,24 +369,15 @@ export async function obtenerFormatoAccidenteSoat(
   return apiFetch<FormatoAccidenteSoat>(`/atenciones/${atencionId}/formato-accidente-soat`)
 }
 
-export async function guardarEncabezadoAccidenteSoat(
+/** Igual que `corregirFormatoTraslado`, para el formato de accidente
+ * SOAT (issue #80, ajuste). */
+export async function corregirFormatoAccidenteSoat(
   atencionId: number,
-  datos: FormatoAccidenteSoatEncabezado,
+  datos: FormatoAccidenteSoatEncabezado & FormatoAccidenteSoatClinico,
   motivo: string,
 ): Promise<FormatoAccidenteSoat> {
   return apiFetch<FormatoAccidenteSoat>(
-    conMotivo(`/atenciones/${atencionId}/formato-accidente-soat`, motivo),
-    { method: 'PUT', body: datos },
-  )
-}
-
-export async function guardarClinicoAccidenteSoat(
-  atencionId: number,
-  datos: FormatoAccidenteSoatClinico,
-  motivo: string,
-): Promise<FormatoAccidenteSoat> {
-  return apiFetch<FormatoAccidenteSoat>(
-    conMotivo(`/atenciones/${atencionId}/formato-accidente-soat/clinico`, motivo),
+    conMotivo(`/atenciones/${atencionId}/formato-accidente-soat/corregir`, motivo),
     { method: 'PUT', body: datos },
   )
 }

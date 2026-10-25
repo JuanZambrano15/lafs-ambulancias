@@ -97,8 +97,8 @@ export function ServicioCerradoDetallePage(): JSX.Element {
     if (atencion === null) return
     navigate(
       atencion.tipo === 'atencion_soat'
-        ? `/atenciones/${id}/corregir/encabezado-accidente-soat`
-        : `/atenciones/${id}/corregir/encabezado-traslado`,
+        ? `/atenciones/${id}/corregir/accidente-soat`
+        : `/atenciones/${id}/corregir/traslado`,
     )
   }
 
