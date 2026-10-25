@@ -1,7 +1,9 @@
 /**
- * Marco común de las pantallas protegidas: barra lateral con
- * pendientes (issue #15) y los tres CRUD del issue #49 (usuarios,
- * empleados, roles), y botón de cerrar sesión.
+ * Marco común de las pantallas protegidas: barra lateral con el
+ * dashboard de inicio (issue #79, antes "Pendientes" del #15),
+ * formatos cerrados (separado del dashboard en el mismo #79) y los
+ * tres CRUD del issue #49 (usuarios, empleados, roles), y botón de
+ * cerrar sesión.
  */
  
 import type { JSX, ReactNode } from 'react'
@@ -11,7 +13,8 @@ import { useAuth } from '../auth/AuthContext'
 import logoLafs from '../assets/logo-lafs.png'
  
 const ENLACES = [
-  { to: '/', etiqueta: 'Pendientes' },
+  { to: '/', etiqueta: 'Inicio' },
+  { to: '/formatos-cerrados', etiqueta: 'Formatos cerrados' },
   { to: '/usuarios', etiqueta: 'Usuarios' },
   { to: '/empleados', etiqueta: 'Empleados' },
   { to: '/roles', etiqueta: 'Roles' },
@@ -45,7 +48,7 @@ export function Layout({ children }: { children: ReactNode }): JSX.Element {
             {ENLACES.map((enlace) => (
               // `end` en "/" evita que NavLink lo marque "activo" en
               // cualquier otra ruta -- sin esto, al no ser exacto por
-              // defecto, "Pendientes" se vería resaltado también en
+              // defecto, "Inicio" se vería resaltado también en
               // Usuarios/Empleados/Roles.
               <NavLink key={enlace.to} to={enlace.to} end={enlace.to === '/'} className={claseEnlace}>
                 {enlace.etiqueta}

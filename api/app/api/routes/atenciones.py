@@ -281,9 +281,10 @@ def listar_mis_atenciones_cerradas(usuario: CurrentUser, db: DbSession) -> list[
     dependencies=[Depends(require_admin)],
 )
 def listar_atenciones_pendientes(db: DbSession) -> list[Atencion]:
-    """Atenciones de traslado todavía abiertas, para el panel del
-    administrador (issue #15) -- a diferencia de `/en-curso`, aquí no
-    se filtra por responsable: el administrador necesita ver TODAS
+    """Atenciones todavía abiertas (de traslado o de accidente SOAT),
+    para el panel del administrador (issue #15, ampliado en el #79
+    para el dashboard de inicio) -- a diferencia de `/en-curso`, aquí
+    no se filtra por responsable: el administrador necesita ver TODAS
     las que estén abiertas, no solo las suyas (de hecho nunca tiene
     `empleado_id`, así que `/en-curso` siempre le daría una lista
     vacía). Ordenadas de más antigua a más reciente -- la alerta
@@ -291,9 +292,11 @@ def listar_atenciones_pendientes(db: DbSession) -> list[Atencion]:
     panel a partir de `abierta_en`, no acá, así que conviene que las
     más urgentes queden primero.
  
-    Solo atenciones de traslado: el formato de accidentes SOAT (issue
-    #17) ya existe, pero este panel todavía no se extendió para
-    mostrarlo -- queda para cuando se amplíe el panel admin a SOAT.
+    Issue #79: antes esto solo traía traslados -- el panel todavía no
+    se había extendido para mostrar accidentes SOAT. El dashboard
+    nuevo también usa esta lista para saber qué ambulancias están "en
+    uso ahorita" (cualquier tipo de atención abierta cuenta), así que
+    dejar afuera los SOAT las mostraba como libres por error.
     """
     atenciones = (
         db.execute(
@@ -303,10 +306,7 @@ def listar_atenciones_pendientes(db: DbSession) -> list[Atencion]:
                 joinedload(Atencion.conductor),
                 joinedload(Atencion.responsable),
             )
-            .where(
-                Atencion.estado == EstadoAtencion.abierto,
-                Atencion.tipo == TipoAtencion.traslado,
-            )
+            .where(Atencion.estado == EstadoAtencion.abierto)
             .order_by(Atencion.abierta_en)
         )
         .unique()

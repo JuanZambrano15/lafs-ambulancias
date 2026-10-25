@@ -5,10 +5,11 @@ import { Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
 import { Layout } from './components/Layout'
 import { CambiarPasswordPage } from './pages/CambiarPasswordPage'
+import { DashboardPage } from './pages/DashboardPage'
 import { EmpleadosPage } from './pages/EmpleadosPage'
+import { FormatosCerradosPage } from './pages/FormatosCerradosPage'
 import { FotosAccidenteSoatPage } from './pages/FotosAccidenteSoatPage'
 import { LoginPage } from './pages/LoginPage'
-import { PendientesPage } from './pages/PendientesPage'
 import { RolesPage } from './pages/RolesPage'
 import { UsuariosPage } from './pages/UsuariosPage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
@@ -24,7 +25,15 @@ export function App(): JSX.Element {
             path="/"
             element={
               <Layout>
-                <PendientesPage />
+                <DashboardPage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/formatos-cerrados"
+            element={
+              <Layout>
+                <FormatosCerradosPage />
               </Layout>
             }
           />
