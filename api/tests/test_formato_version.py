@@ -233,6 +233,7 @@ class TestCorreccionDeAdministrador:
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-traslado",
             json=ENCABEZADO_CORREGIDO,
+            params={"motivo": "El paciente corrigió su edad y ciudad al revisar el PDF"},
             headers=admin_headers,
         )
 
@@ -252,11 +253,47 @@ class TestCorreccionDeAdministrador:
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-traslado/clinico",
             json=CLINICO_CORREGIDO,
+            params={"motivo": "Se revisó la clasificación con el médico tratante"},
             headers=admin_headers,
         )
 
         assert respuesta.status_code == 200
         assert respuesta.json()["diagnostico"] == "TCE moderado, se corrige clasificación"
+
+    def test_corregir_encabezado_sin_motivo_da_422(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
+
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado",
+            json=ENCABEZADO_CORREGIDO,
+            headers=admin_headers,
+        )
+
+        assert respuesta.status_code == 422
+
+    def test_corregir_clinico_con_motivo_en_blanco_da_422(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
+
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado/clinico",
+            json=CLINICO_CORREGIDO,
+            params={"motivo": "   "},
+            headers=admin_headers,
+        )
+
+        assert respuesta.status_code == 422
 
     def test_corregir_sin_encabezado_previo_da_404(
         self,
@@ -309,6 +346,7 @@ class TestCorreccionDeAdministrador:
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-traslado",
             json=ENCABEZADO_VALIDO,
+            params={"motivo": "Se creó el encabezado que nunca se llenó antes del cierre"},
             headers=admin_headers,
         )
         assert respuesta.status_code == 200
@@ -347,6 +385,7 @@ class TestHistorial:
         client.put(
             f"/atenciones/{atencion_id}/formato-traslado",
             json=ENCABEZADO_CORREGIDO,
+            params={"motivo": "El paciente llamó a corregir su edad y ciudad"},
             headers=admin_headers,
         )
 
@@ -360,6 +399,8 @@ class TestHistorial:
         assert versiones[0]["paciente_edad"] == 45
         assert versiones[0]["paciente_ciudad"] == "Cúcuta"
         assert versiones[0]["corregido_por"]["documento"] == "999999999"
+        # Issue #80 -- el motivo de la corrección queda en el historial.
+        assert versiones[0]["motivo"] == "El paciente llamó a corregir su edad y ciudad"
 
     def test_varias_correcciones_quedan_mas_reciente_primero(
         self,
@@ -373,11 +414,13 @@ class TestHistorial:
         client.put(
             f"/atenciones/{atencion_id}/formato-traslado",
             json={**ENCABEZADO_VALIDO, "paciente_edad": 46},
+            params={"motivo": "Primera corrección"},
             headers=admin_headers,
         )
         client.put(
             f"/atenciones/{atencion_id}/formato-traslado",
             json={**ENCABEZADO_VALIDO, "paciente_edad": 47},
+            params={"motivo": "Segunda corrección"},
             headers=admin_headers,
         )
 
@@ -402,6 +445,7 @@ class TestHistorial:
         client.put(
             f"/atenciones/{atencion_id}/formato-traslado/clinico",
             json=CLINICO_CORREGIDO,
+            params={"motivo": "Se ajustó el diagnóstico tras revisión médica"},
             headers=admin_headers,
         )
 

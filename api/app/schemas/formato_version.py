@@ -42,6 +42,7 @@ class FormatoVersionOut(BaseModel):
     atencion_id: int
     corregido_por: UsuarioResumenOut
     corregido_en: datetime
+    motivo: str
 
     # --- Paciente ---
     paciente_tipo_documento: TipoDocumentoPaciente | None

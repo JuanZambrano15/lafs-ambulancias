@@ -1,4 +1,3 @@
-
 """Pendientes (atenciones abiertas) y cerradas con descarga de PDF,
 para el panel del administrador (issue #15).
  
@@ -578,3 +577,76 @@ class TestAtencionesCerradas:
             "/atenciones/cerradas", params={"limit": 101}, headers=admin_headers
         )
         assert respuesta.status_code == 422
+
+
+class TestObtenerAtencionCerrada:
+    """`GET /atenciones/{id}` (issue #80): el resumen que necesita la
+    pantalla de detalle del panel web, sin tener que pedir la lista
+    completa de `/cerradas` y buscar el id ahí.
+    """
+
+    def test_sin_token_da_401(self, client: TestClient) -> None:
+        respuesta = client.get("/atenciones/1")
+        assert respuesta.status_code == 401
+
+    def test_auxiliar_no_puede_verla_da_403(
+        self, client: TestClient, auxiliar_headers: dict[str, str]
+    ) -> None:
+        respuesta = client.get("/atenciones/1", headers=auxiliar_headers)
+        assert respuesta.status_code == 403
+
+    def test_no_encontrada_da_404(
+        self, client: TestClient, admin_headers: dict[str, str]
+    ) -> None:
+        respuesta = client.get("/atenciones/999999", headers=admin_headers)
+        assert respuesta.status_code == 404
+
+    def test_atencion_abierta_da_404(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        atencion_id = _crear_atencion(client, db, auxiliar_headers)
+
+        respuesta = client.get(f"/atenciones/{atencion_id}", headers=admin_headers)
+
+        assert respuesta.status_code == 404
+
+    def test_trae_el_detalle_de_un_traslado_cerrado(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        atencion_id = _crear_y_cerrar_atencion(client, db, auxiliar_headers, "700000001")
+
+        respuesta = client.get(f"/atenciones/{atencion_id}", headers=admin_headers)
+
+        assert respuesta.status_code == 200
+        fila = respuesta.json()
+        assert fila["id"] == atencion_id
+        assert fila["tipo"] == "traslado"
+        assert fila["nivel_servicio"] == "basico"
+        assert fila["paciente_nombres"] == "Pepito"
+        assert fila["ambulancia"]["movil"].startswith("M-panel")
+        assert fila["tiene_pdf"] is True
+
+    def test_trae_el_detalle_de_un_accidente_soat_cerrado(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        atencion_id = _crear_y_cerrar_atencion_soat(client, db, auxiliar_headers, "700000001")
+
+        respuesta = client.get(f"/atenciones/{atencion_id}", headers=admin_headers)
+
+        assert respuesta.status_code == 200
+        fila = respuesta.json()
+        assert fila["id"] == atencion_id
+        assert fila["tipo"] == "atencion_soat"
+        assert fila["nivel_servicio"] is None

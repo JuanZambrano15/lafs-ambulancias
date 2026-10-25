@@ -232,9 +232,10 @@ class TestCorreccionDeAdministrador:
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-accidente-soat",
             json=ENCABEZADO_CORREGIDO,
+            params={"motivo": "Se corrigió la edad, ciudad y placa del vehículo"},
             headers=admin_headers,
         )
- 
+
         assert respuesta.status_code == 200
         assert respuesta.json()["paciente_edad"] == 46
         assert respuesta.json()["ciudad"] == "Ocaña"
@@ -254,15 +255,33 @@ class TestCorreccionDeAdministrador:
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-accidente-soat/clinico",
             json=CLINICO_CORREGIDO,
+            params={"motivo": "Se ajustó la clasificación de triage"},
             headers=admin_headers,
         )
- 
+
         assert respuesta.status_code == 200
         assert respuesta.json()["descripcion"] == "Se corrige clasificación de triage"
         # El resto de lo clínico sigue estando (no se pisa con la corrección parcial).
         assert respuesta.json()["atendido_por"] == "Ana Ruiz"
         assert respuesta.json()["profesional_recibe_nombre"] == "Dra. Carolina Pinto"
  
+    def test_corregir_sin_motivo_da_422(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
+
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-accidente-soat",
+            json=ENCABEZADO_CORREGIDO,
+            headers=admin_headers,
+        )
+
+        assert respuesta.status_code == 422
+
     def test_firma_y_atendido_por_quedan_en_el_historial_tras_una_correccion(
         self,
         client: TestClient,
@@ -275,15 +294,17 @@ class TestCorreccionDeAdministrador:
         client.put(
             f"/atenciones/{atencion_id}/formato-accidente-soat/clinico",
             json=CLINICO_CORREGIDO,
+            params={"motivo": "Se ajustó la clasificación de triage"},
             headers=admin_headers,
         )
- 
+
         historial = client.get(
             f"/atenciones/{atencion_id}/formato-accidente-soat/historial", headers=admin_headers
         ).json()
- 
+
         assert len(historial) == 1
         version = historial[0]
+        assert version["motivo"] == "Se ajustó la clasificación de triage"
         assert version["nota_auxiliar"] == "Paciente estable durante el traslado."
         assert version["atendido_por"] == "Ana Ruiz"
         assert version["firma_atendido_por"] == "data:image/png;base64,AAAA"
@@ -313,6 +334,7 @@ class TestCorreccionDeAdministrador:
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-accidente-soat",
             json=identificado,
+            params={"motivo": "Se identificó al paciente, antes registrado como NN"},
             headers=admin_headers,
         )
  
@@ -356,9 +378,10 @@ class TestHistorial:
         client.put(
             f"/atenciones/{atencion_id}/formato-accidente-soat",
             json=ENCABEZADO_CORREGIDO,
+            params={"motivo": "Se corrigió la edad, ciudad y placa del vehículo"},
             headers=admin_headers,
         )
- 
+
         historial = client.get(
             f"/atenciones/{atencion_id}/formato-accidente-soat/historial", headers=admin_headers
         )
@@ -371,6 +394,8 @@ class TestHistorial:
         # en el historial (ENCABEZADO_CORREGIDO cambia la placa).
         assert versiones[0]["vehiculo_placa"] == "ABC123"
         assert versiones[0]["corregido_por"]["documento"] == "999999999"
+        # Issue #80 -- el motivo de la corrección queda en el historial.
+        assert versiones[0]["motivo"] == "Se corrigió la edad, ciudad y placa del vehículo"
  
     def test_conductor_no_puede_ver_el_historial(
         self,

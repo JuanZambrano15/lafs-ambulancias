@@ -45,6 +45,9 @@ class FormatoAccidenteSoatVersion(Base):
     corregido_por_id: Mapped[int] = mapped_column(ForeignKey("usuario.id"))
     corregido_por: Mapped[Usuario] = relationship()
     corregido_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Issue #80 -- ver el comentario equivalente en
+    # `app/models/formato_version.py` (mismo criterio).
+    motivo: Mapped[str] = mapped_column(Text)
 
     # --- Mismas columnas que FormatoAccidenteSoat (ver ese modelo
     # para el significado de cada una), todas nullable acá.
