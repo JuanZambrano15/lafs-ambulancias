@@ -1,3 +1,4 @@
+
 /**
  * Cliente HTTP para la API de LAFS Ambulancias.
  *
@@ -17,6 +18,7 @@ import type {
   FormatoAccidenteSoat,
   FormatoAccidenteSoatClinico,
   FormatoAccidenteSoatEncabezado,
+  FormatoAccidenteSoatFoto,
   FormatoTraslado,
   FormatoTrasladoClinico,
   FormatoTrasladoEncabezado,
@@ -117,6 +119,78 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
  
   if (response.status === 204) {
     return undefined as T
+  }
+  return (await response.json()) as T
+}
+ 
+/**
+ * Igual que `apiFetch` (mismo header de autenticación, mismo retry
+ * con refresh token en un 401), pero para una respuesta binaria --
+ * issue #18, para mostrar/descargar una foto -- en vez de JSON
+ * (`apiFetch` no sirve para esto porque siempre intenta
+ * `response.json()`). Mismo mecanismo que `apiFetchBlob` de
+ * `web/src/lib/api.ts`.
+ */
+async function apiFetchBlob(path: string): Promise<Blob> {
+  const headers: Record<string, string> = {}
+  const { accessToken } = await leerTokens()
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+ 
+  const hacerPeticion = async (): Promise<Response> => fetch(`${BASE_URL}${path}`, { headers })
+ 
+  let response = await hacerPeticion()
+ 
+  if (response.status === 401) {
+    try {
+      refreshEnCurso ??= refrescarAccessToken().finally(() => {
+        refreshEnCurso = null
+      })
+      const nuevoAccessToken = await refreshEnCurso
+      headers.Authorization = `Bearer ${nuevoAccessToken}`
+      response = await hacerPeticion()
+    } catch {
+      await leerError(response)
+    }
+  }
+ 
+  if (!response.ok) {
+    await leerError(response)
+  }
+  return await response.blob()
+}
+ 
+/**
+ * Igual que `apiFetch`, pero para subir un archivo (`multipart/form-data`,
+ * issue #18) -- no se puede reusar `apiFetch` porque ese siempre manda
+ * `Content-Type: application/json` y serializa el cuerpo con
+ * `JSON.stringify`; acá el cuerpo es un `FormData` y el browser debe
+ * poner su propio `Content-Type` (con el `boundary` del multipart).
+ */
+async function apiFetchFormData<T>(path: string, formData: FormData): Promise<T> {
+  const headers: Record<string, string> = {}
+  const { accessToken } = await leerTokens()
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+ 
+  const hacerPeticion = async (): Promise<Response> =>
+    fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData })
+ 
+  let response = await hacerPeticion()
+ 
+  if (response.status === 401) {
+    try {
+      refreshEnCurso ??= refrescarAccessToken().finally(() => {
+        refreshEnCurso = null
+      })
+      const nuevoAccessToken = await refreshEnCurso
+      headers.Authorization = `Bearer ${nuevoAccessToken}`
+      response = await hacerPeticion()
+    } catch {
+      await leerError(response)
+    }
+  }
+ 
+  if (!response.ok) {
+    await leerError(response)
   }
   return (await response.json()) as T
 }
@@ -234,7 +308,7 @@ export async function cerrarAtencion(atencionId: number, pin: string): Promise<A
     body: { pin },
   })
 }
-
+ 
 /** Issue #17 — mismo patrón que `obtenerEncabezadoTraslado`, pero para
  * el formato de accidente SOAT. */
 export async function obtenerEncabezadoAccidenteSoat(
@@ -249,7 +323,7 @@ export async function obtenerEncabezadoAccidenteSoat(
     throw err
   }
 }
-
+ 
 export async function guardarEncabezadoAccidenteSoat(
   atencionId: number,
   datos: FormatoAccidenteSoatEncabezado,
@@ -259,7 +333,7 @@ export async function guardarEncabezadoAccidenteSoat(
     body: datos,
   })
 }
-
+ 
 export async function guardarClinicoAccidenteSoat(
   atencionId: number,
   datos: FormatoAccidenteSoatClinico,
@@ -271,4 +345,56 @@ export async function guardarClinicoAccidenteSoat(
       body: datos,
     },
   )
+}
+ 
+/** Issue #18 -- atenciones ya cerradas donde el usuario logueado es el
+ * responsable: desde acá se llega a la pantalla de fotos de una de
+ * ellas (a diferencia de `listarAtencionesEnCurso`, que es para las
+ * que todavía no se cierran). */
+export async function listarMisAtencionesCerradas(): Promise<Atencion[]> {
+  return apiFetch<Atencion[]>('/atenciones/mis-cerradas')
+}
+ 
+export async function listarFotosAccidenteSoat(
+  atencionId: number,
+): Promise<FormatoAccidenteSoatFoto[]> {
+  return apiFetch<FormatoAccidenteSoatFoto[]>(
+    `/atenciones/${atencionId}/formato-accidente-soat/fotos`,
+  )
+}
+ 
+/** El nombre del archivo (`nombreArchivo`) no se guarda en ningún
+ * lado -- el backend solo necesita el contenido y el `Content-Type`
+ * (ver `_CONTENT_TYPES_FOTO_PERMITIDOS`) -- pero `FormData` lo exige
+ * para armar la parte del multipart. */
+export async function subirFotoAccidenteSoat(
+  atencionId: number,
+  archivo: Blob,
+  nombreArchivo: string,
+): Promise<FormatoAccidenteSoatFoto> {
+  const formData = new FormData()
+  formData.append('archivo', archivo, nombreArchivo)
+  return apiFetchFormData<FormatoAccidenteSoatFoto>(
+    `/atenciones/${atencionId}/formato-accidente-soat/fotos`,
+    formData,
+  )
+}
+ 
+/** Devuelve el contenido binario de la foto -- quien llama es
+ * responsable de convertirlo en algo mostrable (p. ej. con
+ * `URL.createObjectURL`) y de liberarlo después. */
+export async function descargarFotoAccidenteSoat(
+  atencionId: number,
+  fotoId: number,
+): Promise<Blob> {
+  return apiFetchBlob(`/atenciones/${atencionId}/formato-accidente-soat/fotos/${fotoId}`)
+}
+ 
+export async function eliminarFotoAccidenteSoat(
+  atencionId: number,
+  fotoId: number,
+): Promise<void> {
+  await apiFetch<void>(`/atenciones/${atencionId}/formato-accidente-soat/fotos/${fotoId}`, {
+    method: 'DELETE',
+  })
 }

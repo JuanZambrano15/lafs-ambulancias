@@ -1,3 +1,4 @@
+
 import type { JSX } from 'react'
 import { Route, Routes } from 'react-router-dom'
  
@@ -11,6 +12,7 @@ import { ConfigurarPinPage } from './pages/ConfigurarPinPage'
 import { CrearAtencionPage } from './pages/CrearAtencionPage'
 import { EncabezadoAccidenteSoatPage } from './pages/EncabezadoAccidenteSoatPage'
 import { EncabezadoTrasladoPage } from './pages/EncabezadoTrasladoPage'
+import { FotosAccidenteSoatPage } from './pages/FotosAccidenteSoatPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
@@ -43,8 +45,13 @@ export function App(): JSX.Element {
             path="/atenciones/:atencionId/clinico-accidente-soat"
             element={<ClinicoAccidenteSoatPage />}
           />
+          <Route
+            path="/atenciones/:atencionId/fotos-accidente-soat"
+            element={<FotosAccidenteSoatPage />}
+          />
         </Route>
       </Routes>
     </AuthProvider>
   )
 }
+ 

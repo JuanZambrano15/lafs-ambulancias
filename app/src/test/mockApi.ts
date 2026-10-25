@@ -1,3 +1,4 @@
+
 /**
  * Factory para `vi.mock('../lib/api', ...)` que mockea las funciones
  * de red pero conserva la clase real `ApiError` — el automock de
@@ -48,5 +49,14 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     guardarEncabezadoAccidenteSoat: vi.fn(),
     guardarClinicoAccidenteSoat: vi.fn(),
     cerrarAtencion: vi.fn(),
+    // Issue #18 -- mismo criterio que `listarAtencionesEnCurso` de
+    // arriba: la mayoría de las pruebas de HomePage no les importa la
+    // sección de "Atenciones cerradas recientes".
+    listarMisAtencionesCerradas: vi.fn().mockResolvedValue([]),
+    listarFotosAccidenteSoat: vi.fn().mockResolvedValue([]),
+    subirFotoAccidenteSoat: vi.fn(),
+    descargarFotoAccidenteSoat: vi.fn(),
+    eliminarFotoAccidenteSoat: vi.fn(),
   }
 }
+ 
