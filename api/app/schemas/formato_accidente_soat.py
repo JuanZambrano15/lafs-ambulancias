@@ -107,6 +107,13 @@ class FormatoAccidenteSoatClinico(BaseModel):
     firma_profesional_recibe: str | None = Field(default=None, max_length=300_000)
 
 
+class FormatoAccidenteSoatCorreccion(FormatoAccidenteSoatEncabezado, FormatoAccidenteSoatClinico):
+    """Igual que `FormatoTrasladoCorreccion` (ver esa clase para el
+    porqué), para el formato de accidente SOAT -- usada por
+    `app.api.routes.atenciones.corregir_formato_accidente_soat`.
+    """
+
+
 class FormatoAccidenteSoatOut(FormatoAccidenteSoatEncabezado, FormatoAccidenteSoatClinico):
     model_config = ConfigDict(from_attributes=True)
 

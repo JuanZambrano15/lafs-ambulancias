@@ -55,6 +55,7 @@ from app.schemas.auth import PinRequest
 from app.schemas.empleado import EmpleadoOut
 from app.schemas.formato_accidente_soat import (
     FormatoAccidenteSoatClinico,
+    FormatoAccidenteSoatCorreccion,
     FormatoAccidenteSoatEncabezado,
     FormatoAccidenteSoatOut,
 )
@@ -62,6 +63,7 @@ from app.schemas.formato_accidente_soat_foto import FormatoAccidenteSoatFotoOut
 from app.schemas.formato_accidente_soat_version import FormatoAccidenteSoatVersionOut
 from app.schemas.formato_traslado import (
     FormatoTrasladoClinico,
+    FormatoTrasladoCorreccion,
     FormatoTrasladoEncabezado,
     FormatoTrasladoOut,
 )
@@ -161,13 +163,20 @@ def listar_conductores_disponibles(usuario: CurrentUser, db: DbSession) -> list[
 @router.get(
     "/medicos-disponibles",
     response_model=list[EmpleadoOut],
-    dependencies=[Depends(require_personal_clinico)],
+    dependencies=[Depends(require_personal_clinico_o_admin)],
 )
 def listar_medicos_disponibles(db: DbSession) -> list[Empleado]:
     """Empleados activos cuyo usuario tiene el rol "medico" -- para que
     quien diligencia lo clínico de un traslado medicalizado (issue
     #63) pueda elegir, de una lista, al médico que va en la ambulancia
     cuando quien está logueado es el auxiliar y no el médico.
+
+    Issue #80 (ajuste): el administrador también la usa, desde la
+    pantalla de corrección de un formato ya cerrado en el panel web
+    -- por eso el permiso es `require_personal_clinico_o_admin`, no
+    `require_personal_clinico` (que lo dejaba afuera y hacía que el
+    selector de médico, al corregir, se viera siempre vacío por un
+    403 silenciosamente ignorado en el frontend).
  
     A diferencia de `listar_conductores_disponibles`, aquí no aplica
     el concepto de "ocupado" (eso es propio de un conductor por
@@ -702,8 +711,50 @@ _CAMPOS_VERSIONADOS = (
     "profesional_recibe_cedula",
     "firma_profesional_recibe",
 )
- 
- 
+
+# Issue #80 (ajuste): subconjunto de `_CAMPOS_VERSIONADOS` que decide
+# si una corrección combinada deja o no una fila en el historial --
+# no todo lo versionable sirve para esto. "Quién" atendió/evolucionó
+# y su firma siguen tan narrativos como la nota que firman (de hecho
+# son la causa real del bug reportado en el #80: agregar un médico a
+# un traslado básico que no lo tenía SÍ cambia `evolucionado_por`,
+# aunque `nota_medica` -- que ya estaba excluida de
+# `_CAMPOS_VERSIONADOS` -- no cuente). Si lo ÚNICO que cambia es algo
+# de este grupo, la corrección no debe dejar ningún rastro en el
+# historial, ni la fila ni el motivo (ver `_hubo_cambio_rastreable` y
+# `corregir_formato_traslado`).
+_CAMPOS_NO_RASTREABLES = frozenset(
+    {
+        "diagnostico",
+        "nota_auxiliar",
+        "atendido_por",
+        "firma_atendido_por",
+        "nota_medica",
+        "evolucionado_por",
+        "firma_evolucionado_por",
+        "observaciones",
+    }
+)
+_CAMPOS_RASTREABLES = tuple(
+    campo for campo in _CAMPOS_VERSIONADOS if campo not in _CAMPOS_NO_RASTREABLES
+)
+
+
+def _hubo_cambio_rastreable(
+    formato: object, nuevos: dict[str, object], campos_rastreables: tuple[str, ...]
+) -> bool:
+    """¿Alguno de `campos_rastreables` cambia entre el estado actual de
+    `formato` y los valores entrantes `nuevos` (issue #80, ajuste)?
+
+    Se usa ANTES de aplicar la corrección -- si da `False`, la
+    corrección es "solo notas" (diagnóstico/descripción, notas de
+    auxiliar y médico, y quién las firma) y no debe crear ninguna
+    fila en el historial de versiones, por más que la atención se
+    guarde igual con los datos nuevos.
+    """
+    return any(getattr(formato, campo) != nuevos[campo] for campo in campos_rastreables)
+
+
 def _guardar_version(
     formato: FormatoTraslado, usuario: Usuario, motivo: str, db: DbSession
 ) -> None:
@@ -843,7 +894,6 @@ def guardar_encabezado_traslado(
     datos: FormatoTrasladoEncabezado,
     usuario: CurrentUser,
     db: DbSession,
-    motivo: str | None = Query(default=None),
 ) -> FormatoTraslado:
     """Crea o actualiza el encabezado.
 
@@ -854,10 +904,13 @@ def guardar_encabezado_traslado(
     mientras está abierta — ese sigue siendo trabajo del auxiliar/
     médico de turno (ADR-0006).
 
-    Una vez `cerrada`, solo el administrador puede seguir editando —
-    es una corrección (issue #14, ADR-0012; `motivo` obligatorio desde
-    el #80, ver `_motivo_requerido`) — y el estado anterior del
-    formato se guarda en `formato_version` antes de sobreescribirlo.
+    Una vez `cerrada`, esta ruta deja de aceptar escrituras, incluso
+    para un administrador (issue #80, ajuste): corregir un formato ya
+    cerrado ahora es `PUT .../formato-traslado/corregir`, un único
+    endpoint que cubre encabezado y parte clínica a la vez -- ver esa
+    función para el porqué (antes, dos PUT independientes para una
+    sola corrección lógica producían dos filas de historial y pedían
+    el motivo dos veces).
     """
     atencion = _atencion_de_traslado(atencion_id, db)
 
@@ -875,19 +928,14 @@ def guardar_encabezado_traslado(
             formato = FormatoTraslado(atencion_id=atencion_id)
             db.add(formato)
     else:
-        if not _es_admin(usuario):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="La atención ya está cerrada, solo un administrador puede corregirla",
-            )
-        motivo_validado = _motivo_requerido(motivo)
-        formato = db.get(FormatoTraslado, atencion_id)
-        if formato is None:
-            formato = FormatoTraslado(atencion_id=atencion_id)
-            db.add(formato)
-        else:
-            _guardar_version(formato, usuario, motivo_validado, db)
- 
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "La atención ya está cerrada; corrígela con "
+                "PUT /atenciones/{atencion_id}/formato-traslado/corregir"
+            ),
+        )
+
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
  
@@ -907,7 +955,6 @@ def guardar_clinico_traslado(
     datos: FormatoTrasladoClinico,
     usuario: CurrentUser,
     db: DbSession,
-    motivo: str | None = Query(default=None),
 ) -> FormatoTraslado:
     """Guarda la parte clínica del formato (issue #9).
 
@@ -922,10 +969,10 @@ def guardar_clinico_traslado(
     no tiene sentido diligenciar lo clínico de un traslado que ni
     siquiera se ha recibido.
 
-    Igual que el encabezado: una vez `cerrada` la atención, solo el
-    administrador puede seguir corrigiendo (issue #14, ADR-0012;
-    `motivo` obligatorio desde el #80), y el estado anterior se guarda
-    en `formato_version` antes de aplicar la corrección.
+    Igual que el encabezado (ver `guardar_encabezado_traslado`): una
+    vez `cerrada` la atención, esta ruta deja de aceptar escrituras --
+    corregir lo clínico de un formato ya cerrado es, desde el #80
+    (ajuste), parte de `PUT .../formato-traslado/corregir`.
     """
     atencion = _atencion_de_traslado(atencion_id, db)
 
@@ -945,31 +992,92 @@ def guardar_clinico_traslado(
                 detail="Esta atención todavía no tiene encabezado — guárdalo primero",
             )
     else:
-        if not _es_admin(usuario):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="La atención ya está cerrada, solo un administrador puede corregirla",
-            )
-        formato = db.get(FormatoTraslado, atencion_id)
-        if formato is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Esta atención no tiene encabezado, no hay nada que corregir",
-            )
-        # El 404 de arriba va primero: no tiene sentido pedir un
-        # motivo para corregir algo que ni siquiera existe.
-        motivo_validado = _motivo_requerido(motivo)
-        _guardar_version(formato, usuario, motivo_validado, db)
- 
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "La atención ya está cerrada; corrígela con "
+                "PUT /atenciones/{atencion_id}/formato-traslado/corregir"
+            ),
+        )
+
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
- 
+
     db.commit()
     db.refresh(formato)
     _regenerar_pdf(atencion, formato, db)
     return formato
- 
- 
+
+
+@router.put(
+    "/{atencion_id}/formato-traslado/corregir",
+    response_model=FormatoTrasladoOut,
+    dependencies=[Depends(require_admin)],
+)
+def corregir_formato_traslado(
+    atencion_id: int,
+    datos: FormatoTrasladoCorreccion,
+    usuario: CurrentUser,
+    db: DbSession,
+    motivo: str | None = Query(default=None),
+) -> FormatoTraslado:
+    """Corrige, en una sola llamada, el encabezado y la parte clínica
+    de un formato de traslado ya cerrado (issue #80, ajuste).
+
+    Reemplaza el flujo anterior de dos PUT separados
+    (`guardar_encabezado_traslado` + `guardar_clinico_traslado`, cuya
+    rama de corrección de administrador queda eliminada: ver esas
+    funciones), que producía dos filas de historial y pedía el motivo
+    dos veces para una sola corrección lógica.
+
+    Solo administrador, y solo si la atención ya está cerrada --
+    corregir mientras sigue abierta sigue siendo trabajo del auxiliar
+    o médico de turno, con los PUT normales de encabezado/clínico.
+
+    `motivo` es SIEMPRE obligatorio (issue #80): aunque el cambio
+    termine siendo "solo notas" y no deje ninguna fila en el
+    historial (ver abajo), tocar un registro médico ya cerrado exige
+    justificarlo igual.
+
+    Solo se crea una fila en `formato_version` si algo de lo
+    realmente rastreable (`_CAMPOS_RASTREABLES`) cambió -- diagnóstico,
+    nota de auxiliar, nota médica, quién las firma y observaciones
+    quedan deliberadamente fuera de ese conjunto (ver ADR-0012 y la
+    nota de módulo de `_CAMPOS_NO_RASTREABLES`). Si son lo ÚNICO que
+    cambió, la corrección no deja ningún rastro en el historial: ni
+    la fila, ni el motivo, nada -- antes solo se ocultaba el
+    CONTENIDO de esos campos en la fila, pero la fila igual aparecía.
+    """
+    atencion = _atencion_de_traslado(atencion_id, db)
+    if atencion.estado == EstadoAtencion.abierto:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "La atención sigue abierta; corrígela con los PUT de "
+                "encabezado/clínico normales"
+            ),
+        )
+    motivo_validado = _motivo_requerido(motivo)
+    formato = db.get(FormatoTraslado, atencion_id)
+    if formato is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Esta atención no tiene formato de traslado, no hay nada que corregir",
+        )
+
+    nuevos = datos.model_dump()
+    if _hubo_cambio_rastreable(formato, nuevos, _CAMPOS_RASTREABLES):
+        _guardar_version(formato, usuario, motivo_validado, db)
+
+    for campo, valor in nuevos.items():
+        setattr(formato, campo, valor)
+
+    db.commit()
+    db.refresh(formato)
+    _regenerar_pdf(atencion, formato, db)
+    return formato
+
+
 def _campos_faltantes_para_cerrar(formato: FormatoTraslado) -> list[str]:
     """Issue #57 -- qué le falta al formato clínico de un traslado
     para poder cerrarlo. `nota_medica` solo es obligatoria si el
@@ -1218,8 +1326,27 @@ _CAMPOS_VERSIONADOS_SOAT = (
     "profesional_recibe_cedula",
     "firma_profesional_recibe",
 )
- 
- 
+
+# Issue #80 (ajuste): igual que `_CAMPOS_NO_RASTREABLES`/
+# `_CAMPOS_RASTREABLES` para traslado, pero con los nombres de campo
+# propios del formato de accidente SOAT (`descripcion` en vez de
+# `diagnostico`, sin `observaciones`).
+_CAMPOS_NO_RASTREABLES_SOAT = frozenset(
+    {
+        "descripcion",
+        "nota_auxiliar",
+        "atendido_por",
+        "firma_atendido_por",
+        "nota_medica",
+        "evolucionado_por",
+        "firma_evolucionado_por",
+    }
+)
+_CAMPOS_RASTREABLES_SOAT = tuple(
+    campo for campo in _CAMPOS_VERSIONADOS_SOAT if campo not in _CAMPOS_NO_RASTREABLES_SOAT
+)
+
+
 def _guardar_version_soat(
     formato: FormatoAccidenteSoat, usuario: Usuario, motivo: str, db: DbSession
 ) -> None:
@@ -1299,12 +1426,13 @@ def guardar_encabezado_accidente_soat(
     datos: FormatoAccidenteSoatEncabezado,
     usuario: CurrentUser,
     db: DbSession,
-    motivo: str | None = Query(default=None),
 ) -> FormatoAccidenteSoat:
     """Crea o actualiza el encabezado del formato de accidente SOAT --
-    misma lógica de permisos abierto/cerrado (y `motivo` obligatorio
-    al corregir, issue #80) que `guardar_encabezado_traslado` (ver esa
-    función para el porqué de cada decisión).
+    misma lógica de permisos abierto/cerrado que
+    `guardar_encabezado_traslado` (ver esa función para el porqué de
+    cada decisión, incluido por qué cerrada esta ruta ya no acepta
+    escrituras ni siquiera para un administrador desde el #80, ajuste
+    -- corregir es ahora `PUT .../formato-accidente-soat/corregir`).
     """
     atencion = _atencion_de_accidente_soat(atencion_id, db)
 
@@ -1322,22 +1450,17 @@ def guardar_encabezado_accidente_soat(
             formato = FormatoAccidenteSoat(atencion_id=atencion_id)
             db.add(formato)
     else:
-        if not _es_admin(usuario):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="La atención ya está cerrada, solo un administrador puede corregirla",
-            )
-        motivo_validado = _motivo_requerido(motivo)
-        formato = db.get(FormatoAccidenteSoat, atencion_id)
-        if formato is None:
-            formato = FormatoAccidenteSoat(atencion_id=atencion_id)
-            db.add(formato)
-        else:
-            _guardar_version_soat(formato, usuario, motivo_validado, db)
- 
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "La atención ya está cerrada; corrígela con "
+                "PUT /atenciones/{atencion_id}/formato-accidente-soat/corregir"
+            ),
+        )
+
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
- 
+
     db.commit()
     db.refresh(formato)
     _regenerar_pdf_soat(atencion, formato, db)
@@ -1354,12 +1477,12 @@ def guardar_clinico_accidente_soat(
     datos: FormatoAccidenteSoatClinico,
     usuario: CurrentUser,
     db: DbSession,
-    motivo: str | None = Query(default=None),
 ) -> FormatoAccidenteSoat:
     """Guarda la parte clínica del formato de accidente SOAT -- misma
     lógica que `guardar_clinico_traslado` (ver esa función), incluido
-    requerir que el encabezado ya exista y, al corregir, el `motivo`
-    (issue #80).
+    requerir que el encabezado ya exista y que, cerrada la atención,
+    esta ruta ya no acepte escrituras (issue #80, ajuste: corregir es
+    ahora `PUT .../formato-accidente-soat/corregir`).
     """
     atencion = _atencion_de_accidente_soat(atencion_id, db)
 
@@ -1379,25 +1502,65 @@ def guardar_clinico_accidente_soat(
                 detail="Esta atención todavía no tiene encabezado — guárdalo primero",
             )
     else:
-        if not _es_admin(usuario):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="La atención ya está cerrada, solo un administrador puede corregirla",
-            )
-        formato = db.get(FormatoAccidenteSoat, atencion_id)
-        if formato is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Esta atención no tiene encabezado, no hay nada que corregir",
-            )
-        # Mismo criterio que en `guardar_clinico_traslado`: el 404 va
-        # primero.
-        motivo_validado = _motivo_requerido(motivo)
-        _guardar_version_soat(formato, usuario, motivo_validado, db)
- 
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "La atención ya está cerrada; corrígela con "
+                "PUT /atenciones/{atencion_id}/formato-accidente-soat/corregir"
+            ),
+        )
+
     for campo, valor in datos.model_dump().items():
         setattr(formato, campo, valor)
- 
+
+    db.commit()
+    db.refresh(formato)
+    _regenerar_pdf_soat(atencion, formato, db)
+    return formato
+
+
+@router.put(
+    "/{atencion_id}/formato-accidente-soat/corregir",
+    response_model=FormatoAccidenteSoatOut,
+    dependencies=[Depends(require_admin)],
+)
+def corregir_formato_accidente_soat(
+    atencion_id: int,
+    datos: FormatoAccidenteSoatCorreccion,
+    usuario: CurrentUser,
+    db: DbSession,
+    motivo: str | None = Query(default=None),
+) -> FormatoAccidenteSoat:
+    """Igual que `corregir_formato_traslado`, para el formato de
+    accidente SOAT -- ver esa función para el porqué de cada decisión
+    (un único PUT para encabezado + clínico, `motivo` siempre
+    obligatorio, y una fila de historial solo si algo de
+    `_CAMPOS_RASTREABLES_SOAT` cambió).
+    """
+    atencion = _atencion_de_accidente_soat(atencion_id, db)
+    if atencion.estado == EstadoAtencion.abierto:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "La atención sigue abierta; corrígela con los PUT de "
+                "encabezado/clínico normales"
+            ),
+        )
+    motivo_validado = _motivo_requerido(motivo)
+    formato = db.get(FormatoAccidenteSoat, atencion_id)
+    if formato is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Esta atención no tiene formato de accidente SOAT, no hay nada que corregir",
+        )
+
+    nuevos = datos.model_dump()
+    if _hubo_cambio_rastreable(formato, nuevos, _CAMPOS_RASTREABLES_SOAT):
+        _guardar_version_soat(formato, usuario, motivo_validado, db)
+
+    for campo, valor in nuevos.items():
+        setattr(formato, campo, valor)
+
     db.commit()
     db.refresh(formato)
     _regenerar_pdf_soat(atencion, formato, db)
