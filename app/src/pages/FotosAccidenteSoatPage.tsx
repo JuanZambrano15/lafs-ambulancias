@@ -214,7 +214,14 @@ export function FotosAccidenteSoatPage(): JSX.Element {
               <input
                 ref={inputArchivoRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                // Issue #18 (corregido tras QA): "image/*" en vez de
+                // una lista fija -- quien decide qué formato se
+                // acepta de verdad es el backend, decodificando el
+                // archivo (ver `_detectar_formato_foto`), no este
+                // atributo. Limitarlo más acá solo le escondía al
+                // auxiliar fotos reales (JPG entre otras) que sí
+                // eran válidas.
+                accept="image/*"
                 capture="environment"
                 className="hidden"
                 onChange={(evento) => void manejarSeleccionArchivo(evento)}

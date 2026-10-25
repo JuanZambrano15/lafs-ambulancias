@@ -1,3 +1,4 @@
+
 """Fotos del accidente SOAT, adjuntadas después del cierre (issue
 #18): subir, listar, descargar, borrar, y el permiso especial de
 "solo el que atendió, o un admin" (ver nota de módulo en
@@ -59,6 +60,28 @@ ENCABEZADO_VALIDO = {
 _FOTO_PNG_BYTES = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
     "CAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
+ 
+# JPEG 1x1 real -- issue #18 (corregido tras QA): la validación ahora
+# decodifica el archivo con Pillow en vez de confiar en el
+# `content_type` que mande el cliente, así que las pruebas necesitan
+# un JPEG de verdad (no basta con ponerle "image/jpeg" a los bytes de
+# un PNG) para ejercitar ese otro formato.
+_FOTO_JPEG_BYTES = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkS"
+    "Ew8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJ"
+    "CQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIy"
+    "MjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEA"
+    "AAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIh"
+    "MUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6"
+    "Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZ"
+    "mqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx"
+    "8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREA"
+    "AgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAV"
+    "YnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hp"
+    "anN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPE"
+    "xcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDi"
+    "6KKK+ZP3E//Z"
 )
  
  
@@ -251,16 +274,62 @@ class TestSubirFoto:
  
         assert response.status_code == 403
  
-    def test_content_type_no_permitido_da_422(
+    def test_un_archivo_que_no_es_una_imagen_da_422(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        """A diferencia de antes, lo que decide si se acepta no es el
+        `content_type` que mande el cliente -- son los bytes de
+        verdad (ver `_detectar_formato_foto`) -- así que para que esta
+        prueba rechace algo, el contenido mismo tiene que no ser una
+        imagen válida, sin importar qué diga el header."""
+        atencion_id = _crear_atencion_cerrada(client, db, auxiliar_headers)
+ 
+        response = _subir_foto(
+            client,
+            atencion_id,
+            auxiliar_headers,
+            content_type="image/png",
+            contenido=b"esto no es una imagen, aunque el content-type diga que si",
+        )
+ 
+        assert response.status_code == 422
+ 
+    def test_una_foto_jpeg_de_verdad_se_acepta(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        """Issue #18 (corregido tras QA): un JPG real se rechazaba
+        antes si el cliente mandaba un `content_type` distinto a
+        "image/jpeg" exacto (p. ej. "image/jpg", o genérico) -- ahora
+        se acepta igual porque el contenido sí es un JPEG válido,
+        detectado con Pillow en vez de confiar en ese header."""
+        atencion_id = _crear_atencion_cerrada(client, db, auxiliar_headers)
+ 
+        response = _subir_foto(
+            client,
+            atencion_id,
+            auxiliar_headers,
+            content_type="application/octet-stream",
+            contenido=_FOTO_JPEG_BYTES,
+        )
+ 
+        assert response.status_code == 201
+        assert response.json()["content_type"] == "image/jpeg"
+ 
+    def test_una_foto_png_con_content_type_erroneo_se_acepta_igual(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
     ) -> None:
         atencion_id = _crear_atencion_cerrada(client, db, auxiliar_headers)
  
         response = _subir_foto(
-            client, atencion_id, auxiliar_headers, content_type="application/pdf"
+            client,
+            atencion_id,
+            auxiliar_headers,
+            content_type="application/pdf",
+            contenido=_FOTO_PNG_BYTES,
         )
  
-        assert response.status_code == 422
+        assert response.status_code == 201
+        assert response.json()["content_type"] == "image/png"
  
     def test_archivo_vacio_da_422(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]

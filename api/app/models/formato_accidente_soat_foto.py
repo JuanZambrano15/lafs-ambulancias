@@ -1,3 +1,4 @@
+
 """Fotos del accidente SOAT, adjuntadas después del cierre (issue
 #18): "El auxiliar, el medico o el administrador pueden adjuntar
 fotos mas adelante, no en el momento del accidente."
@@ -48,9 +49,11 @@ class FormatoAccidenteSoatFoto(Base):
     atencion: Mapped[Atencion] = relationship()
  
     contenido: Mapped[bytes] = mapped_column(LargeBinary)
-    # p. ej. "image/jpeg" -- validado contra una lista fija al subir
-    # (ver `_CONTENT_TYPES_FOTO_PERMITIDOS`), nunca confiado tal cual
-    # venga del cliente para servir el archivo después.
+    # p. ej. "image/jpeg" -- se decide al subir decodificando el
+    # archivo de verdad con Pillow (ver `_detectar_formato_foto` en
+    # `app/api/routes/atenciones.py`), nunca confiando en lo que mande
+    # el cliente (`UploadFile.content_type` resultó poco confiable en
+    # la práctica -- ver el comentario de módulo en esa ruta).
     content_type: Mapped[str] = mapped_column(String(50))
     tamanio_bytes: Mapped[int] = mapped_column(Integer)
  

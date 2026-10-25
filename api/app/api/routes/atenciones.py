@@ -1,3 +1,4 @@
+
 """Iniciar una atención: elegir móvil, tipo y conductor (issue #7).
  
 Solo el personal operativo (auxiliar de enfermería, médico, conductor)
@@ -10,6 +11,7 @@ nunca un dato que mande el cliente: sale de `usuario.empleado_id`.
  
 from __future__ import annotations
  
+import io
 from datetime import UTC, datetime
  
 from fastapi import (
@@ -22,6 +24,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from PIL import Image
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
  
@@ -687,13 +690,51 @@ def _es_personal_clinico(usuario: Usuario) -> bool:
     return bool(nombres_roles & {"auxiliar_enfermeria", "medico"})
  
  
-# Issue #18 -- formatos aceptados para una foto del accidente. No se
-# acepta cualquier cosa que el navegador/app mande como content_type
-# (ni siquiera "image/*" completo): HEIC/HEIF, el formato nativo de
-# muchos celulares, no lo sabe mostrar ningún navegador ni WeasyPrint
-# sin una conversión aparte -- si el cliente la necesita, es un issue
-# propio, no algo que valga la pena resolver "de paso" acá.
-_CONTENT_TYPES_FOTO_PERMITIDOS = {"image/jpeg", "image/png", "image/webp"}
+# Issue #18 (corregido tras QA -- ver abajo): formatos aceptados para
+# una foto del accidente. HEIC/HEIF, el formato nativo de la cámara de
+# muchos iPhone, se queda afuera a propósito: no lo sabe mostrar
+# ningún navegador (salvo Safari) ni WeasyPrint sin una conversión
+# aparte -- si el cliente la necesita, es un issue propio, no algo que
+# valga la pena resolver "de paso" acá.
+#
+# El primer intento de esto confiaba en el `content_type` que manda el
+# navegador/app (`UploadFile.content_type`) para decidir qué aceptar
+# -- resultó ser poco confiable en la práctica: un JPG real, bajado de
+# Facebook o reenviado por WhatsApp, puede llegar con un
+# `Content-Type` que el cliente HTTP mandó mal, genérico
+# ("application/octet-stream") o con una variante no estándar
+# ("image/jpg" en vez de "image/jpeg") -- y esta ruta lo rechazaba
+# igual, aunque la foto en sí fuera perfectamente válida. Ahora se
+# decodifica el archivo de verdad con Pillow (`_detectar_formato_foto`
+# más abajo) y se decide por lo que el archivo *es*, no por lo que el
+# cliente dice que es -- lo mismo que ya hace WeasyPrint/Pillow para
+# embeber logo y firma en el PDF.
+_FORMATOS_PILLOW_A_CONTENT_TYPE = {
+    "JPEG": "image/jpeg",
+    "PNG": "image/png",
+    "WEBP": "image/webp",
+    "GIF": "image/gif",
+    "BMP": "image/bmp",
+}
+ 
+ 
+def _detectar_formato_foto(contenido: bytes) -> str | None:
+    """Content-type real de una foto, a partir de sus bytes (no de lo
+    que mande el cliente) -- `None` si Pillow no puede abrirla, o si
+    es un formato que no está en `_FORMATOS_PILLOW_A_CONTENT_TYPE`
+    (p. ej. HEIC, que Pillow sin un plugin aparte ni siquiera logra
+    identificar, así que ya cae solo en el primer caso)."""
+    try:
+        with Image.open(io.BytesIO(contenido)) as imagen:
+            formato = imagen.format
+            imagen.verify()
+    except Exception:
+        # Pillow puede fallar con excepciones bastante distintas según
+        # qué tan roto/qué tan poco una imagen sea un archivo de
+        # imagen -- cualquiera de ellas significa lo mismo acá: "esto
+        # no es una foto válida", 422, no un 500.
+        return None
+    return _FORMATOS_PILLOW_A_CONTENT_TYPE.get(formato or "")
 # 8 MB -- de sobra para una foto ya comprimida por la cámara de un
 # celular (unos pocos MB en JPEG), pero sin dejar subir cualquier cosa
 # sin límite (quedan como blobs en la base de datos).
@@ -1383,11 +1424,6 @@ async def subir_foto_accidente_soat(
                 "administrador, puede adjuntar fotos"
             ),
         )
-    if archivo.content_type not in _CONTENT_TYPES_FOTO_PERMITIDOS:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Solo se aceptan fotos JPEG, PNG o WEBP",
-        )
     contenido = await archivo.read()
     if not contenido:
         raise HTTPException(
@@ -1398,11 +1434,25 @@ async def subir_foto_accidente_soat(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="La foto no puede superar los 8 MB",
         )
+    # No se confía en `archivo.content_type` (lo que mande el
+    # navegador/app) -- ver el comentario de módulo sobre por qué eso
+    # rechazaba JPG reales. Se decide por los bytes de verdad.
+    content_type_real = _detectar_formato_foto(contenido)
+    if content_type_real is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "El archivo no parece ser una foto válida, o es un formato no "
+                "soportado (p. ej. HEIC, el de muchos iPhone -- hay que "
+                "exportarla como JPEG o PNG antes de subirla). Se aceptan "
+                "JPEG, PNG, WEBP, GIF y BMP."
+            ),
+        )
  
     foto = FormatoAccidenteSoatFoto(
         atencion_id=atencion_id,
         contenido=contenido,
-        content_type=archivo.content_type,
+        content_type=content_type_real,
         tamanio_bytes=len(contenido),
         subida_por_id=usuario.id,
         subida_en=datetime.now(UTC),
