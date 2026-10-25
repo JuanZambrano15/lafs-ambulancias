@@ -41,6 +41,19 @@ export const FirmaCanvas = forwardRef<FirmaCanvasHandle, FirmaCanvasProps>(
     const canvasRef = useRef<HTMLCanvasElement | null>(null)
     const dibujandoRef = useRef(false)
     const vacioRef = useRef(true)
+    // Issue #80 (ajuste): si hay `imagenInicial`, el efecto de abajo la
+    // dibuja en el canvas para que se vea -- eso deja `vacioRef` en
+    // `false` aunque el usuario no haya tocado nada. Antes de este flag,
+    // `exportar()` volvía a codificar esa imagen con `toDataURL()` en
+    // cada envío, y un PNG recodificado NUNCA da el mismo base64 que el
+    // original (aunque los píxeles se vean iguales) -- eso hacía que una
+    // firma "sin tocar" pareciera cambiar siempre, disparando una fila
+    // de historial de más si el campo era rastreable (p. ej.
+    // `firma_profesional_recibe`). `modificadaRef` solo pasa a `true`
+    // cuando el usuario realmente dibuja o limpia -- si no, `exportar()`
+    // devuelve `null` y el que llama cae a su `?? existente`, mandando
+    // el base64 original intacto en vez de uno recodificado.
+    const modificadaRef = useRef(false)
  
     function contexto(): CanvasRenderingContext2D | null {
       return canvasRef.current?.getContext('2d') ?? null
@@ -124,6 +137,7 @@ export const FirmaCanvas = forwardRef<FirmaCanvasHandle, FirmaCanvasProps>(
       ctx.lineTo(x, y)
       ctx.stroke()
       vacioRef.current = false
+      modificadaRef.current = true
     }
  
     function terminarTrazo(evento: React.PointerEvent<HTMLCanvasElement>): void {
@@ -132,13 +146,17 @@ export const FirmaCanvas = forwardRef<FirmaCanvasHandle, FirmaCanvasProps>(
     }
  
     useImperativeHandle(ref, () => ({
-      exportar: () => (vacioRef.current ? null : (canvasRef.current?.toDataURL('image/png') ?? null)),
+      exportar: () =>
+        !modificadaRef.current || vacioRef.current
+          ? null
+          : (canvasRef.current?.toDataURL('image/png') ?? null),
       limpiar: () => {
         const canvas = canvasRef.current
         const ctx = contexto()
         if (!canvas || !ctx) return
         ctx.clearRect(0, 0, canvas.width, canvas.height)
         vacioRef.current = true
+        modificadaRef.current = true
       },
       estaVacio: () => vacioRef.current,
     }))
