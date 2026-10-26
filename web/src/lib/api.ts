@@ -1,5 +1,3 @@
-
- 
 /**
  * Cliente HTTP para la API de LAFS Ambulancias.
  *
@@ -22,7 +20,15 @@ import type {
   Empleado,
   EmpleadoCreate,
   EmpleadoUpdate,
+  FormatoAccidenteSoat,
+  FormatoAccidenteSoatClinico,
+  FormatoAccidenteSoatEncabezado,
   FormatoAccidenteSoatFoto,
+  FormatoAccidenteSoatVersionOut,
+  FormatoTraslado,
+  FormatoTrasladoClinico,
+  FormatoTrasladoEncabezado,
+  FormatoVersionOut,
   MeResponse,
   Rol,
   RolCreate,
@@ -292,6 +298,13 @@ export async function listarAmbulancias(soloActivas = false): Promise<Ambulancia
   return apiFetch<Ambulancia[]>(`/ambulancias${query}`)
 }
  
+/** Issue #80 -- selector de médico de planta en los formularios de
+ * corrección clínica (mismo endpoint que ya usa `app/`, ver
+ * `listarMedicosDisponibles` en `app/src/lib/api.ts`). */
+export async function listarMedicosDisponibles(): Promise<Empleado[]> {
+  return apiFetch<Empleado[]>('/atenciones/medicos-disponibles')
+}
+
 // --- Atenciones de traslado (issue #15: pendientes/cerradas del panel) ---
  
 export async function listarAtencionesPendientes(): Promise<Atencion[]> {
@@ -303,6 +316,86 @@ export async function listarAtencionesCerradas(q?: string): Promise<AtencionCerr
   if (q) parametros.set('q', q)
   const query = parametros.toString() ? `?${parametros.toString()}` : ''
   return apiFetch<AtencionCerrada[]>(`/atenciones/cerradas${query}`)
+}
+
+/** Detalle de un único servicio ya cerrado (issue #80) -- mismo
+ * esquema que cada fila de `listarAtencionesCerradas`, para la
+ * pantalla "Servicios cerrados" > detalle. */
+export async function obtenerAtencionCerrada(atencionId: number): Promise<AtencionCerrada> {
+  return apiFetch<AtencionCerrada>(`/atenciones/${atencionId}`)
+}
+
+// --- Corrección de formatos ya cerrados (issue #80: "Corregir
+// formato" en el panel web, flujo que ya existía del #14 para el
+// backend/la app móvil, sin ninguna pantalla propia hasta ahora) --
+//
+// `motivo` es obligatorio desde el #80 para corregir una atención ya
+// cerrada (ver `_motivo_requerido` en el backend) -- viaja como
+// parámetro de query, no en el cuerpo, porque el cuerpo sigue siendo
+// el mismo esquema que usa el llenado normal (que no tiene ese
+// campo). El PUT es un reemplazo completo del encabezado o de lo
+// clínico, igual que en `app/` -- no hay PATCH parcial.
+
+function conMotivo(path: string, motivo: string): string {
+  return `${path}?motivo=${encodeURIComponent(motivo)}`
+}
+
+export async function obtenerFormatoTraslado(atencionId: number): Promise<FormatoTraslado> {
+  return apiFetch<FormatoTraslado>(`/atenciones/${atencionId}/formato-traslado`)
+}
+
+/** Corrige, en una sola llamada, el encabezado y la parte clínica de
+ * un formato de traslado ya cerrado (issue #80, ajuste) -- reemplaza
+ * las dos llamadas separadas que había antes (`guardarEncabezadoTraslado`
+ * + `guardarClinicoTraslado`, ahora eliminadas: el backend ya no
+ * acepta correcciones de administrador por esas rutas, ver
+ * `corregir_formato_traslado` en `atenciones.py`), que generaban dos
+ * filas de historial y pedían el motivo dos veces para una sola
+ * corrección lógica. */
+export async function corregirFormatoTraslado(
+  atencionId: number,
+  datos: FormatoTrasladoEncabezado & FormatoTrasladoClinico,
+  motivo: string,
+): Promise<FormatoTraslado> {
+  return apiFetch<FormatoTraslado>(
+    conMotivo(`/atenciones/${atencionId}/formato-traslado/corregir`, motivo),
+    { method: 'PUT', body: datos },
+  )
+}
+
+export async function obtenerFormatoAccidenteSoat(
+  atencionId: number,
+): Promise<FormatoAccidenteSoat> {
+  return apiFetch<FormatoAccidenteSoat>(`/atenciones/${atencionId}/formato-accidente-soat`)
+}
+
+/** Igual que `corregirFormatoTraslado`, para el formato de accidente
+ * SOAT (issue #80, ajuste). */
+export async function corregirFormatoAccidenteSoat(
+  atencionId: number,
+  datos: FormatoAccidenteSoatEncabezado & FormatoAccidenteSoatClinico,
+  motivo: string,
+): Promise<FormatoAccidenteSoat> {
+  return apiFetch<FormatoAccidenteSoat>(
+    conMotivo(`/atenciones/${atencionId}/formato-accidente-soat/corregir`, motivo),
+    { method: 'PUT', body: datos },
+  )
+}
+
+/** Historial de correcciones de un formato ya cerrado (issue #14,
+ * ADR-0012), más reciente primero -- a propósito solo trae
+ * quién/cuándo/motivo (ver `FormatoVersionOut` en `lib/types.ts`),
+ * nunca el contenido clínico de esa versión anterior. */
+export async function historialFormatoTraslado(atencionId: number): Promise<FormatoVersionOut[]> {
+  return apiFetch<FormatoVersionOut[]>(`/atenciones/${atencionId}/formato-traslado/historial`)
+}
+
+export async function historialFormatoAccidenteSoat(
+  atencionId: number,
+): Promise<FormatoAccidenteSoatVersionOut[]> {
+  return apiFetch<FormatoAccidenteSoatVersionOut[]>(
+    `/atenciones/${atencionId}/formato-accidente-soat/historial`,
+  )
 }
  
 /** Descarga el PDF del formato de una atención ya cerrada (issue

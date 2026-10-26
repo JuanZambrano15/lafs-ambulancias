@@ -55,11 +55,17 @@ class FormatoVersion(Base):
     atencion: Mapped[Atencion] = relationship()
  
     # Quién autorizó la corrección (siempre un administrador, ver
-    # ADR-0012) y cuándo — lo único que el cliente pidió conservar
-    # sobre el "quién y cuándo", sin motivo en texto libre.
+    # ADR-0012) y cuándo.
     corregido_por_id: Mapped[int] = mapped_column(ForeignKey("usuario.id"))
     corregido_por: Mapped[Usuario] = relationship()
     corregido_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Issue #80: el cliente pidió saber POR QUÉ se corrigió un formato
+    # ya firmado y cerrado, no solo quién y cuándo -- el #14 original
+    # había decidido a propósito no guardar esto; el #80 cambia esa
+    # decisión. `NOT NULL` igual que `corregido_por_id`/`corregido_en`:
+    # es metadata de la corrección en sí, no un campo del formato que
+    # se está versionando (ver la migración `a1f6c9e3b8d2`).
+    motivo: Mapped[str] = mapped_column(Text)
  
     # --- Mismas columnas que FormatoTraslado (ver ese modelo para el
     # significado de cada una), menos diagnostico/notas/pdf — todas

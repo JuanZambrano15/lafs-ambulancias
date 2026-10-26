@@ -175,6 +175,21 @@ class FormatoTrasladoClinico(BaseModel):
     observaciones: str | None = Field(default=None, max_length=2000)
 
 
+class FormatoTrasladoCorreccion(FormatoTrasladoEncabezado, FormatoTrasladoClinico):
+    """Esquema combinado para corregir, en una sola llamada, el
+    encabezado y la parte clínica de un formato de traslado ya
+    cerrado (issue #80, ajuste) -- antes la corrección eran dos PUT
+    separados (`FormatoTrasladoEncabezado` y `FormatoTrasladoClinico`
+    cada uno por su lado), cada uno generando su propia fila de
+    historial y pidiendo su propio `motivo`; ver
+    `app.api.routes.atenciones.corregir_formato_traslado`.
+
+    Sin campos propios: `FormatoTrasladoEncabezado` y
+    `FormatoTrasladoClinico` no comparten ningún nombre de campo, así
+    que la unión por herencia múltiple alcanza.
+    """
+
+
 class FormatoTrasladoOut(FormatoTrasladoEncabezado, FormatoTrasladoClinico):
     model_config = ConfigDict(from_attributes=True)
 

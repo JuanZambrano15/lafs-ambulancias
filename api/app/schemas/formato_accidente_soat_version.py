@@ -34,6 +34,7 @@ class FormatoAccidenteSoatVersionOut(BaseModel):
     atencion_id: int
     corregido_por: UsuarioResumenOut
     corregido_en: datetime
+    motivo: str
 
     fecha_atencion: date | None
     hora_atencion: time | None

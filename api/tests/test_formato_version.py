@@ -1,5 +1,6 @@
 """Corrección de formato cerrado, con historial de versiones
-(issue #14, ADR-0012).
+(issue #14, ADR-0012; combinada en un solo endpoint desde el #80,
+ajuste -- ver `corregir_formato_traslado`).
 """
 
 from __future__ import annotations
@@ -45,8 +46,6 @@ ENCABEZADO_VALIDO = {
     "modalidad": "sencillo",
 }
 
-ENCABEZADO_CORREGIDO = {**ENCABEZADO_VALIDO, "paciente_edad": 46, "paciente_ciudad": "Ocaña"}
-
 CLINICO_VALIDO = {
     "diagnostico": "Trauma craneoencefálico leve por caída de altura",
     "tratamiento": ["collar_cervical", "oxigeno"],
@@ -62,11 +61,32 @@ CLINICO_VALIDO = {
     # las pruebas de aquí).
     "nota_medica": "Se recomienda TAC de cráneo al ingreso.",
     "atendido_por": "Ana Ruiz",
+    "evolucionado_por": "Dr. Luis Torres",
     "profesional_recibe_nombre": "Carlos Gómez",
     "profesional_recibe_cedula": "900000002",
 }
 
-CLINICO_CORREGIDO = {**CLINICO_VALIDO, "diagnostico": "TCE moderado, se corrige clasificación"}
+# Corrección combinada "de verdad": cambia algo rastreable
+# (paciente_edad/ciudad, en el encabezado) -- debe generar una fila
+# de historial.
+CORRECCION_VALIDA = {
+    **ENCABEZADO_VALIDO,
+    **CLINICO_VALIDO,
+    "paciente_edad": 46,
+    "paciente_ciudad": "Ocaña",
+    "diagnostico": "TCE moderado, se corrige clasificación",
+}
+
+# Corrección "solo notas": todo lo rastreable queda IGUAL que
+# CLINICO_VALIDO/ENCABEZADO_VALIDO, solo cambian diagnóstico, nota de
+# auxiliar/médico y quién las firma -- NO debe generar ninguna fila
+# de historial (issue #80, el bug reportado).
+CORRECCION_SOLO_NOTAS = {
+    **ENCABEZADO_VALIDO,
+    **CLINICO_VALIDO,
+    "diagnostico": "TCE moderado, se corrige clasificación",
+    "nota_medica": "Se amplía la nota médica tras la evolución.",
+}
 
 
 def _crear_ambulancia(db: Session, movil: str = "M-ver") -> Ambulancia:
@@ -149,7 +169,9 @@ def _crear_atencion_cerrada_con_formato(
 
 class TestPermisosDeEdicion:
     """Quién puede editar según el estado de la atención (ADR-0012):
-    abierta → auxiliar/médico, no admin; cerrada → solo admin.
+    abierta → auxiliar/médico, no admin; cerrada → nadie por estas
+    rutas, ni siquiera el admin (issue #80, ajuste) -- corregir una
+    atención cerrada es siempre `PUT .../corregir`.
     """
 
     def test_admin_no_puede_editar_encabezado_de_atencion_abierta(
@@ -179,8 +201,28 @@ class TestPermisosDeEdicion:
 
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-traslado",
-            json=ENCABEZADO_CORREGIDO,
+            json={**ENCABEZADO_VALIDO, "paciente_edad": 46},
             headers=auxiliar_headers,
+        )
+
+        assert respuesta.status_code == 409
+
+    def test_admin_tampoco_puede_editar_encabezado_de_cerrada_por_esta_ruta(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        """Issue #80 (ajuste): esta ruta ya no tiene rama de
+        corrección de administrador -- eso es `PUT .../corregir`.
+        """
+        atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
+
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado",
+            json={**ENCABEZADO_VALIDO, "paciente_edad": 46},
+            headers=admin_headers,
         )
 
         assert respuesta.status_code == 409
@@ -196,8 +238,25 @@ class TestPermisosDeEdicion:
 
         respuesta = client.put(
             f"/atenciones/{atencion_id}/formato-traslado/clinico",
-            json=CLINICO_CORREGIDO,
+            json=CLINICO_VALIDO,
             headers=medico_headers,
+        )
+
+        assert respuesta.status_code == 409
+
+    def test_admin_tampoco_puede_editar_clinico_de_cerrada_por_esta_ruta(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
+
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado/clinico",
+            json=CLINICO_VALIDO,
+            headers=admin_headers,
         )
 
         assert respuesta.status_code == 409
@@ -221,7 +280,12 @@ class TestPermisosDeEdicion:
 
 
 class TestCorreccionDeAdministrador:
-    def test_admin_corrige_el_encabezado_de_atencion_cerrada(
+    """`PUT .../formato-traslado/corregir` (issue #80, ajuste): un
+    solo endpoint para encabezado + clínico, un solo `motivo`, como
+    mucho una fila de historial.
+    """
+
+    def test_admin_corrige_encabezado_y_clinico_en_una_sola_llamada(
         self,
         client: TestClient,
         db: Session,
@@ -231,16 +295,58 @@ class TestCorreccionDeAdministrador:
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
 
         respuesta = client.put(
-            f"/atenciones/{atencion_id}/formato-traslado",
-            json=ENCABEZADO_CORREGIDO,
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json=CORRECCION_VALIDA,
+            params={"motivo": "El paciente corrigió su edad y ciudad al revisar el PDF"},
             headers=admin_headers,
         )
 
         assert respuesta.status_code == 200
-        assert respuesta.json()["paciente_edad"] == 46
-        assert respuesta.json()["paciente_ciudad"] == "Ocaña"
+        cuerpo = respuesta.json()
+        assert cuerpo["paciente_edad"] == 46
+        assert cuerpo["paciente_ciudad"] == "Ocaña"
+        assert cuerpo["diagnostico"] == "TCE moderado, se corrige clasificación"
 
-    def test_admin_corrige_el_clinico_de_atencion_cerrada(
+    def test_la_corregida_no_es_admin_no_puede(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+    ) -> None:
+        atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
+
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json=CORRECCION_VALIDA,
+            params={"motivo": "Intento sin ser administrador"},
+            headers=auxiliar_headers,
+        )
+
+        assert respuesta.status_code == 403
+
+    def test_corregir_de_atencion_abierta_da_409(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        atencion_id = _crear_atencion(client, db, auxiliar_headers)
+        client.put(
+            f"/atenciones/{atencion_id}/formato-traslado", json=ENCABEZADO_VALIDO,
+            headers=auxiliar_headers,
+        )
+
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json=CORRECCION_VALIDA,
+            params={"motivo": "No debería aplicar, sigue abierta"},
+            headers=admin_headers,
+        )
+
+        assert respuesta.status_code == 409
+
+    def test_corregir_sin_motivo_da_422(
         self,
         client: TestClient,
         db: Session,
@@ -250,15 +356,53 @@ class TestCorreccionDeAdministrador:
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
 
         respuesta = client.put(
-            f"/atenciones/{atencion_id}/formato-traslado/clinico",
-            json=CLINICO_CORREGIDO,
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json=CORRECCION_VALIDA,
             headers=admin_headers,
         )
 
-        assert respuesta.status_code == 200
-        assert respuesta.json()["diagnostico"] == "TCE moderado, se corrige clasificación"
+        assert respuesta.status_code == 422
 
-    def test_corregir_sin_encabezado_previo_da_404(
+    def test_corregir_con_motivo_en_blanco_da_422(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
+
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json=CORRECCION_VALIDA,
+            params={"motivo": "   "},
+            headers=admin_headers,
+        )
+
+        assert respuesta.status_code == 422
+
+    def test_corregir_con_motivo_en_blanco_no_crea_formato_aunque_cambie_solo_notas(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        """Issue #80: `motivo` es siempre obligatorio, incluso cuando
+        la corrección termina siendo "solo notas" y no deja fila en
+        el historial -- se valida ANTES de decidir si hay o no fila.
+        """
+        atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
+
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json=CORRECCION_SOLO_NOTAS,
+            headers=admin_headers,
+        )
+
+        assert respuesta.status_code == 422
+
+    def test_corregir_sin_formato_previo_da_404(
         self,
         client: TestClient,
         db: Session,
@@ -266,8 +410,8 @@ class TestCorreccionDeAdministrador:
         admin_headers: dict[str, str],
     ) -> None:
         """Atención cerrada sin que nunca haya tenido encabezado
-        (ADR-0002: se puede cerrar igual) — no hay parte clínica que
-        corregir, 404 en vez de crear algo de la nada.
+        (ADR-0002: se puede cerrar igual) — no hay nada que corregir,
+        404 en vez de crear algo de la nada.
         """
         atencion_id = _crear_atencion(client, db, auxiliar_headers)
         usuario = db.query(Usuario).filter(Usuario.documento == "700000001").one()
@@ -279,44 +423,13 @@ class TestCorreccionDeAdministrador:
         assert cerrar.status_code == 200
 
         respuesta = client.put(
-            f"/atenciones/{atencion_id}/formato-traslado/clinico",
-            json=CLINICO_CORREGIDO,
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json=CORRECCION_VALIDA,
+            params={"motivo": "No hay nada que corregir"},
             headers=admin_headers,
         )
 
         assert respuesta.status_code == 404
-
-    def test_admin_crea_encabezado_en_cerrada_sin_formato_previo_no_genera_version(
-        self,
-        client: TestClient,
-        db: Session,
-        auxiliar_headers: dict[str, str],
-        admin_headers: dict[str, str],
-    ) -> None:
-        """Caso límite: atención cerrada que nunca tuvo encabezado. El
-        admin puede crearlo (no hay nada que "corregir" todavía), pero
-        no hay un estado anterior que versionar.
-        """
-        atencion_id = _crear_atencion(client, db, auxiliar_headers)
-        usuario = db.query(Usuario).filter(Usuario.documento == "700000001").one()
-        usuario.pin_hash = hash_secret("1234")
-        db.commit()
-        cerrar = client.put(
-            f"/atenciones/{atencion_id}/cerrar", json={"pin": "1234"}, headers=auxiliar_headers
-        )
-        assert cerrar.status_code == 200
-
-        respuesta = client.put(
-            f"/atenciones/{atencion_id}/formato-traslado",
-            json=ENCABEZADO_VALIDO,
-            headers=admin_headers,
-        )
-        assert respuesta.status_code == 200
-
-        historial = client.get(
-            f"/atenciones/{atencion_id}/formato-traslado/historial", headers=admin_headers
-        )
-        assert historial.json() == []
 
 
 class TestHistorial:
@@ -335,18 +448,24 @@ class TestHistorial:
         assert respuesta.status_code == 200
         assert respuesta.json() == []
 
-    def test_una_correccion_crea_una_version_con_el_estado_anterior(
+    def test_una_correccion_crea_una_sola_version_con_el_estado_anterior(
         self,
         client: TestClient,
         db: Session,
         auxiliar_headers: dict[str, str],
         admin_headers: dict[str, str],
     ) -> None:
+        """Issue #80, el bug reportado: antes, encabezado + clínico
+        por separado dejaban DOS filas para una sola corrección
+        lógica -- con el endpoint combinado, una corrección es una
+        sola fila.
+        """
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
 
         client.put(
-            f"/atenciones/{atencion_id}/formato-traslado",
-            json=ENCABEZADO_CORREGIDO,
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json=CORRECCION_VALIDA,
+            params={"motivo": "El paciente llamó a corregir su edad y ciudad"},
             headers=admin_headers,
         )
 
@@ -360,6 +479,99 @@ class TestHistorial:
         assert versiones[0]["paciente_edad"] == 45
         assert versiones[0]["paciente_ciudad"] == "Cúcuta"
         assert versiones[0]["corregido_por"]["documento"] == "999999999"
+        # Issue #80 -- el motivo de la corrección queda en el historial.
+        assert versiones[0]["motivo"] == "El paciente llamó a corregir su edad y ciudad"
+
+    def test_correccion_solo_de_notas_no_deja_ninguna_fila(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        """Issue #80, el bug reportado: corregir ÚNICAMENTE
+        diagnóstico/notas (incluido agregar o cambiar quién
+        atendió/evolucionó y su firma) no debe dejar rastro alguno en
+        el historial -- ni la fila, ni el motivo.
+        """
+        atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
+
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json=CORRECCION_SOLO_NOTAS,
+            params={"motivo": "Se ajustó el diagnóstico tras revisión médica"},
+            headers=admin_headers,
+        )
+        assert respuesta.status_code == 200
+        assert respuesta.json()["diagnostico"] == CORRECCION_SOLO_NOTAS["diagnostico"]
+
+        historial = client.get(
+            f"/atenciones/{atencion_id}/formato-traslado/historial", headers=admin_headers
+        ).json()
+        assert historial == []
+
+    def test_agregar_medico_que_antes_no_estaba_no_deja_fila(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        admin_headers: dict[str, str],
+    ) -> None:
+        """Repro exacto del issue #80: un básico sin médico al que se
+        le agrega "evolucionado_por" (el médico) y su nota NO debe
+        dejar ninguna fila -- antes sí dejaba, porque
+        `evolucionado_por`/`firma_evolucionado_por` estaban en
+        `_CAMPOS_VERSIONADOS` (se siguen guardando ahí si se crea una
+        fila por otro motivo) pero no se habían sacado de lo
+        "rastreable": agregar al médico contaba como un cambio que
+        disparaba la fila, aunque la nota médica en sí ya estuviera
+        excluida.
+        """
+        atencion_id = _crear_atencion(client, db, auxiliar_headers)
+        basico_sin_medico = {
+            **ENCABEZADO_VALIDO,
+            "nivel_servicio": "basico",
+        }
+        clinico_sin_medico = {
+            **CLINICO_VALIDO,
+            "nota_medica": None,
+            "evolucionado_por": None,
+        }
+        client.put(
+            f"/atenciones/{atencion_id}/formato-traslado",
+            json=basico_sin_medico,
+            headers=auxiliar_headers,
+        )
+        client.put(
+            f"/atenciones/{atencion_id}/formato-traslado/clinico",
+            json=clinico_sin_medico,
+            headers=auxiliar_headers,
+        )
+        usuario = db.query(Usuario).filter(Usuario.documento == "700000001").one()
+        usuario.pin_hash = hash_secret("1234")
+        db.commit()
+        client.put(
+            f"/atenciones/{atencion_id}/cerrar", json={"pin": "1234"}, headers=auxiliar_headers
+        )
+
+        con_medico = {
+            **basico_sin_medico,
+            **clinico_sin_medico,
+            "evolucionado_por": "Dra. María Gómez",
+            "nota_medica": "Se incorpora evolución del médico de planta",
+        }
+        respuesta = client.put(
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json=con_medico,
+            params={"motivo": "Se agregó al médico que faltaba registrar"},
+            headers=admin_headers,
+        )
+        assert respuesta.status_code == 200
+
+        historial = client.get(
+            f"/atenciones/{atencion_id}/formato-traslado/historial", headers=admin_headers
+        ).json()
+        assert historial == []
 
     def test_varias_correcciones_quedan_mas_reciente_primero(
         self,
@@ -371,13 +583,15 @@ class TestHistorial:
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
 
         client.put(
-            f"/atenciones/{atencion_id}/formato-traslado",
-            json={**ENCABEZADO_VALIDO, "paciente_edad": 46},
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json={**CORRECCION_VALIDA, "paciente_edad": 46},
+            params={"motivo": "Primera corrección"},
             headers=admin_headers,
         )
         client.put(
-            f"/atenciones/{atencion_id}/formato-traslado",
-            json={**ENCABEZADO_VALIDO, "paciente_edad": 47},
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json={**CORRECCION_VALIDA, "paciente_edad": 47},
+            params={"motivo": "Segunda corrección"},
             headers=admin_headers,
         )
 
@@ -400,8 +614,9 @@ class TestHistorial:
         atencion_id = _crear_atencion_cerrada_con_formato(client, db, auxiliar_headers)
 
         client.put(
-            f"/atenciones/{atencion_id}/formato-traslado/clinico",
-            json=CLINICO_CORREGIDO,
+            f"/atenciones/{atencion_id}/formato-traslado/corregir",
+            json=CORRECCION_VALIDA,
+            params={"motivo": "Se ajustó el diagnóstico tras revisión médica"},
             headers=admin_headers,
         )
 

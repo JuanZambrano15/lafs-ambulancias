@@ -1,16 +1,18 @@
-
 import type { JSX } from 'react'
 import { Route, Routes } from 'react-router-dom'
  
 import { AuthProvider } from './auth/AuthContext'
 import { Layout } from './components/Layout'
 import { CambiarPasswordPage } from './pages/CambiarPasswordPage'
+import { CorregirFormatoAccidenteSoatPage } from './pages/CorregirFormatoAccidenteSoatPage'
+import { CorregirFormatoTrasladoPage } from './pages/CorregirFormatoTrasladoPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { EmpleadosPage } from './pages/EmpleadosPage'
-import { FormatosCerradosPage } from './pages/FormatosCerradosPage'
 import { FotosAccidenteSoatPage } from './pages/FotosAccidenteSoatPage'
 import { LoginPage } from './pages/LoginPage'
 import { RolesPage } from './pages/RolesPage'
+import { ServicioCerradoDetallePage } from './pages/ServicioCerradoDetallePage'
+import { ServiciosCerradosPage } from './pages/ServiciosCerradosPage'
 import { UsuariosPage } from './pages/UsuariosPage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
  
@@ -30,10 +32,34 @@ export function App(): JSX.Element {
             }
           />
           <Route
-            path="/formatos-cerrados"
+            path="/servicios-cerrados"
             element={
               <Layout>
-                <FormatosCerradosPage />
+                <ServiciosCerradosPage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/atenciones/:atencionId/detalle"
+            element={
+              <Layout>
+                <ServicioCerradoDetallePage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/atenciones/:atencionId/corregir/traslado"
+            element={
+              <Layout>
+                <CorregirFormatoTrasladoPage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/atenciones/:atencionId/corregir/accidente-soat"
+            element={
+              <Layout>
+                <CorregirFormatoAccidenteSoatPage />
               </Layout>
             }
           />
