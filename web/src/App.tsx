@@ -10,6 +10,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { EmpleadosPage } from './pages/EmpleadosPage'
 import { FotosAccidenteSoatPage } from './pages/FotosAccidenteSoatPage'
 import { LoginPage } from './pages/LoginPage'
+import { ReporteServiciosPage } from './pages/ReporteServiciosPage'
 import { RolesPage } from './pages/RolesPage'
 import { ServicioCerradoDetallePage } from './pages/ServicioCerradoDetallePage'
 import { ServiciosCerradosPage } from './pages/ServiciosCerradosPage'
@@ -92,6 +93,18 @@ export function App(): JSX.Element {
             element={
               <Layout>
                 <FotosAccidenteSoatPage />
+              </Layout>
+            }
+          />
+        </Route>
+        {/* Issue #24: única rama del panel que el contador también puede
+            ver -- el resto sigue admin-only en el grupo de arriba. */}
+        <Route element={<ProtectedRoute rolesPermitidos={['administrador', 'contador']} />}>
+          <Route
+            path="/reportes/servicios"
+            element={
+              <Layout>
+                <ReporteServiciosPage />
               </Layout>
             }
           />

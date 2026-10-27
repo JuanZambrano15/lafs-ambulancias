@@ -33,6 +33,7 @@ import type {
   Rol,
   RolCreate,
   RolUpdate,
+  ServicioPorPersona,
   TokenResponse,
   Usuario,
   UsuarioCreate,
@@ -304,7 +305,7 @@ export async function listarAmbulancias(soloActivas = false): Promise<Ambulancia
 export async function listarMedicosDisponibles(): Promise<Empleado[]> {
   return apiFetch<Empleado[]>('/atenciones/medicos-disponibles')
 }
-
+ 
 // --- Atenciones de traslado (issue #15: pendientes/cerradas del panel) ---
  
 export async function listarAtencionesPendientes(): Promise<Atencion[]> {
@@ -317,14 +318,14 @@ export async function listarAtencionesCerradas(q?: string): Promise<AtencionCerr
   const query = parametros.toString() ? `?${parametros.toString()}` : ''
   return apiFetch<AtencionCerrada[]>(`/atenciones/cerradas${query}`)
 }
-
+ 
 /** Detalle de un único servicio ya cerrado (issue #80) -- mismo
  * esquema que cada fila de `listarAtencionesCerradas`, para la
  * pantalla "Servicios cerrados" > detalle. */
 export async function obtenerAtencionCerrada(atencionId: number): Promise<AtencionCerrada> {
   return apiFetch<AtencionCerrada>(`/atenciones/${atencionId}`)
 }
-
+ 
 // --- Corrección de formatos ya cerrados (issue #80: "Corregir
 // formato" en el panel web, flujo que ya existía del #14 para el
 // backend/la app móvil, sin ninguna pantalla propia hasta ahora) --
@@ -335,15 +336,15 @@ export async function obtenerAtencionCerrada(atencionId: number): Promise<Atenci
 // el mismo esquema que usa el llenado normal (que no tiene ese
 // campo). El PUT es un reemplazo completo del encabezado o de lo
 // clínico, igual que en `app/` -- no hay PATCH parcial.
-
+ 
 function conMotivo(path: string, motivo: string): string {
   return `${path}?motivo=${encodeURIComponent(motivo)}`
 }
-
+ 
 export async function obtenerFormatoTraslado(atencionId: number): Promise<FormatoTraslado> {
   return apiFetch<FormatoTraslado>(`/atenciones/${atencionId}/formato-traslado`)
 }
-
+ 
 /** Corrige, en una sola llamada, el encabezado y la parte clínica de
  * un formato de traslado ya cerrado (issue #80, ajuste) -- reemplaza
  * las dos llamadas separadas que había antes (`guardarEncabezadoTraslado`
@@ -362,13 +363,13 @@ export async function corregirFormatoTraslado(
     { method: 'PUT', body: datos },
   )
 }
-
+ 
 export async function obtenerFormatoAccidenteSoat(
   atencionId: number,
 ): Promise<FormatoAccidenteSoat> {
   return apiFetch<FormatoAccidenteSoat>(`/atenciones/${atencionId}/formato-accidente-soat`)
 }
-
+ 
 /** Igual que `corregirFormatoTraslado`, para el formato de accidente
  * SOAT (issue #80, ajuste). */
 export async function corregirFormatoAccidenteSoat(
@@ -381,7 +382,7 @@ export async function corregirFormatoAccidenteSoat(
     { method: 'PUT', body: datos },
   )
 }
-
+ 
 /** Historial de correcciones de un formato ya cerrado (issue #14,
  * ADR-0012), más reciente primero -- a propósito solo trae
  * quién/cuándo/motivo (ver `FormatoVersionOut` en `lib/types.ts`),
@@ -389,7 +390,7 @@ export async function corregirFormatoAccidenteSoat(
 export async function historialFormatoTraslado(atencionId: number): Promise<FormatoVersionOut[]> {
   return apiFetch<FormatoVersionOut[]>(`/atenciones/${atencionId}/formato-traslado/historial`)
 }
-
+ 
 export async function historialFormatoAccidenteSoat(
   atencionId: number,
 ): Promise<FormatoAccidenteSoatVersionOut[]> {
@@ -465,4 +466,43 @@ export async function eliminarFotoAccidenteSoat(
   await apiFetch<void>(`/atenciones/${atencionId}/formato-accidente-soat/fotos/${fotoId}`, {
     method: 'DELETE',
   })
+}
+ 
+// --- Reporte del contador (issue #24) ---
+ 
+function queryRango(desde: string, hasta: string): string {
+  return `?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`
+}
+ 
+/** `desde`/`hasta` van como `YYYY-MM-DD` (lo que entrega un
+ * `<input type="date">`), igual formato que espera `date` en
+ * Pydantic del lado del backend. */
+export async function obtenerReporteServiciosPorPersona(
+  desde: string,
+  hasta: string,
+): Promise<ServicioPorPersona[]> {
+  return apiFetch<ServicioPorPersona[]>(
+    `/reportes/servicios-por-persona${queryRango(desde, hasta)}`,
+  )
+}
+ 
+/** A diferencia de `descargarPdfFormatoTraslado` (que abre una
+ * pestaña nueva porque el navegador sabe mostrar un PDF), un .xlsx no
+ * tiene visor integrado -- `window.open` lo intentaría navegar o
+ * descargar con un nombre al azar. Se arma un `<a download>`
+ * temporal para que el navegador lo guarde con el nombre real del
+ * archivo que manda el backend (`Content-Disposition`). */
+export async function descargarReporteServiciosPorPersonaExcel(
+  desde: string,
+  hasta: string,
+): Promise<void> {
+  const blob = await apiFetchBlob(`/reportes/servicios-por-persona.xlsx${queryRango(desde, hasta)}`)
+  const url = URL.createObjectURL(blob)
+  const enlace = document.createElement('a')
+  enlace.href = url
+  enlace.download = `servicios-por-persona_${desde}_${hasta}.xlsx`
+  document.body.appendChild(enlace)
+  enlace.click()
+  enlace.remove()
+  URL.revokeObjectURL(url)
 }

@@ -3,7 +3,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
  
-from app.api.routes import ambulancias, atenciones, auth, empleados, health, roles, usuarios
+from app.api.routes import (
+    ambulancias,
+    atenciones,
+    auth,
+    empleados,
+    health,
+    reportes,
+    roles,
+    usuarios,
+)
 from app.core.config import get_settings
 from app.core.logging import configure_logging
  
@@ -36,6 +45,4 @@ app.include_router(empleados.router)
 app.include_router(usuarios.router)
 app.include_router(ambulancias.router)
 app.include_router(atenciones.router)
- 
-# Los routers de formatos, chequeos y reportes se agregan aquí a medida
-# que se implementan (ver el backlog en GitHub Issues).
+app.include_router(reportes.router)

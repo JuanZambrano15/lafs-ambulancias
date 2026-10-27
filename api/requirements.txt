@@ -25,3 +25,6 @@ pillow==13.0.0
 # dependencia transitiva de nada ya instalado, FastAPI solo la pide
 # en tiempo de ejecución y falla si no está.
 python-multipart==0.0.12
+# Issue #24: arma el .xlsx del reporte del contador -- no venía como
+# transitiva de nada ya instalado.
+openpyxl==3.1.5
