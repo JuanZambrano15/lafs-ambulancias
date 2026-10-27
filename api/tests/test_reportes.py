@@ -1,3 +1,4 @@
+
 """Reporte del contador: totales de servicios por persona (issue #24).
  
 No pasa por el flujo completo de crear/cerrar una atención con su
@@ -9,12 +10,21 @@ directo en la base de datos de prueba.
  
 from __future__ import annotations
  
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
  
 import openpyxl
 from app.models.ambulancia import Ambulancia, TipoAmbulancia
 from app.models.atencion import Atencion, EstadoAtencion, TipoAtencion
 from app.models.empleado import Empleado
+from app.models.formato_traslado import (
+    CategoriaPaciente,
+    ComplejidadTraslado,
+    FormatoTraslado,
+    ModalidadTraslado,
+    NivelServicioTraslado,
+    SexoPaciente,
+    TipoDocumentoPaciente,
+)
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
  
@@ -51,7 +61,15 @@ def _crear_atencion(
     estado: EstadoAtencion = EstadoAtencion.cerrado,
     cerrada_en: datetime | None = None,
     tipo: TipoAtencion = TipoAtencion.traslado,
+    nivel_servicio: NivelServicioTraslado = NivelServicioTraslado.basico,
 ) -> Atencion:
+    """Crea la atención y, si es de tipo traslado, también el
+    encabezado de `FormatoTraslado` del que sale el nivel de servicio
+    (básico/medicalizado) que ahora desglosa el reporte -- en el
+    sistema real siempre existe para una atención cerrada (se llena al
+    recibir al paciente, no al cerrar), así que el reporte asume que
+    está ahí.
+    """
     abierta_en = cerrada_en or datetime(2027, 1, 1, tzinfo=UTC)
     atencion = Atencion(
         ambulancia_id=ambulancia.id,
@@ -65,6 +83,32 @@ def _crear_atencion(
     db.add(atencion)
     db.commit()
     db.refresh(atencion)
+ 
+    if tipo == TipoAtencion.traslado:
+        formato = FormatoTraslado(
+            atencion_id=atencion.id,
+            paciente_tipo_documento=TipoDocumentoPaciente.cc,
+            paciente_numero_documento="1000000000",
+            paciente_eps="EPS de prueba",
+            paciente_nombres="Paciente",
+            paciente_apellidos="De Prueba",
+            paciente_edad=30,
+            paciente_sexo=SexoPaciente.m,
+            paciente_direccion_residencial="Calle falsa 123",
+            paciente_ciudad="Ocaña",
+            recepcion_fecha=abierta_en.date(),
+            recepcion_hora=time(8, 0),
+            recepcion_ciudad="Ocaña",
+            recepcion_ips="IPS de prueba",
+            recepcion_servicio="Urgencias",
+            complejidad=ComplejidadTraslado.baja,
+            categoria_paciente=CategoriaPaciente.adulto,
+            nivel_servicio=nivel_servicio,
+            modalidad=ModalidadTraslado.sencillo,
+        )
+        db.add(formato)
+        db.commit()
+ 
     return atencion
  
  
@@ -147,7 +191,7 @@ class TestTotales:
         assert respuesta.status_code == 200
         assert respuesta.json() == []
  
-    def test_cuenta_conductor_y_responsable_por_separado(
+    def test_cuenta_conductor_y_responsable_en_filas_separadas(
         self, client: TestClient, db: Session, admin_headers: dict[str, str]
     ) -> None:
         ambulancia = _crear_ambulancia(db)
@@ -171,16 +215,17 @@ class TestTotales:
         assert len(filas) == 2
  
         por_cedula = {fila["cedula"]: fila for fila in filas}
-        assert por_cedula["800000100"]["como_conductor"] == 2
-        assert por_cedula["800000100"]["como_responsable"] == 0
+        assert por_cedula["800000100"]["funcion"] == "conductor"
         assert por_cedula["800000100"]["total"] == 2
-        assert por_cedula["700000100"]["como_conductor"] == 0
-        assert por_cedula["700000100"]["como_responsable"] == 2
+        assert por_cedula["700000100"]["funcion"] == "responsable"
         assert por_cedula["700000100"]["total"] == 2
  
-    def test_una_persona_que_hace_de_ambas_cosas_suma_en_las_dos_columnas(
+    def test_una_persona_que_hace_de_ambas_cosas_sale_en_dos_filas(
         self, client: TestClient, db: Session, admin_headers: dict[str, str]
     ) -> None:
+        """Decisión del cliente (mockup compartido en issue #24): no
+        se combina en una sola fila -- una fila por persona y función.
+        """
         ambulancia = _crear_ambulancia(db)
         empleado = _crear_empleado(db, "Carlos", "Gómez", "800000101")
         otro = _crear_empleado(db, "Laura", "Gómez", "700000101")
@@ -197,10 +242,59 @@ class TestTotales:
             params={"desde": "2027-01-01", "hasta": "2027-01-31"},
             headers=admin_headers,
         )
-        fila = next(f for f in respuesta.json() if f["cedula"] == "800000101")
-        assert fila["como_conductor"] == 1
-        assert fila["como_responsable"] == 1
-        assert fila["total"] == 2
+        filas_empleado = [f for f in respuesta.json() if f["cedula"] == "800000101"]
+        assert len(filas_empleado) == 2
+        por_funcion = {f["funcion"]: f for f in filas_empleado}
+        assert por_funcion["conductor"]["total"] == 1
+        assert por_funcion["responsable"]["total"] == 1
+ 
+    def test_desglosa_basicos_medicalizados_y_soat(
+        self, client: TestClient, db: Session, admin_headers: dict[str, str]
+    ) -> None:
+        ambulancia = _crear_ambulancia(db)
+        conductor = _crear_empleado(db, "Pedro", "Londoño", "800000107")
+        auxiliar = _crear_empleado(db, "Ana", "Ruiz", "700000107")
+        _crear_atencion(
+            db,
+            ambulancia,
+            conductor,
+            auxiliar,
+            cerrada_en=datetime(2027, 1, 5, tzinfo=UTC),
+            tipo=TipoAtencion.traslado,
+            nivel_servicio=NivelServicioTraslado.basico,
+        )
+        _crear_atencion(
+            db,
+            ambulancia,
+            conductor,
+            auxiliar,
+            cerrada_en=datetime(2027, 1, 6, tzinfo=UTC),
+            tipo=TipoAtencion.traslado,
+            nivel_servicio=NivelServicioTraslado.medicalizado,
+        )
+        _crear_atencion(
+            db,
+            ambulancia,
+            conductor,
+            auxiliar,
+            cerrada_en=datetime(2027, 1, 7, tzinfo=UTC),
+            tipo=TipoAtencion.atencion_soat,
+        )
+ 
+        respuesta = client.get(
+            "/reportes/servicios-por-persona",
+            params={"desde": "2027-01-01", "hasta": "2027-01-31"},
+            headers=admin_headers,
+        )
+        fila = next(
+            f
+            for f in respuesta.json()
+            if f["cedula"] == "800000107" and f["funcion"] == "conductor"
+        )
+        assert fila["basicos"] == 1
+        assert fila["medicalizados"] == 1
+        assert fila["soat"] == 1
+        assert fila["total"] == 3
  
     def test_no_cuenta_atenciones_abiertas(
         self, client: TestClient, db: Session, admin_headers: dict[str, str]
@@ -262,7 +356,7 @@ class TestTotales:
             headers=admin_headers,
         )
         fila = next(f for f in respuesta.json() if f["cedula"] == "800000104")
-        assert fila["como_conductor"] == 2
+        assert fila["total"] == 2
  
     def test_todos_los_tipos_de_atencion_cuentan_igual(
         self, client: TestClient, db: Session, admin_headers: dict[str, str]
@@ -297,7 +391,7 @@ class TestTotales:
             headers=admin_headers,
         )
         fila = next(f for f in respuesta.json() if f["cedula"] == "800000105")
-        assert fila["como_conductor"] == 2
+        assert fila["total"] == 2
  
  
 class TestExcel:
@@ -363,10 +457,31 @@ class TestExcel:
             "Cédula",
             "Nombres",
             "Apellidos",
-            "Como conductor",
-            "Como auxiliar/médico",
+            "Función",
+            "Básicos",
+            "Medicalizados",
+            "SOAT",
             "Total",
         ]
         filas = list(hoja.iter_rows(min_row=2, values_only=True))
-        assert ("800000106", "Pedro", "Londoño", 1, 0, 1) in filas
-        assert ("700000106", "Ana", "Ruiz", 0, 1, 1) in filas
+        # Un servicio básico: una fila para el conductor, otra para el
+        # auxiliar, más la fila de totales al final.
+        assert ("800000106", "Pedro", "Londoño", "Conductor", 1, 0, 0, 1) in filas
+        assert ("700000106", "Ana", "Ruiz", "Auxiliar/médico", 1, 0, 0, 1) in filas
+        assert filas[-1] == (None, None, None, "Total", 2, 0, 0, 2)
+ 
+    def test_excel_sin_filas_no_trae_fila_de_totales(
+        self, client: TestClient, db: Session, admin_headers: dict[str, str]
+    ) -> None:
+        respuesta = client.get(
+            "/reportes/servicios-por-persona.xlsx",
+            params={"desde": "2027-01-01", "hasta": "2027-01-31"},
+            headers=admin_headers,
+        )
+        assert respuesta.status_code == 200
+ 
+        from io import BytesIO
+ 
+        libro = openpyxl.load_workbook(BytesIO(respuesta.content))
+        hoja = libro.active
+        assert list(hoja.iter_rows(min_row=2, values_only=True)) == []
