@@ -2,8 +2,15 @@
  * Marco común de las pantallas protegidas: barra lateral con el
  * dashboard de inicio (issue #79, antes "Pendientes" del #15),
  * servicios cerrados (separado del dashboard en el #79, renombrado de
- * "Formatos cerrados" en el #80) y los tres CRUD del issue #49
- * (usuarios, empleados, roles), y botón de cerrar sesión.
+ * "Formatos cerrados" en el #80), los tres CRUD del issue #49
+ * (usuarios, empleados, roles), el reporte del contador (issue #24),
+ * y botón de cerrar sesión.
+ *
+ * Issue #24: primer menú que no es igual para todo el mundo -- el
+ * contador solo ve "Servicios por persona" (lo único a lo que tiene
+ * acceso, ver `ProtectedRoute`/`App.tsx`); el resto de enlaces son
+ * admin-only y no tendría sentido mostrárselos solo para que el click
+ * lo mande al aviso de "no tiene ninguno de los roles necesarios".
  */
  
 import type { JSX, ReactNode } from 'react'
@@ -12,13 +19,16 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import logoLafs from '../assets/logo-lafs.png'
  
-const ENLACES = [
+const ENLACES_ADMINISTRADOR = [
   { to: '/', etiqueta: 'Inicio' },
   { to: '/servicios-cerrados', etiqueta: 'Servicios cerrados' },
+  { to: '/reportes/servicios', etiqueta: 'Servicios por persona' },
   { to: '/usuarios', etiqueta: 'Usuarios' },
   { to: '/empleados', etiqueta: 'Empleados' },
   { to: '/roles', etiqueta: 'Roles' },
 ]
+ 
+const ENLACES_CONTADOR = [{ to: '/reportes/servicios', etiqueta: 'Servicios por persona' }]
  
 function claseEnlace({ isActive }: { isActive: boolean }): string {
   return [
@@ -28,8 +38,13 @@ function claseEnlace({ isActive }: { isActive: boolean }): string {
 }
  
 export function Layout({ children }: { children: ReactNode }): JSX.Element {
-  const { perfil, cerrarSesion } = useAuth()
+  const { perfil, roles, esAdministrador, cerrarSesion } = useAuth()
   const navigate = useNavigate()
+  const enlaces = esAdministrador
+    ? ENLACES_ADMINISTRADOR
+    : roles.includes('contador')
+      ? ENLACES_CONTADOR
+      : []
  
   function manejarCerrarSesion(): void {
     cerrarSesion()
@@ -45,7 +60,7 @@ export function Layout({ children }: { children: ReactNode }): JSX.Element {
             <h1 className="text-base font-semibold text-slate-900">L.A.F.S. Admin</h1>
           </div>
           <nav className="space-y-1">
-            {ENLACES.map((enlace) => (
+            {enlaces.map((enlace) => (
               // `end` en "/" evita que NavLink lo marque "activo" en
               // cualquier otra ruta -- sin esto, al no ser exacto por
               // defecto, "Inicio" se vería resaltado también en
