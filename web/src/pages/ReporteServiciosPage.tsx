@@ -21,7 +21,32 @@ import {
   descargarReporteServiciosPorPersonaExcel,
   obtenerReporteServiciosPorPersona,
 } from '../lib/api'
-import type { ServicioPorPersona } from '../lib/types'
+import type { FuncionServicio, ServicioPorPersona } from '../lib/types'
+ 
+const ETIQUETA_FUNCION: Record<FuncionServicio, string> = {
+  conductor: 'Conductor',
+  responsable: 'Auxiliar/médico',
+}
+ 
+/** Fila de totales al pie de la tabla (mockup compartido por el
+ * cliente, issue #24) -- se calcula en el navegador a partir de lo
+ * que ya devolvió el backend, no hace falta otro viaje al servidor. */
+function totales(filas: ServicioPorPersona[]): {
+  basicos: number
+  medicalizados: number
+  soat: number
+  total: number
+} {
+  return filas.reduce(
+    (acc, fila) => ({
+      basicos: acc.basicos + fila.basicos,
+      medicalizados: acc.medicalizados + fila.medicalizados,
+      soat: acc.soat + fila.soat,
+      total: acc.total + fila.total,
+    }),
+    { basicos: 0, medicalizados: 0, soat: 0, total: 0 },
+  )
+}
  
 /** Por defecto, el mes calendario en curso -- un punto de partida
  * razonable para no arrancar con la tabla vacía, que de todas formas
@@ -73,8 +98,9 @@ export function ReporteServiciosPage(): JSX.Element {
     <section>
       <h2 className="mb-1 text-2xl font-semibold text-slate-900">Servicios por persona</h2>
       <p className="mb-6 text-sm text-slate-500">
-        Cuántos servicios ya cerrados hizo cada conductor y cada auxiliar de enfermería o médico,
-        en el rango de fechas que elijas (según cuándo se cerró el servicio).
+        Cuántos servicios ya cerrados hizo cada persona como conductor o como auxiliar de
+        enfermería/médico, desglosados en básicos, medicalizados y SOAT, en el rango de fechas que
+        elijas (según cuándo se cerró el servicio).
       </p>
  
       <form onSubmit={manejarConsultar} className="mb-6 flex flex-wrap items-end gap-3">
@@ -134,29 +160,42 @@ export function ReporteServiciosPage(): JSX.Element {
       ) : filas.length === 0 ? (
         <p className="text-slate-500">No hay servicios cerrados en ese rango.</p>
       ) : (
-        <table className="w-full max-w-3xl border-separate border-spacing-y-1 text-sm">
+        <table className="w-full max-w-4xl border-separate border-spacing-y-1 text-sm">
           <thead>
             <tr className="text-left text-slate-500">
-              <th className="px-3">Nombre</th>
-              <th className="px-3">Documento</th>
-              <th className="px-3 text-right">Como conductor</th>
-              <th className="px-3 text-right">Como auxiliar/médico</th>
+              <th className="px-3">Empleado</th>
+              <th className="px-3">Función</th>
+              <th className="px-3 text-right">Básicos</th>
+              <th className="px-3 text-right">Medicalizados</th>
+              <th className="px-3 text-right">SOAT</th>
               <th className="px-3 text-right">Total</th>
             </tr>
           </thead>
           <tbody>
             {filas.map((fila) => (
-              <tr key={fila.empleado_id} className="rounded-lg bg-white shadow-sm">
+              <tr key={`${fila.empleado_id}-${fila.funcion}`} className="rounded-lg bg-white shadow-sm">
                 <td className="px-3 py-2 font-medium text-slate-900">
                   {fila.nombres} {fila.apellidos}
                 </td>
-                <td className="px-3 py-2 text-slate-600">{fila.cedula}</td>
-                <td className="px-3 py-2 text-right text-slate-600">{fila.como_conductor}</td>
-                <td className="px-3 py-2 text-right text-slate-600">{fila.como_responsable}</td>
+                <td className="px-3 py-2 text-slate-600">{ETIQUETA_FUNCION[fila.funcion]}</td>
+                <td className="px-3 py-2 text-right text-slate-600">{fila.basicos}</td>
+                <td className="px-3 py-2 text-right text-slate-600">{fila.medicalizados}</td>
+                <td className="px-3 py-2 text-right text-slate-600">{fila.soat}</td>
                 <td className="px-3 py-2 text-right font-medium text-slate-900">{fila.total}</td>
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className="border-t border-slate-200 text-left font-semibold text-slate-900">
+              <td className="px-3 py-2" colSpan={2}>
+                Total
+              </td>
+              <td className="px-3 py-2 text-right">{totales(filas).basicos}</td>
+              <td className="px-3 py-2 text-right">{totales(filas).medicalizados}</td>
+              <td className="px-3 py-2 text-right">{totales(filas).soat}</td>
+              <td className="px-3 py-2 text-right">{totales(filas).total}</td>
+            </tr>
+          </tfoot>
         </table>
       )}
     </section>

@@ -1,3 +1,4 @@
+
 /**
  * Tipos que reflejan los esquemas de la API (ver `api/app/schemas/`).
  * Se mantienen a mano porque el backend es pequeño todavía — si crece
@@ -423,18 +424,24 @@ export interface FormatoAccidenteSoatVersionOut {
  
 // --- Reporte del contador (issue #24) --
 //
-// Totales de servicios CERRADOS por persona en un rango de fechas
-// (filtrado por `cerrada_en`, no `abierta_en` -- ver nota de módulo
-// de `app/api/routes/reportes.py`). `como_conductor`/`como_responsable`
-// son columnas independientes: una misma persona puede sumar en las
-// dos si alguna vez hizo de las dos cosas.
+// Totales de servicios CERRADOS por persona y función en un rango de
+// fechas (filtrado por `cerrada_en`, no `abierta_en` -- ver nota de
+// módulo de `app/api/routes/reportes.py`), desglosados en básicos,
+// medicalizados y SOAT. Una misma persona que hizo de conductor en
+// unos servicios y de auxiliar/médico responsable en otros aparece en
+// dos filas distintas (una por `funcion`), no combinada en una sola
+// (mockup compartido por el cliente, issue #24).
+ 
+export type FuncionServicio = 'conductor' | 'responsable'
  
 export interface ServicioPorPersona {
   empleado_id: number
   cedula: string
   nombres: string
   apellidos: string
-  como_conductor: number
-  como_responsable: number
+  funcion: FuncionServicio
+  basicos: number
+  medicalizados: number
+  soat: number
   total: number
 }

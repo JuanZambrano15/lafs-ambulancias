@@ -1,3 +1,4 @@
+
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -16,8 +17,10 @@ function fila(overrides: Partial<ServicioPorPersona> = {}): ServicioPorPersona {
     cedula: '800000001',
     nombres: 'Pedro',
     apellidos: 'Londoño',
-    como_conductor: 3,
-    como_responsable: 0,
+    funcion: 'conductor',
+    basicos: 2,
+    medicalizados: 1,
+    soat: 0,
     total: 3,
     ...overrides,
   }
@@ -51,8 +54,10 @@ describe('ReporteServiciosPage', () => {
         cedula: '700000001',
         nombres: 'Ana',
         apellidos: 'Ruiz',
-        como_conductor: 0,
-        como_responsable: 5,
+        funcion: 'responsable',
+        basicos: 0,
+        medicalizados: 5,
+        soat: 0,
         total: 5,
       }),
     ])
@@ -63,6 +68,32 @@ describe('ReporteServiciosPage', () => {
     expect(await screen.findByText('Pedro Londoño')).toBeInTheDocument()
     expect(screen.getByText('Ana Ruiz')).toBeInTheDocument()
     expect(api.obtenerReporteServiciosPorPersona).toHaveBeenCalledTimes(1)
+  })
+ 
+  it('muestra la fila de totales al pie de la tabla', async () => {
+    vi.mocked(api.obtenerReporteServiciosPorPersona).mockResolvedValue([
+      fila({ basicos: 2, medicalizados: 1, soat: 0, total: 3 }),
+      fila({
+        empleado_id: 2,
+        cedula: '700000001',
+        nombres: 'Ana',
+        apellidos: 'Ruiz',
+        funcion: 'responsable',
+        basicos: 1,
+        medicalizados: 0,
+        soat: 4,
+        total: 5,
+      }),
+    ])
+    renderPagina()
+ 
+    await userEvent.click(screen.getByRole('button', { name: 'Consultar' }))
+    await screen.findByText('Pedro Londoño')
+ 
+    const filaTotal = document.querySelector('tfoot tr')
+    expect(filaTotal).not.toBeNull()
+    const celdas = Array.from(filaTotal?.querySelectorAll('td') ?? []).map((td) => td.textContent)
+    expect(celdas).toEqual(['Total', '3', '1', '4', '8'])
   })
  
   it('muestra un aviso cuando no hay servicios en el rango', async () => {
