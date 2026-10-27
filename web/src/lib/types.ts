@@ -134,7 +134,7 @@ export interface Atencion {
 }
  
 export type NivelServicioTraslado = 'basico' | 'medicalizado'
-
+ 
 /** Lo que devuelve `GET /atenciones/cerradas` -- igual que
  * `Atencion`, más los datos del paciente para poder identificarla, y
  * si tiene un PDF para descargar.
@@ -179,7 +179,7 @@ export interface FormatoAccidenteSoatFoto {
   subida_por: { id: number; documento: string }
   subida_en: string
 }
-
+ 
 // --- Formato de traslado y de accidente SOAT completos (issue #80:
 // "Corregir formato" en el panel web) --
 //
@@ -189,13 +189,13 @@ export interface FormatoAccidenteSoatFoto {
 // (ver el resto de tipos/funciones ya duplicadas en este archivo:
 // `Ambulancia`, `Empleado`, etc.). El panel nunca necesitó esto antes
 // del #80 -- solo listaba y descargaba el PDF -- por eso no estaba.
-
+ 
 export type TipoDocumentoPaciente = 'rc' | 'ti' | 'cc' | 'ce' | 'ppt'
 export type SexoPaciente = 'm' | 'f'
 export type ComplejidadTraslado = 'alta' | 'baja'
 export type CategoriaPaciente = 'neonato' | 'pediatrico' | 'adulto'
 export type ModalidadTraslado = 'sencillo' | 'redondo'
-
+ 
 export interface FormatoTrasladoEncabezado {
   paciente_tipo_documento: TipoDocumentoPaciente
   paciente_numero_documento: string
@@ -225,7 +225,7 @@ export interface FormatoTrasladoEncabezado {
   nivel_servicio: NivelServicioTraslado
   modalidad: ModalidadTraslado
 }
-
+ 
 export type TratamientoAplicado =
   | 'collar_cervical'
   | 'inmovilizacion'
@@ -241,9 +241,9 @@ export type TratamientoAplicado =
   | 'vendaje'
   | 'asepsia'
   | 'otros'
-
+ 
 export type ReflejoPupilar = 'midriatica' | 'miotica' | 'isocorica' | 'anisocorica' | 'no_reactiva'
-
+ 
 export type LesionTipo =
   | 'tce'
   | 'amputacion'
@@ -271,7 +271,7 @@ export type LesionTipo =
   | 'avulsion'
   | 'dolor'
   | 'otro'
-
+ 
 export type LesionZona =
   | 'cabeza'
   | 'cuello'
@@ -284,11 +284,11 @@ export type LesionZona =
   | 'muslo'
   | 'pierna'
   | 'pie'
-
+ 
 export type LesionLado = 'izquierdo' | 'derecho' | 'central'
-
+ 
 export type LesionVista = 'frontal' | 'posterior'
-
+ 
 export interface LesionLocalizada {
   tipo: LesionTipo
   tipo_otro: string | null
@@ -296,7 +296,7 @@ export interface LesionLocalizada {
   lado: LesionLado
   vista: LesionVista
 }
-
+ 
 export interface SignoVitalItem {
   hora: string
   ta: string | null
@@ -304,7 +304,7 @@ export interface SignoVitalItem {
   fr: number | null
   spo2: number | null
 }
-
+ 
 export interface FormatoTrasladoClinico {
   diagnostico: string | null
   tratamiento: TratamientoAplicado[]
@@ -328,15 +328,15 @@ export interface FormatoTrasladoClinico {
   firma_profesional_recibe: string | null
   observaciones: string | null
 }
-
+ 
 export interface FormatoTraslado extends FormatoTrasladoEncabezado, FormatoTrasladoClinico {
   atencion_id: number
   glasgow_total: number | null
 }
-
+ 
 export type RolVictima = 'conductor' | 'pasajero' | 'parrillero' | 'peaton' | 'otro'
 export type TriageNivel = 'i' | 'ii' | 'iii'
-
+ 
 export interface FormatoAccidenteSoatEncabezado {
   fecha_atencion: string
   hora_atencion: string
@@ -360,7 +360,7 @@ export interface FormatoAccidenteSoatEncabezado {
   vehiculo_tipo: string | null
   vehiculo_marca: string | null
 }
-
+ 
 export interface FormatoAccidenteSoatClinico {
   tratamiento: TratamientoAplicado[]
   tratamiento_otro: string | null
@@ -383,14 +383,14 @@ export interface FormatoAccidenteSoatClinico {
   profesional_recibe_cedula: string | null
   firma_profesional_recibe: string | null
 }
-
+ 
 export interface FormatoAccidenteSoat
   extends FormatoAccidenteSoatEncabezado,
     FormatoAccidenteSoatClinico {
   atencion_id: number
   glasgow_total: number | null
 }
-
+ 
 // --- Historial de versiones (issue #14, panel; `motivo` desde el #80) --
 //
 // A propósito NO incluyen `diagnostico`/`descripcion` ni
@@ -399,12 +399,12 @@ export interface FormatoAccidenteSoat
 // detalle solo usa estos tipos para mostrar QUIÉN corrigió, CUÁNDO y
 // POR QUÉ (`motivo`), nunca el contenido clínico en sí (ver
 // `ServicioCerradoDetallePage.tsx`).
-
+ 
 export interface UsuarioResumenOut {
   id: number
   documento: string
 }
-
+ 
 export interface FormatoVersionOut {
   id: number
   atencion_id: number
@@ -412,11 +412,29 @@ export interface FormatoVersionOut {
   corregido_en: string
   motivo: string
 }
-
+ 
 export interface FormatoAccidenteSoatVersionOut {
   id: number
   atencion_id: number
   corregido_por: UsuarioResumenOut
   corregido_en: string
   motivo: string
+}
+ 
+// --- Reporte del contador (issue #24) --
+//
+// Totales de servicios CERRADOS por persona en un rango de fechas
+// (filtrado por `cerrada_en`, no `abierta_en` -- ver nota de módulo
+// de `app/api/routes/reportes.py`). `como_conductor`/`como_responsable`
+// son columnas independientes: una misma persona puede sumar en las
+// dos si alguna vez hizo de las dos cosas.
+ 
+export interface ServicioPorPersona {
+  empleado_id: number
+  cedula: string
+  nombres: string
+  apellidos: string
+  como_conductor: number
+  como_responsable: number
+  total: number
 }
