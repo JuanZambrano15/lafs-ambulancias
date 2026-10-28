@@ -221,5 +221,37 @@ describe('ReporteServiciosPage', () => {
  
       expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar el detalle')
     })
+ 
+    it('se expande al hacer clic en cualquier parte de la fila, no solo en el nombre', async () => {
+      vi.mocked(api.obtenerReporteServiciosPorPersona).mockResolvedValue([fila()])
+      vi.mocked(api.obtenerDetalleServiciosPorPersona).mockResolvedValue([viaje()])
+      renderPagina()
+      await userEvent.click(screen.getByRole('button', { name: 'Consultar' }))
+      await screen.findByRole('button', { name: /Pedro Londoño/ })
+ 
+      // Clic en la celda de "Función", no en el nombre.
+      await userEvent.click(screen.getByText('Conductor'))
+ 
+      expect(await screen.findByText('Juan Pérez')).toBeInTheDocument()
+    })
+ 
+    it('muestra solo 5 viajes y un botón "Ver más" para los siguientes', async () => {
+      const viajes = Array.from({ length: 7 }, (_, i) =>
+        viaje({ atencion_id: i + 1, fecha: `2027-01-${String(i + 1).padStart(2, '0')}` }),
+      )
+      vi.mocked(api.obtenerDetalleServiciosPorPersona).mockResolvedValue(viajes)
+      await consultarYExpandir()
+ 
+      await screen.findByText('2027-01-05')
+      expect(screen.getAllByText(/2027-01-0[1-5]/)).toHaveLength(5)
+      expect(screen.queryByText('2027-01-06')).not.toBeInTheDocument()
+ 
+      await userEvent.click(screen.getByRole('button', { name: 'Ver más' }))
+ 
+      expect(await screen.findByText('2027-01-06')).toBeInTheDocument()
+      expect(screen.getByText('2027-01-07')).toBeInTheDocument()
+      // Ya se mostraron los 7 -- el botón desaparece.
+      expect(screen.queryByRole('button', { name: 'Ver más' })).not.toBeInTheDocument()
+    })
   })
 })

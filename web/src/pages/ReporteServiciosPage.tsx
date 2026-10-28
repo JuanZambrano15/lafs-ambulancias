@@ -17,7 +17,10 @@
  * formato completo ni datos clínicos). El detalle se trae solo al
  * expandir (no de una vez con el reporte) y se cachea por fila
  * mientras dure la consulta actual, para no repetir la llamada si el
- * usuario colapsa y vuelve a expandir la misma fila.
+ * usuario colapsa y vuelve a expandir la misma fila. Toda la fila es
+ * clicable (no solo el nombre) y, si hay muchos viajes, se muestran
+ * de a `TAMANO_PAGINA` con un botón "Ver más" en vez de todos de una
+ * vez -- pedido explícito del cliente tras ver la primera versión.
  */
  
 import { Fragment, useState } from 'react'
@@ -39,8 +42,14 @@ const ETIQUETA_FUNCION: Record<FuncionServicio, string> = {
 interface EstadoDetalle {
   estado: 'cargando' | 'listo' | 'error'
   viajes?: ViajeDetalle[]
+  /** Cuántos viajes se muestran por ahora -- "Ver más" la va subiendo
+   * de a `TAMANO_PAGINA` (pedido explícito: una lista larga de viajes
+   * de una sola vez se ve mal). */
+  visibles?: number
   error?: string
 }
+ 
+const TAMANO_PAGINA = 5
  
 function claveFila(fila: ServicioPorPersona): string {
   return `${fila.empleado_id}-${fila.funcion}`
@@ -122,7 +131,10 @@ export function ReporteServiciosPage(): JSX.Element {
         desde,
         hasta,
       )
-      setDetalles((previo) => ({ ...previo, [clave]: { estado: 'listo', viajes } }))
+      setDetalles((previo) => ({
+        ...previo,
+        [clave]: { estado: 'listo', viajes, visibles: TAMANO_PAGINA },
+      }))
     } catch (err) {
       setDetalles((previo) => ({
         ...previo,
@@ -132,6 +144,20 @@ export function ReporteServiciosPage(): JSX.Element {
         },
       }))
     }
+  }
+ 
+  function manejarVerMasViajes(clave: string): void {
+    setDetalles((previo) => {
+      const actual = previo[clave]
+      if (!actual?.viajes) {
+        return previo
+      }
+      const visibles = Math.min(
+        (actual.visibles ?? TAMANO_PAGINA) + TAMANO_PAGINA,
+        actual.viajes.length,
+      )
+      return { ...previo, [clave]: { ...actual, visibles } }
+    })
   }
  
   async function manejarDescargar(): Promise<void> {
@@ -228,18 +254,28 @@ export function ReporteServiciosPage(): JSX.Element {
               const clave = claveFila(fila)
               const expandida = filaExpandida === clave
               const detalle = detalles[clave]
+              const visibles = detalle?.visibles ?? TAMANO_PAGINA
+              const viajesVisibles = detalle?.viajes?.slice(0, visibles) ?? []
+              const quedanMas = (detalle?.viajes?.length ?? 0) > visibles
+              const etiquetaFila = `${fila.nombres} ${fila.apellidos} — ${ETIQUETA_FUNCION[fila.funcion]}`
               return (
                 <Fragment key={clave}>
-                  <tr className="rounded-lg bg-white shadow-sm">
+                  <tr
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={expandida}
+                    aria-label={`Ver viajes de ${etiquetaFila}`}
+                    onClick={() => void manejarToggleDetalle(fila)}
+                    onKeyDown={(evento) => {
+                      if (evento.key === 'Enter' || evento.key === ' ') {
+                        evento.preventDefault()
+                        void manejarToggleDetalle(fila)
+                      }
+                    }}
+                    className="cursor-pointer rounded-lg bg-white shadow-sm hover:bg-slate-50"
+                  >
                     <td className="px-3 py-2 font-medium text-slate-900">
-                      <button
-                        type="button"
-                        onClick={() => void manejarToggleDetalle(fila)}
-                        aria-expanded={expandida}
-                        className="text-left hover:underline"
-                      >
-                        {expandida ? '▾' : '▸'} {fila.nombres} {fila.apellidos}
-                      </button>
+                      {expandida ? '▾' : '▸'} {fila.nombres} {fila.apellidos}
                     </td>
                     <td className="px-3 py-2 text-slate-600">{ETIQUETA_FUNCION[fila.funcion]}</td>
                     <td className="px-3 py-2 text-right text-slate-600">{fila.basicos}</td>
@@ -262,28 +298,42 @@ export function ReporteServiciosPage(): JSX.Element {
                         )}
                         {detalle?.estado === 'listo' &&
                           (detalle.viajes?.length ? (
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="text-left text-slate-500">
-                                  <th className="px-2 py-1">Fecha</th>
-                                  <th className="px-2 py-1">Origen</th>
-                                  <th className="px-2 py-1">Destino</th>
-                                  <th className="px-2 py-1">Paciente</th>
-                                  <th className="px-2 py-1">Cédula</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {detalle.viajes.map((viaje) => (
-                                  <tr key={viaje.atencion_id}>
-                                    <td className="px-2 py-1">{viaje.fecha}</td>
-                                    <td className="px-2 py-1">{viaje.origen}</td>
-                                    <td className="px-2 py-1">{viaje.destino}</td>
-                                    <td className="px-2 py-1">{viaje.paciente}</td>
-                                    <td className="px-2 py-1">{viaje.cedula}</td>
+                            <>
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="text-left text-slate-500">
+                                    <th className="px-2 py-1">Fecha</th>
+                                    <th className="px-2 py-1">Origen</th>
+                                    <th className="px-2 py-1">Destino</th>
+                                    <th className="px-2 py-1">Paciente</th>
+                                    <th className="px-2 py-1">Cédula</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                </thead>
+                                <tbody>
+                                  {viajesVisibles.map((viaje) => (
+                                    <tr key={viaje.atencion_id}>
+                                      <td className="px-2 py-1">{viaje.fecha}</td>
+                                      <td className="px-2 py-1">{viaje.origen}</td>
+                                      <td className="px-2 py-1">{viaje.destino}</td>
+                                      <td className="px-2 py-1">{viaje.paciente}</td>
+                                      <td className="px-2 py-1">{viaje.cedula}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              {quedanMas && (
+                                <button
+                                  type="button"
+                                  onClick={(evento) => {
+                                    evento.stopPropagation()
+                                    manejarVerMasViajes(clave)
+                                  }}
+                                  className="mt-2 text-sm font-medium text-brand-blue hover:underline"
+                                >
+                                  Ver más
+                                </button>
+                              )}
+                            </>
                           ) : (
                             <p className="text-slate-500">No hay viajes para mostrar.</p>
                           ))}
