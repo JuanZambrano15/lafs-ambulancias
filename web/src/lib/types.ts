@@ -1,4 +1,3 @@
-
 /**
  * Tipos que reflejan los esquemas de la API (ver `api/app/schemas/`).
  * Se mantienen a mano porque el backend es pequeño todavía — si crece
@@ -444,4 +443,17 @@ export interface ServicioPorPersona {
   medicalizados: number
   soat: number
   total: number
+}
+ 
+// Drill-down de una fila del reporte (issue #25): cada viaje de ese
+// empleado en esa función, sin el formato completo ni datos clínicos.
+// En un servicio SOAT no hay "destino" en el papel (solo lugar del
+// accidente) -- llega como "No aplica"; el paciente puede ser NN.
+export interface ViajeDetalle {
+  atencion_id: number
+  fecha: string
+  origen: string
+  destino: string
+  paciente: string
+  cedula: string
 }

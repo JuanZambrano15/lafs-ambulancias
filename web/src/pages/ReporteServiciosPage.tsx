@@ -11,21 +11,39 @@
  * en `App.tsx`), así que el resto del panel (usuarios, empleados,
  * roles, servicios cerrados) sigue sin ser visible para ese rol: ver
  * `Layout.tsx`, que arma el menú lateral según el rol de la sesión.
+ *
+ * Issue #25: cada fila se puede expandir para ver el drill-down de
+ * sus viajes (origen, destino, paciente, cédula, fecha -- sin el
+ * formato completo ni datos clínicos). El detalle se trae solo al
+ * expandir (no de una vez con el reporte) y se cachea por fila
+ * mientras dure la consulta actual, para no repetir la llamada si el
+ * usuario colapsa y vuelve a expandir la misma fila.
  */
  
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
  
 import {
   ApiError,
   descargarReporteServiciosPorPersonaExcel,
+  obtenerDetalleServiciosPorPersona,
   obtenerReporteServiciosPorPersona,
 } from '../lib/api'
-import type { FuncionServicio, ServicioPorPersona } from '../lib/types'
+import type { FuncionServicio, ServicioPorPersona, ViajeDetalle } from '../lib/types'
  
 const ETIQUETA_FUNCION: Record<FuncionServicio, string> = {
   conductor: 'Conductor',
   responsable: 'Auxiliar/médico',
+}
+ 
+interface EstadoDetalle {
+  estado: 'cargando' | 'listo' | 'error'
+  viajes?: ViajeDetalle[]
+  error?: string
+}
+ 
+function claveFila(fila: ServicioPorPersona): string {
+  return `${fila.empleado_id}-${fila.funcion}`
 }
  
 /** Fila de totales al pie de la tabla (mockup compartido por el
@@ -67,11 +85,15 @@ export function ReporteServiciosPage(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [consultando, setConsultando] = useState(false)
   const [descargando, setDescargando] = useState(false)
+  const [filaExpandida, setFilaExpandida] = useState<string | null>(null)
+  const [detalles, setDetalles] = useState<Record<string, EstadoDetalle>>({})
  
   async function manejarConsultar(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setError(null)
     setConsultando(true)
+    setFilaExpandida(null)
+    setDetalles({})
     try {
       setFilas(await obtenerReporteServiciosPorPersona(desde, hasta))
     } catch (err) {
@@ -79,6 +101,36 @@ export function ReporteServiciosPage(): JSX.Element {
       setError(err instanceof ApiError ? err.message : 'No se pudo cargar el reporte')
     } finally {
       setConsultando(false)
+    }
+  }
+ 
+  async function manejarToggleDetalle(fila: ServicioPorPersona): Promise<void> {
+    const clave = claveFila(fila)
+    if (filaExpandida === clave) {
+      setFilaExpandida(null)
+      return
+    }
+    setFilaExpandida(clave)
+    if (detalles[clave]) {
+      return
+    }
+    setDetalles((previo) => ({ ...previo, [clave]: { estado: 'cargando' } }))
+    try {
+      const viajes = await obtenerDetalleServiciosPorPersona(
+        fila.empleado_id,
+        fila.funcion,
+        desde,
+        hasta,
+      )
+      setDetalles((previo) => ({ ...previo, [clave]: { estado: 'listo', viajes } }))
+    } catch (err) {
+      setDetalles((previo) => ({
+        ...previo,
+        [clave]: {
+          estado: 'error',
+          error: err instanceof ApiError ? err.message : 'No se pudo cargar el detalle',
+        },
+      }))
     }
   }
  
@@ -172,18 +224,75 @@ export function ReporteServiciosPage(): JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {filas.map((fila) => (
-              <tr key={`${fila.empleado_id}-${fila.funcion}`} className="rounded-lg bg-white shadow-sm">
-                <td className="px-3 py-2 font-medium text-slate-900">
-                  {fila.nombres} {fila.apellidos}
-                </td>
-                <td className="px-3 py-2 text-slate-600">{ETIQUETA_FUNCION[fila.funcion]}</td>
-                <td className="px-3 py-2 text-right text-slate-600">{fila.basicos}</td>
-                <td className="px-3 py-2 text-right text-slate-600">{fila.medicalizados}</td>
-                <td className="px-3 py-2 text-right text-slate-600">{fila.soat}</td>
-                <td className="px-3 py-2 text-right font-medium text-slate-900">{fila.total}</td>
-              </tr>
-            ))}
+            {filas.map((fila) => {
+              const clave = claveFila(fila)
+              const expandida = filaExpandida === clave
+              const detalle = detalles[clave]
+              return (
+                <Fragment key={clave}>
+                  <tr className="rounded-lg bg-white shadow-sm">
+                    <td className="px-3 py-2 font-medium text-slate-900">
+                      <button
+                        type="button"
+                        onClick={() => void manejarToggleDetalle(fila)}
+                        aria-expanded={expandida}
+                        className="text-left hover:underline"
+                      >
+                        {expandida ? '▾' : '▸'} {fila.nombres} {fila.apellidos}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">{ETIQUETA_FUNCION[fila.funcion]}</td>
+                    <td className="px-3 py-2 text-right text-slate-600">{fila.basicos}</td>
+                    <td className="px-3 py-2 text-right text-slate-600">{fila.medicalizados}</td>
+                    <td className="px-3 py-2 text-right text-slate-600">{fila.soat}</td>
+                    <td className="px-3 py-2 text-right font-medium text-slate-900">
+                      {fila.total}
+                    </td>
+                  </tr>
+                  {expandida && (
+                    <tr>
+                      <td colSpan={6} className="bg-slate-50 px-3 py-3">
+                        {detalle?.estado === 'cargando' && (
+                          <p className="text-slate-500">Cargando viajes…</p>
+                        )}
+                        {detalle?.estado === 'error' && (
+                          <p role="alert" className="text-brand-orange-dark">
+                            {detalle.error}
+                          </p>
+                        )}
+                        {detalle?.estado === 'listo' &&
+                          (detalle.viajes?.length ? (
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="text-left text-slate-500">
+                                  <th className="px-2 py-1">Fecha</th>
+                                  <th className="px-2 py-1">Origen</th>
+                                  <th className="px-2 py-1">Destino</th>
+                                  <th className="px-2 py-1">Paciente</th>
+                                  <th className="px-2 py-1">Cédula</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {detalle.viajes.map((viaje) => (
+                                  <tr key={viaje.atencion_id}>
+                                    <td className="px-2 py-1">{viaje.fecha}</td>
+                                    <td className="px-2 py-1">{viaje.origen}</td>
+                                    <td className="px-2 py-1">{viaje.destino}</td>
+                                    <td className="px-2 py-1">{viaje.paciente}</td>
+                                    <td className="px-2 py-1">{viaje.cedula}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          ) : (
+                            <p className="text-slate-500">No hay viajes para mostrar.</p>
+                          ))}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
           </tbody>
           <tfoot>
             <tr className="border-t border-slate-200 text-left font-semibold text-slate-900">
