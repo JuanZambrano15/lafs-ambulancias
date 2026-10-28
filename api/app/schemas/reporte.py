@@ -1,9 +1,11 @@
 """Esquemas del reporte del contador (issue #24): totales de servicios
-por persona en un rango de fechas, desglosados por tipo de servicio.
+por persona en un rango de fechas, desglosados por tipo de servicio,
+y el detalle de viajes por persona (issue #25).
 """
  
 from __future__ import annotations
  
+from datetime import date
 from typing import Literal
  
 from pydantic import BaseModel
@@ -33,3 +35,24 @@ class ServicioPorPersona(BaseModel):
     medicalizados: int
     soat: int
     total: int
+ 
+ 
+class ViajeDetalle(BaseModel):
+    """Una fila del drill-down (issue #25): un viaje puntual de un
+    empleado, en la función por la que se pidió el detalle. Solo lo
+    que pide el issue -- origen, destino, paciente, cédula y fecha --
+    sin el formato completo ni datos clínicos.
+ 
+    En un servicio SOAT no hay "destino" en el papel (solo el lugar
+    del accidente), así que queda como "No aplica"; y el paciente
+    puede ser NN (sin identificar todavía), en cuyo caso se muestra
+    así y la cédula queda vacía -- ambas decisiones del cliente para
+    este issue.
+    """
+ 
+    atencion_id: int
+    fecha: date
+    origen: str
+    destino: str
+    paciente: str
+    cedula: str
