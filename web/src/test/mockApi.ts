@@ -62,5 +62,6 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     // Issue #24 -- reporte del contador.
     obtenerReporteServiciosPorPersona: vi.fn().mockResolvedValue([]),
     descargarReporteServiciosPorPersonaExcel: vi.fn(),
+    obtenerDetalleServiciosPorPersona: vi.fn().mockResolvedValue([]),
   }
 }

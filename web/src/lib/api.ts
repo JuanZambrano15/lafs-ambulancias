@@ -29,6 +29,7 @@ import type {
   FormatoTrasladoClinico,
   FormatoTrasladoEncabezado,
   FormatoVersionOut,
+  FuncionServicio,
   MeResponse,
   Rol,
   RolCreate,
@@ -38,6 +39,7 @@ import type {
   Usuario,
   UsuarioCreate,
   UsuarioUpdate,
+  ViajeDetalle,
 } from './types'
  
 const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000') as string
@@ -505,4 +507,22 @@ export async function descargarReporteServiciosPorPersonaExcel(
   enlace.click()
   enlace.remove()
   URL.revokeObjectURL(url)
+}
+ 
+/** El drill-down de una fila del reporte (issue #25): los viajes de
+ * ese empleado, en esa función puntual (no mezcla conductor con
+ * responsable), en el mismo rango de fechas ya consultado. */
+export async function obtenerDetalleServiciosPorPersona(
+  empleadoId: number,
+  funcion: FuncionServicio,
+  desde: string,
+  hasta: string,
+): Promise<ViajeDetalle[]> {
+  const parametros = new URLSearchParams({
+    empleado_id: String(empleadoId),
+    funcion,
+    desde,
+    hasta,
+  })
+  return apiFetch<ViajeDetalle[]>(`/reportes/servicios-por-persona/detalle?${parametros}`)
 }

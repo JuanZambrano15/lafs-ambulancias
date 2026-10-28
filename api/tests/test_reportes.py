@@ -1,4 +1,3 @@
-
 """Reporte del contador: totales de servicios por persona (issue #24).
  
 No pasa por el flujo completo de crear/cerrar una atención con su
@@ -16,6 +15,7 @@ import openpyxl
 from app.models.ambulancia import Ambulancia, TipoAmbulancia
 from app.models.atencion import Atencion, EstadoAtencion, TipoAtencion
 from app.models.empleado import Empleado
+from app.models.formato_accidente_soat import FormatoAccidenteSoat, RolVictima
 from app.models.formato_traslado import (
     CategoriaPaciente,
     ComplejidadTraslado,
@@ -62,13 +62,23 @@ def _crear_atencion(
     cerrada_en: datetime | None = None,
     tipo: TipoAtencion = TipoAtencion.traslado,
     nivel_servicio: NivelServicioTraslado = NivelServicioTraslado.basico,
+    paciente_nombres: str = "Paciente",
+    paciente_apellidos: str = "De Prueba",
+    paciente_numero_documento: str = "1000000000",
+    recepcion_ips: str = "IPS de recepción",
+    recepcion_ciudad: str = "Ocaña",
+    entrega_ips: str = "IPS de entrega",
+    entrega_ciudad: str = "Cúcuta",
+    lugar_ocurrencia: str = "Calle 10 con carrera 5",
+    ciudad_soat: str = "Ocaña",
+    identificado_soat: bool = True,
 ) -> Atencion:
-    """Crea la atención y, si es de tipo traslado, también el
-    encabezado de `FormatoTraslado` del que sale el nivel de servicio
-    (básico/medicalizado) que ahora desglosa el reporte -- en el
-    sistema real siempre existe para una atención cerrada (se llena al
-    recibir al paciente, no al cerrar), así que el reporte asume que
-    está ahí.
+    """Crea la atención y, según el tipo, también el encabezado del
+    formato correspondiente (`FormatoTraslado` o `FormatoAccidenteSoat`)
+    -- en el sistema real siempre existe para una atención cerrada (se
+    llena al recibir al paciente, no al cerrar), así que tanto el
+    desglose por tipo (issue #24) como el drill-down de viajes
+    (issue #25) lo asumen ahí.
     """
     abierta_en = cerrada_en or datetime(2027, 1, 1, tzinfo=UTC)
     atencion = Atencion(
@@ -85,28 +95,51 @@ def _crear_atencion(
     db.refresh(atencion)
  
     if tipo == TipoAtencion.traslado:
-        formato = FormatoTraslado(
+        formato_traslado = FormatoTraslado(
             atencion_id=atencion.id,
             paciente_tipo_documento=TipoDocumentoPaciente.cc,
-            paciente_numero_documento="1000000000",
+            paciente_numero_documento=paciente_numero_documento,
             paciente_eps="EPS de prueba",
-            paciente_nombres="Paciente",
-            paciente_apellidos="De Prueba",
+            paciente_nombres=paciente_nombres,
+            paciente_apellidos=paciente_apellidos,
             paciente_edad=30,
             paciente_sexo=SexoPaciente.m,
             paciente_direccion_residencial="Calle falsa 123",
             paciente_ciudad="Ocaña",
             recepcion_fecha=abierta_en.date(),
             recepcion_hora=time(8, 0),
-            recepcion_ciudad="Ocaña",
-            recepcion_ips="IPS de prueba",
+            recepcion_ciudad=recepcion_ciudad,
+            recepcion_ips=recepcion_ips,
             recepcion_servicio="Urgencias",
+            entrega_fecha=abierta_en.date(),
+            entrega_hora=time(9, 0),
+            entrega_ciudad=entrega_ciudad,
+            entrega_ips=entrega_ips,
+            entrega_servicio="Urgencias",
             complejidad=ComplejidadTraslado.baja,
             categoria_paciente=CategoriaPaciente.adulto,
             nivel_servicio=nivel_servicio,
             modalidad=ModalidadTraslado.sencillo,
         )
-        db.add(formato)
+        db.add(formato_traslado)
+        db.commit()
+    elif tipo == TipoAtencion.atencion_soat:
+        formato_soat = FormatoAccidenteSoat(
+            atencion_id=atencion.id,
+            fecha_atencion=abierta_en.date(),
+            hora_atencion=time(8, 0),
+            identificado=identificado_soat,
+            paciente_tipo_documento=TipoDocumentoPaciente.cc if identificado_soat else None,
+            paciente_numero_documento=paciente_numero_documento if identificado_soat else None,
+            paciente_nombres=paciente_nombres if identificado_soat else None,
+            paciente_apellidos=paciente_apellidos if identificado_soat else None,
+            paciente_edad=30 if identificado_soat else None,
+            paciente_sexo=SexoPaciente.m if identificado_soat else None,
+            lugar_ocurrencia=lugar_ocurrencia,
+            ciudad=ciudad_soat,
+            rol_victima=RolVictima.peaton,
+        )
+        db.add(formato_soat)
         db.commit()
  
     return atencion
@@ -485,3 +518,219 @@ class TestExcel:
         libro = openpyxl.load_workbook(BytesIO(respuesta.content))
         hoja = libro.active
         assert list(hoja.iter_rows(min_row=2, values_only=True)) == []
+ 
+ 
+class TestDetalle:
+    """Drill-down de viajes por persona y función (issue #25)."""
+ 
+    def test_admin_puede_consultar(
+        self, client: TestClient, db: Session, admin_headers: dict[str, str]
+    ) -> None:
+        respuesta = client.get(
+            "/reportes/servicios-por-persona/detalle",
+            params={
+                "empleado_id": 1,
+                "funcion": "conductor",
+                "desde": "2027-01-01",
+                "hasta": "2027-01-31",
+            },
+            headers=admin_headers,
+        )
+        assert respuesta.status_code == 200
+ 
+    def test_contador_puede_consultar(
+        self, client: TestClient, db: Session, contador_headers: dict[str, str]
+    ) -> None:
+        respuesta = client.get(
+            "/reportes/servicios-por-persona/detalle",
+            params={
+                "empleado_id": 1,
+                "funcion": "conductor",
+                "desde": "2027-01-01",
+                "hasta": "2027-01-31",
+            },
+            headers=contador_headers,
+        )
+        assert respuesta.status_code == 200
+ 
+    def test_auxiliar_no_puede_consultar(
+        self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+    ) -> None:
+        respuesta = client.get(
+            "/reportes/servicios-por-persona/detalle",
+            params={
+                "empleado_id": 1,
+                "funcion": "conductor",
+                "desde": "2027-01-01",
+                "hasta": "2027-01-31",
+            },
+            headers=auxiliar_headers,
+        )
+        assert respuesta.status_code == 403
+ 
+    def test_funcion_invalida_da_422(
+        self, client: TestClient, db: Session, admin_headers: dict[str, str]
+    ) -> None:
+        respuesta = client.get(
+            "/reportes/servicios-por-persona/detalle",
+            params={
+                "empleado_id": 1,
+                "funcion": "mecanico",
+                "desde": "2027-01-01",
+                "hasta": "2027-01-31",
+            },
+            headers=admin_headers,
+        )
+        assert respuesta.status_code == 422
+ 
+    def test_trae_origen_destino_paciente_cedula_y_fecha_de_un_traslado(
+        self, client: TestClient, db: Session, admin_headers: dict[str, str]
+    ) -> None:
+        ambulancia = _crear_ambulancia(db)
+        conductor = _crear_empleado(db, "Pedro", "Londoño", "800000200")
+        auxiliar = _crear_empleado(db, "Ana", "Ruiz", "700000200")
+        _crear_atencion(
+            db,
+            ambulancia,
+            conductor,
+            auxiliar,
+            cerrada_en=datetime(2027, 1, 5, tzinfo=UTC),
+            paciente_nombres="Juan",
+            paciente_apellidos="Pérez",
+            paciente_numero_documento="900000001",
+            recepcion_ips="Clínica Norte",
+            recepcion_ciudad="Ocaña",
+            entrega_ips="Hospital Central",
+            entrega_ciudad="Cúcuta",
+        )
+ 
+        respuesta = client.get(
+            "/reportes/servicios-por-persona/detalle",
+            params={
+                "empleado_id": conductor.id,
+                "funcion": "conductor",
+                "desde": "2027-01-01",
+                "hasta": "2027-01-31",
+            },
+            headers=admin_headers,
+        )
+        assert respuesta.status_code == 200
+        viajes = respuesta.json()
+        assert len(viajes) == 1
+        assert viajes[0]["fecha"] == "2027-01-05"
+        assert viajes[0]["origen"] == "Clínica Norte (Ocaña)"
+        assert viajes[0]["destino"] == "Hospital Central (Cúcuta)"
+        assert viajes[0]["paciente"] == "Juan Pérez"
+        assert viajes[0]["cedula"] == "900000001"
+ 
+    def test_soat_no_tiene_destino_y_puede_ser_nn(
+        self, client: TestClient, db: Session, admin_headers: dict[str, str]
+    ) -> None:
+        ambulancia = _crear_ambulancia(db)
+        conductor = _crear_empleado(db, "Pedro", "Londoño", "800000201")
+        auxiliar = _crear_empleado(db, "Ana", "Ruiz", "700000201")
+        _crear_atencion(
+            db,
+            ambulancia,
+            conductor,
+            auxiliar,
+            cerrada_en=datetime(2027, 1, 6, tzinfo=UTC),
+            tipo=TipoAtencion.atencion_soat,
+            lugar_ocurrencia="Avenida Circunvalar",
+            ciudad_soat="Ocaña",
+            identificado_soat=False,
+        )
+ 
+        respuesta = client.get(
+            "/reportes/servicios-por-persona/detalle",
+            params={
+                "empleado_id": conductor.id,
+                "funcion": "conductor",
+                "desde": "2027-01-01",
+                "hasta": "2027-01-31",
+            },
+            headers=admin_headers,
+        )
+        viajes = respuesta.json()
+        assert len(viajes) == 1
+        assert viajes[0]["origen"] == "Avenida Circunvalar (Ocaña)"
+        assert viajes[0]["destino"] == "No aplica"
+        assert viajes[0]["paciente"] == "NN"
+        assert viajes[0]["cedula"] == ""
+ 
+    def test_solo_trae_los_viajes_de_la_funcion_pedida(
+        self, client: TestClient, db: Session, admin_headers: dict[str, str]
+    ) -> None:
+        ambulancia = _crear_ambulancia(db)
+        empleado = _crear_empleado(db, "Carlos", "Gómez", "800000202")
+        otro = _crear_empleado(db, "Laura", "Gómez", "700000202")
+        # `empleado` conduce un servicio y es responsable de otro --
+        # el drill-down de "conductor" solo debe traer el primero.
+        _crear_atencion(
+            db, ambulancia, empleado, otro, cerrada_en=datetime(2027, 1, 5, tzinfo=UTC)
+        )
+        _crear_atencion(
+            db, ambulancia, otro, empleado, cerrada_en=datetime(2027, 1, 6, tzinfo=UTC)
+        )
+ 
+        respuesta = client.get(
+            "/reportes/servicios-por-persona/detalle",
+            params={
+                "empleado_id": empleado.id,
+                "funcion": "conductor",
+                "desde": "2027-01-01",
+                "hasta": "2027-01-31",
+            },
+            headers=admin_headers,
+        )
+        viajes = respuesta.json()
+        assert len(viajes) == 1
+        assert viajes[0]["fecha"] == "2027-01-05"
+ 
+    def test_no_trae_viajes_fuera_del_rango(
+        self, client: TestClient, db: Session, admin_headers: dict[str, str]
+    ) -> None:
+        ambulancia = _crear_ambulancia(db)
+        conductor = _crear_empleado(db, "Pedro", "Londoño", "800000203")
+        auxiliar = _crear_empleado(db, "Ana", "Ruiz", "700000203")
+        _crear_atencion(
+            db, ambulancia, conductor, auxiliar, cerrada_en=datetime(2027, 2, 1, tzinfo=UTC)
+        )
+ 
+        respuesta = client.get(
+            "/reportes/servicios-por-persona/detalle",
+            params={
+                "empleado_id": conductor.id,
+                "funcion": "conductor",
+                "desde": "2027-01-01",
+                "hasta": "2027-01-31",
+            },
+            headers=admin_headers,
+        )
+        assert respuesta.json() == []
+ 
+    def test_viajes_ordenados_por_fecha(
+        self, client: TestClient, db: Session, admin_headers: dict[str, str]
+    ) -> None:
+        ambulancia = _crear_ambulancia(db)
+        conductor = _crear_empleado(db, "Pedro", "Londoño", "800000204")
+        auxiliar = _crear_empleado(db, "Ana", "Ruiz", "700000204")
+        _crear_atencion(
+            db, ambulancia, conductor, auxiliar, cerrada_en=datetime(2027, 1, 20, tzinfo=UTC)
+        )
+        _crear_atencion(
+            db, ambulancia, conductor, auxiliar, cerrada_en=datetime(2027, 1, 5, tzinfo=UTC)
+        )
+ 
+        respuesta = client.get(
+            "/reportes/servicios-por-persona/detalle",
+            params={
+                "empleado_id": conductor.id,
+                "funcion": "conductor",
+                "desde": "2027-01-01",
+                "hasta": "2027-01-31",
+            },
+            headers=admin_headers,
+        )
+        fechas = [v["fecha"] for v in respuesta.json()]
+        assert fechas == ["2027-01-05", "2027-01-20"]

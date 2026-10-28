@@ -1,4 +1,3 @@
-
 """Reporte del contador: totales de servicios por persona en un rango
 de fechas (issue #24) -- para el tema del pago, cuántos servicios
 básicos, medicalizados y SOAT hizo cada persona, separado por si
@@ -30,6 +29,16 @@ Cada persona aparece en una fila por función (conductor/responsable):
 si alguien fue conductor en unos servicios y auxiliar/médico
 responsable en otros dentro del rango, son dos filas distintas, no una
 combinada -- también decisión explícita del cliente (issue #24).
+ 
+Issue #25 agrega el drill-down: al hacer clic en una fila, el detalle
+de cada viaje de esa persona en esa función (origen, destino,
+paciente, cédula, fecha) -- sin el formato completo ni datos clínicos,
+a pedido explícito del cliente. El formato de traslado tiene origen y
+destino bien definidos (recepción/entrega); el de accidente SOAT solo
+tiene el lugar del accidente (no existe "destino" en ese papel), así
+que esa columna queda como "No aplica" para esos viajes. El paciente
+de un accidente SOAT puede ser NN (sin identificar) -- se muestra así,
+con la cédula vacía.
 """
  
 from __future__ import annotations
@@ -49,8 +58,9 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.deps import DbSession, require_admin_o_contador
 from app.models.atencion import Atencion, EstadoAtencion, TipoAtencion
 from app.models.empleado import Empleado
+from app.models.formato_accidente_soat import FormatoAccidenteSoat
 from app.models.formato_traslado import FormatoTraslado, NivelServicioTraslado
-from app.schemas.reporte import Funcion, ServicioPorPersona
+from app.schemas.reporte import Funcion, ServicioPorPersona, ViajeDetalle
  
 router = APIRouter(
     prefix="/reportes",
@@ -240,4 +250,102 @@ def reporte_servicios_por_persona_excel(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
-)
+    )
+ 
+ 
+def _detalle_traslado(atencion: Atencion, formato: FormatoTraslado) -> ViajeDetalle:
+    return ViajeDetalle(
+        atencion_id=atencion.id,
+        fecha=atencion.cerrada_en.date() if atencion.cerrada_en else atencion.abierta_en.date(),
+        origen=f"{formato.recepcion_ips} ({formato.recepcion_ciudad})",
+        # `entrega_ips`/`entrega_ciudad` son obligatorios para cerrar un
+        # traslado (ver `cerrar_atencion` en `atenciones.py`), así que
+        # siempre están presentes acá -- no hace falta un "No aplica".
+        destino=f"{formato.entrega_ips} ({formato.entrega_ciudad})",
+        paciente=f"{formato.paciente_nombres} {formato.paciente_apellidos}",
+        cedula=formato.paciente_numero_documento,
+    )
+ 
+ 
+def _detalle_soat(atencion: Atencion, formato: FormatoAccidenteSoat) -> ViajeDetalle:
+    return ViajeDetalle(
+        atencion_id=atencion.id,
+        fecha=atencion.cerrada_en.date() if atencion.cerrada_en else atencion.abierta_en.date(),
+        origen=f"{formato.lugar_ocurrencia} ({formato.ciudad})",
+        # El formato AA-LAFS-005 no tiene casilla de destino (solo el
+        # lugar del accidente) -- decisión del cliente para el issue #25.
+        destino="No aplica",
+        # El paciente de un accidente puede llegar sin identificar
+        # (NN) -- también decisión del cliente para este issue.
+        paciente=(
+            f"{formato.paciente_nombres or ''} {formato.paciente_apellidos or ''}".strip()
+            if formato.identificado
+            else "NN"
+        ),
+        cedula=(formato.paciente_numero_documento or "") if formato.identificado else "",
+    )
+ 
+ 
+def _calcular_detalle(
+    db: Session, empleado_id: int, funcion: Funcion, desde: date, hasta: date
+) -> list[ViajeDetalle]:
+    """Los viajes de un empleado, en una función puntual, en el rango
+    -- el drill-down del issue #25. Misma ventana de `[desde, hasta]`
+    (sobre `cerrada_en`) que el resto del reporte.
+    """
+    inicio = datetime.combine(desde, time.min, tzinfo=UTC)
+    fin = datetime.combine(hasta, time.max, tzinfo=UTC)
+    columna_funcion = Atencion.conductor_id if funcion == "conductor" else Atencion.responsable_id
+    atenciones = (
+        db.execute(
+            select(Atencion)
+            .where(
+                Atencion.estado == EstadoAtencion.cerrado,
+                Atencion.cerrada_en >= inicio,
+                Atencion.cerrada_en <= fin,
+                columna_funcion == empleado_id,
+            )
+            .order_by(Atencion.cerrada_en)
+        )
+        .scalars()
+        .all()
+    )
+ 
+    ids_traslado = [a.id for a in atenciones if a.tipo == TipoAtencion.traslado]
+    ids_soat = [a.id for a in atenciones if a.tipo == TipoAtencion.atencion_soat]
+    formatos_traslado = {
+        f.atencion_id: f
+        for f in db.execute(
+            select(FormatoTraslado).where(FormatoTraslado.atencion_id.in_(ids_traslado))
+        ).scalars()
+    }
+    formatos_soat = {
+        f.atencion_id: f
+        for f in db.execute(
+            select(FormatoAccidenteSoat).where(FormatoAccidenteSoat.atencion_id.in_(ids_soat))
+        ).scalars()
+    }
+ 
+    viajes = []
+    for atencion in atenciones:
+        if atencion.tipo == TipoAtencion.traslado:
+            viajes.append(_detalle_traslado(atencion, formatos_traslado[atencion.id]))
+        else:
+            viajes.append(_detalle_soat(atencion, formatos_soat[atencion.id]))
+    return viajes
+ 
+ 
+@router.get("/servicios-por-persona/detalle", response_model=list[ViajeDetalle])
+def reporte_detalle_servicios_por_persona(
+    db: DbSession,
+    empleado_id: int,
+    funcion: Funcion,
+    desde: date,
+    hasta: date,
+) -> list[ViajeDetalle]:
+    """El drill-down de una fila del reporte (issue #25): cada viaje
+    de ese empleado en esa función, con origen, destino, paciente,
+    cédula y fecha -- sin el formato completo ni datos clínicos.
+    """
+    _validar_rango(desde, hasta)
+    return _calcular_detalle(db, empleado_id, funcion, desde, hasta)
