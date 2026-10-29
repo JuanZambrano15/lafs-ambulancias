@@ -107,45 +107,49 @@ export function ServiciosCerradosPage(): JSX.Element {
       ) : cerradas.length === 0 ? (
         <p className="text-slate-500">No se encontraron servicios cerrados.</p>
       ) : (
-        <table className="w-full max-w-4xl border-separate border-spacing-y-1 text-sm">
-          <thead>
-            <tr className="text-left text-slate-500">
-              <th className="px-3">Paciente</th>
-              <th className="px-3">Documento</th>
-              <th className="px-3">Tipo</th>
-              <th className="px-3">Móvil</th>
-              <th className="px-3">Cerrada</th>
-              <th className="px-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {cerradas.map((atencion) => (
-              <tr key={atencion.id} className="rounded-lg bg-white shadow-sm">
-                <td className="px-3 py-2 font-medium text-slate-900">
-                  {atencion.paciente_nombres
-                    ? `${atencion.paciente_nombres} ${atencion.paciente_apellidos ?? ''}`
-                    : 'NN (sin identificar)'}
-                </td>
-                <td className="px-3 py-2 text-slate-600">
-                  {atencion.paciente_numero_documento ?? '—'}
-                </td>
-                <td className="px-3 py-2 text-slate-600">{etiquetaTipoServicio(atencion)}</td>
-                <td className="px-3 py-2 text-slate-600">{atencion.ambulancia.movil}</td>
-                <td className="px-3 py-2 text-slate-600">
-                  {atencion.cerrada_en ? formatearFecha(atencion.cerrada_en) : '—'}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <Link
-                    to={`/atenciones/${atencion.id}/detalle`}
-                    className="font-medium text-brand-blue hover:underline"
-                  >
-                    Ver detalle
-                  </Link>
-                </td>
+        // Issue #98: la tabla hace scroll horizontal por su cuenta en
+        // pantallas angostas, en vez de desbordar toda la página.
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[44rem] border-separate border-spacing-y-1 text-sm">
+            <thead>
+              <tr className="text-left text-slate-500">
+                <th className="px-3">Paciente</th>
+                <th className="px-3">Documento</th>
+                <th className="px-3">Tipo</th>
+                <th className="px-3">Móvil</th>
+                <th className="px-3">Cerrada</th>
+                <th className="px-3" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {cerradas.map((atencion) => (
+                <tr key={atencion.id} className="rounded-lg bg-white shadow-sm">
+                  <td className="px-3 py-2 font-medium text-slate-900">
+                    {atencion.paciente_nombres
+                      ? `${atencion.paciente_nombres} ${atencion.paciente_apellidos ?? ''}`
+                      : 'NN (sin identificar)'}
+                  </td>
+                  <td className="px-3 py-2 text-slate-600">
+                    {atencion.paciente_numero_documento ?? '—'}
+                  </td>
+                  <td className="px-3 py-2 text-slate-600">{etiquetaTipoServicio(atencion)}</td>
+                  <td className="px-3 py-2 text-slate-600">{atencion.ambulancia.movil}</td>
+                  <td className="px-3 py-2 text-slate-600">
+                    {atencion.cerrada_en ? formatearFecha(atencion.cerrada_en) : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <Link
+                      to={`/atenciones/${atencion.id}/detalle`}
+                      className="font-medium text-brand-blue hover:underline"
+                    >
+                      Ver detalle
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   )
