@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext'
 import { ApiError } from '../lib/api'
 import type { MeResponse } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
+import { BotonTema } from '../components/BotonTema'
  
 /** A dónde cae cada quien después de iniciar sesión, cuando no venía
  * de una ruta protegida puntual (`location.state.desde`) -- issue
@@ -55,7 +56,12 @@ export function LoginPage(): JSX.Element {
   }
  
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-slate-100 px-4">
+      {/* Issue #98: también antes de iniciar sesión, para no
+          encandilar a nadie de noche con la pantalla de ingreso. */}
+      <div className="absolute right-4 top-4">
+        <BotonTema compacto />
+      </div>
       <form onSubmit={manejarEnvio} className="w-full max-w-sm rounded-xl bg-white p-8 shadow-md">
         <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mx-auto mb-3 h-14 w-auto" />
         <h1 className="mb-1 text-2xl font-semibold text-slate-900">L.A.F.S. Ambulancias</h1>
