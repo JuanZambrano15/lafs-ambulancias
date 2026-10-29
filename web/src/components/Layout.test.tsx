@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
  
@@ -65,5 +66,27 @@ describe('Layout', () => {
     expect(screen.queryByRole('link', { name: 'Usuarios' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Empleados' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Roles' })).not.toBeInTheDocument()
+  })
+
+  it('issue #98: el botón "Menú" despliega y recoge el menú en pantallas angostas', async () => {
+    const usuario = userEvent.setup()
+    renderConPerfil(perfilAdmin)
+
+    const boton = await screen.findByRole('button', { name: 'Menú' })
+    expect(boton).toHaveAttribute('aria-expanded', 'false')
+    expect(boton).toHaveAttribute('aria-controls', 'menu-principal')
+
+    await usuario.click(boton)
+    expect(boton).toHaveAttribute('aria-expanded', 'true')
+
+    // Elegir un enlace recoge el menú otra vez.
+    await usuario.click(screen.getByRole('link', { name: 'Usuarios' }))
+    expect(boton).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('issue #98: muestra el botón de modo oscuro', async () => {
+    renderConPerfil(perfilAdmin)
+
+    expect(await screen.findByRole('button', { name: 'Modo oscuro' })).toBeInTheDocument()
   })
 })
