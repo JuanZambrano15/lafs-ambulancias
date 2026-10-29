@@ -490,7 +490,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
         ← Volver
       </button>
 
-      <form onSubmit={manejarEnvio} className="max-w-2xl rounded-xl bg-white p-6 shadow-sm">
+      <form onSubmit={manejarEnvio} className="max-w-6xl rounded-xl bg-white p-6 shadow-sm">
         <h1 className="mb-1 text-xl font-semibold text-slate-900">Corregir formato</h1>
         <p className="mb-6 text-sm text-slate-500">
           Esta atención ya está cerrada -- la corrección queda en el historial de versiones con el
@@ -504,499 +504,508 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
           </p>
         )}
 
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">Datos de la atención</h2>
-        {campoRequerido('Fecha', 'fecha-atencion', {
-          required: true,
-          type: 'date',
-          value: encabezado.fecha_atencion,
-          onChange: (e) => actualizarEncabezado('fecha_atencion', e.target.value),
-        })}
-        {campoRequerido('Hora de atención', 'hora-atencion', {
-          required: true,
-          type: 'time',
-          value: encabezado.hora_atencion,
-          onChange: (e) => actualizarEncabezado('hora_atencion', e.target.value),
-        })}
-        {campoRequerido('Hora de entrega (opcional)', 'hora-entrega', {
-          type: 'time',
-          value: encabezado.hora_entrega,
-          onChange: (e) => actualizarEncabezado('hora_entrega', e.target.value),
-        })}
-
-        <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Paciente</h2>
-        <label className="mb-4 flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={encabezado.identificado}
-            onChange={(e) => actualizarEncabezado('identificado', e.target.checked)}
-          />
-          Paciente identificado
-        </label>
-        {!encabezado.identificado && (
-          <p className="mb-4 text-sm text-brand-amber-dark">
-            Se registrará como NN. Los datos de identidad se pueden completar después.
-          </p>
-        )}
-        {encabezado.identificado && (
-          <>
-            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="tipo-documento">
-              Tipo de documento
-            </label>
-            <select
-              id="tipo-documento"
-              value={encabezado.paciente_tipo_documento}
-              onChange={(e) =>
-                actualizarEncabezado('paciente_tipo_documento', e.target.value as TipoDocumentoPaciente)
-              }
-              className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-            >
-              {TIPOS_DOCUMENTO.map((opcion) => (
-                <option key={opcion.valor} value={opcion.valor}>
-                  {opcion.etiqueta}
-                </option>
-              ))}
-            </select>
-            {campoRequerido('Número de documento', 'numero-documento', {
-              value: encabezado.paciente_numero_documento,
-              onChange: (e) => actualizarEncabezado('paciente_numero_documento', e.target.value),
+        {/* Issue #98: en escritorio, encabezado a la izquierda y parte
+            clínica a la derecha, en vez de una sola columna angosta de más de
+            cien campos. El motivo y el botón quedan abajo, a todo el ancho. */}
+        <div className="grid gap-x-10 xl:grid-cols-2">
+          <div>
+            <h2 className="mb-3 text-sm font-semibold text-slate-900">Datos de la atención</h2>
+            {campoRequerido('Fecha', 'fecha-atencion', {
+              required: true,
+              type: 'date',
+              value: encabezado.fecha_atencion,
+              onChange: (e) => actualizarEncabezado('fecha_atencion', e.target.value),
             })}
-            {campoRequerido('Aseguradora (EPS/ARL)', 'aseguradora', {
-              value: encabezado.paciente_aseguradora,
-              onChange: (e) => actualizarEncabezado('paciente_aseguradora', e.target.value),
+            {campoRequerido('Hora de atención', 'hora-atencion', {
+              required: true,
+              type: 'time',
+              value: encabezado.hora_atencion,
+              onChange: (e) => actualizarEncabezado('hora_atencion', e.target.value),
             })}
-            {campoRequerido('Nombres', 'nombres', {
-              value: encabezado.paciente_nombres,
-              onChange: (e) => actualizarEncabezado('paciente_nombres', e.target.value),
+            {campoRequerido('Hora de entrega (opcional)', 'hora-entrega', {
+              type: 'time',
+              value: encabezado.hora_entrega,
+              onChange: (e) => actualizarEncabezado('hora_entrega', e.target.value),
             })}
-            {campoRequerido('Apellidos', 'apellidos', {
-              value: encabezado.paciente_apellidos,
-              onChange: (e) => actualizarEncabezado('paciente_apellidos', e.target.value),
-            })}
-            {campoRequerido('Edad', 'edad', {
-              type: 'number',
-              min: 0,
-              value: encabezado.paciente_edad,
-              onChange: (e) => actualizarEncabezado('paciente_edad', e.target.value),
-            })}
-            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="sexo">
-              Sexo
-            </label>
-            <select
-              id="sexo"
-              value={encabezado.paciente_sexo}
-              onChange={(e) => actualizarEncabezado('paciente_sexo', e.target.value as SexoPaciente)}
-              className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-            >
-              <option value="m">Masculino</option>
-              <option value="f">Femenino</option>
-            </select>
-          </>
-        )}
 
-        <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Datos de recogida</h2>
-        {campoRequerido('Lugar de ocurrencia', 'lugar-ocurrencia', {
-          required: true,
-          value: encabezado.lugar_ocurrencia,
-          onChange: (e) => actualizarEncabezado('lugar_ocurrencia', e.target.value),
-        })}
-        {campoRequerido('Ciudad', 'ciudad', {
-          required: true,
-          value: encabezado.ciudad,
-          onChange: (e) => actualizarEncabezado('ciudad', e.target.value),
-        })}
-        {campoRequerido('Teléfono de contacto (opcional)', 'telefono-contacto', {
-          value: encabezado.telefono_contacto,
-          onChange: (e) => actualizarEncabezado('telefono_contacto', e.target.value),
-        })}
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="rol-victima">
-          Rol de la víctima
-        </label>
-        <select
-          id="rol-victima"
-          value={encabezado.rol_victima}
-          onChange={(e) => actualizarEncabezado('rol_victima', e.target.value as RolVictima)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-        >
-          {ROLES_VICTIMA.map((opcion) => (
-            <option key={opcion.valor} value={opcion.valor}>
-              {opcion.etiqueta}
-            </option>
-          ))}
-        </select>
-
-        <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">
-          Vehículo accidentado (opcional)
-        </h2>
-        {campoRequerido('Placa del vehículo', 'vehiculo-placa', {
-          value: encabezado.vehiculo_placa,
-          onChange: (e) => actualizarEncabezado('vehiculo_placa', e.target.value),
-        })}
-        {campoRequerido('Tipo de vehículo', 'vehiculo-tipo', {
-          value: encabezado.vehiculo_tipo,
-          onChange: (e) => actualizarEncabezado('vehiculo_tipo', e.target.value),
-        })}
-        {campoRequerido('Marca del vehículo', 'vehiculo-marca', {
-          value: encabezado.vehiculo_marca,
-          onChange: (e) => actualizarEncabezado('vehiculo_marca', e.target.value),
-        })}
-
-        <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Póliza (opcional)</h2>
-        {campoRequerido('Número de póliza', 'numero-poliza', {
-          value: encabezado.numero_poliza,
-          onChange: (e) => actualizarEncabezado('numero_poliza', e.target.value),
-        })}
-        {campoRequerido('Vigente desde', 'poliza-desde', {
-          type: 'date',
-          value: encabezado.poliza_vigente_desde,
-          onChange: (e) => actualizarEncabezado('poliza_vigente_desde', e.target.value),
-        })}
-        {campoRequerido('Vigente hasta', 'poliza-hasta', {
-          type: 'date',
-          value: encabezado.poliza_vigente_hasta,
-          onChange: (e) => actualizarEncabezado('poliza_vigente_hasta', e.target.value),
-        })}
-
-        <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Tratamiento</h2>
-        <div className="mb-2 grid grid-cols-2 gap-1">
-          {TRATAMIENTO_OPCIONES.map((opcion) => (
-            <label key={opcion.valor} className="flex items-center gap-2 text-sm text-slate-700">
+            <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Paciente</h2>
+            <label className="mb-4 flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
-                checked={clinico.tratamiento.includes(opcion.valor)}
-                onChange={() =>
-                  setClinico((anterior) => ({
-                    ...anterior,
-                    tratamiento: alternarEnLista(anterior.tratamiento, opcion.valor),
-                  }))
-                }
+                checked={encabezado.identificado}
+                onChange={(e) => actualizarEncabezado('identificado', e.target.checked)}
               />
-              {opcion.etiqueta}
+              Paciente identificado
             </label>
-          ))}
-        </div>
-        <input
-          type="text"
-          placeholder='Detalle de "Otros"'
-          value={clinico.tratamientoOtro}
-          onChange={(e) => setClinico((anterior) => ({ ...anterior, tratamientoOtro: e.target.value }))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-        />
+            {!encabezado.identificado && (
+              <p className="mb-4 text-sm text-brand-amber-dark">
+                Se registrará como NN. Los datos de identidad se pueden completar después.
+              </p>
+            )}
+            {encabezado.identificado && (
+              <>
+                <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="tipo-documento">
+                  Tipo de documento
+                </label>
+                <select
+                  id="tipo-documento"
+                  value={encabezado.paciente_tipo_documento}
+                  onChange={(e) =>
+                    actualizarEncabezado('paciente_tipo_documento', e.target.value as TipoDocumentoPaciente)
+                  }
+                  className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                >
+                  {TIPOS_DOCUMENTO.map((opcion) => (
+                    <option key={opcion.valor} value={opcion.valor}>
+                      {opcion.etiqueta}
+                    </option>
+                  ))}
+                </select>
+                {campoRequerido('Número de documento', 'numero-documento', {
+                  value: encabezado.paciente_numero_documento,
+                  onChange: (e) => actualizarEncabezado('paciente_numero_documento', e.target.value),
+                })}
+                {campoRequerido('Aseguradora (EPS/ARL)', 'aseguradora', {
+                  value: encabezado.paciente_aseguradora,
+                  onChange: (e) => actualizarEncabezado('paciente_aseguradora', e.target.value),
+                })}
+                {campoRequerido('Nombres', 'nombres', {
+                  value: encabezado.paciente_nombres,
+                  onChange: (e) => actualizarEncabezado('paciente_nombres', e.target.value),
+                })}
+                {campoRequerido('Apellidos', 'apellidos', {
+                  value: encabezado.paciente_apellidos,
+                  onChange: (e) => actualizarEncabezado('paciente_apellidos', e.target.value),
+                })}
+                {campoRequerido('Edad', 'edad', {
+                  type: 'number',
+                  min: 0,
+                  value: encabezado.paciente_edad,
+                  onChange: (e) => actualizarEncabezado('paciente_edad', e.target.value),
+                })}
+                <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="sexo">
+                  Sexo
+                </label>
+                <select
+                  id="sexo"
+                  value={encabezado.paciente_sexo}
+                  onChange={(e) => actualizarEncabezado('paciente_sexo', e.target.value as SexoPaciente)}
+                  className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                >
+                  <option value="m">Masculino</option>
+                  <option value="f">Femenino</option>
+                </select>
+              </>
+            )}
 
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">Reflejo pupilar</h2>
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pupila-derecha">
-          Derecha
-        </label>
-        <select
-          id="pupila-derecha"
-          value={clinico.pupilaDerecha}
-          onChange={(e) =>
-            setClinico((anterior) => ({ ...anterior, pupilaDerecha: e.target.value as ReflejoPupilar | '' }))
-          }
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-        >
-          <option value="">Sin registrar</option>
-          {REFLEJO_OPCIONES.map((opcion) => (
-            <option key={opcion.valor} value={opcion.valor}>
-              {opcion.etiqueta}
-            </option>
-          ))}
-        </select>
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pupila-izquierda">
-          Izquierda
-        </label>
-        <select
-          id="pupila-izquierda"
-          value={clinico.pupilaIzquierda}
-          onChange={(e) =>
-            setClinico((anterior) => ({
-              ...anterior,
-              pupilaIzquierda: e.target.value as ReflejoPupilar | '',
-            }))
-          }
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-        >
-          <option value="">Sin registrar</option>
-          {REFLEJO_OPCIONES.map((opcion) => (
-            <option key={opcion.valor} value={opcion.valor}>
-              {opcion.etiqueta}
-            </option>
-          ))}
-        </select>
+            <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Datos de recogida</h2>
+            {campoRequerido('Lugar de ocurrencia', 'lugar-ocurrencia', {
+              required: true,
+              value: encabezado.lugar_ocurrencia,
+              onChange: (e) => actualizarEncabezado('lugar_ocurrencia', e.target.value),
+            })}
+            {campoRequerido('Ciudad', 'ciudad', {
+              required: true,
+              value: encabezado.ciudad,
+              onChange: (e) => actualizarEncabezado('ciudad', e.target.value),
+            })}
+            {campoRequerido('Teléfono de contacto (opcional)', 'telefono-contacto', {
+              value: encabezado.telefono_contacto,
+              onChange: (e) => actualizarEncabezado('telefono_contacto', e.target.value),
+            })}
+            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="rol-victima">
+              Rol de la víctima
+            </label>
+            <select
+              id="rol-victima"
+              value={encabezado.rol_victima}
+              onChange={(e) => actualizarEncabezado('rol_victima', e.target.value as RolVictima)}
+              className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+            >
+              {ROLES_VICTIMA.map((opcion) => (
+                <option key={opcion.valor} value={opcion.valor}>
+                  {opcion.etiqueta}
+                </option>
+              ))}
+            </select>
 
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-900">Signos vitales</h2>
-          <button type="button" onClick={agregarSignoVital} className="text-sm font-medium text-brand-blue">
-            + Agregar medición
-          </button>
-        </div>
-        {clinico.signosVitales.map((signo, indice) => (
-          <div key={indice} className="mb-3 rounded-lg border border-slate-200 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-500">Medición {indice + 1}</span>
-              <button
-                type="button"
-                onClick={() => quitarSignoVital(indice)}
-                className="text-xs font-medium text-brand-orange-dark"
-              >
-                Quitar
-              </button>
+            <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">
+              Vehículo accidentado (opcional)
+            </h2>
+            {campoRequerido('Placa del vehículo', 'vehiculo-placa', {
+              value: encabezado.vehiculo_placa,
+              onChange: (e) => actualizarEncabezado('vehiculo_placa', e.target.value),
+            })}
+            {campoRequerido('Tipo de vehículo', 'vehiculo-tipo', {
+              value: encabezado.vehiculo_tipo,
+              onChange: (e) => actualizarEncabezado('vehiculo_tipo', e.target.value),
+            })}
+            {campoRequerido('Marca del vehículo', 'vehiculo-marca', {
+              value: encabezado.vehiculo_marca,
+              onChange: (e) => actualizarEncabezado('vehiculo_marca', e.target.value),
+            })}
+
+            <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Póliza (opcional)</h2>
+            {campoRequerido('Número de póliza', 'numero-poliza', {
+              value: encabezado.numero_poliza,
+              onChange: (e) => actualizarEncabezado('numero_poliza', e.target.value),
+            })}
+            {campoRequerido('Vigente desde', 'poliza-desde', {
+              type: 'date',
+              value: encabezado.poliza_vigente_desde,
+              onChange: (e) => actualizarEncabezado('poliza_vigente_desde', e.target.value),
+            })}
+            {campoRequerido('Vigente hasta', 'poliza-hasta', {
+              type: 'date',
+              value: encabezado.poliza_vigente_hasta,
+              onChange: (e) => actualizarEncabezado('poliza_vigente_hasta', e.target.value),
+            })}
+          </div>
+
+          <div>
+            <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900 xl:mt-0">Tratamiento</h2>
+            <div className="mb-2 grid grid-cols-2 gap-1">
+              {TRATAMIENTO_OPCIONES.map((opcion) => (
+                <label key={opcion.valor} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={clinico.tratamiento.includes(opcion.valor)}
+                    onChange={() =>
+                      setClinico((anterior) => ({
+                        ...anterior,
+                        tratamiento: alternarEnLista(anterior.tratamiento, opcion.valor),
+                      }))
+                    }
+                  />
+                  {opcion.etiqueta}
+                </label>
+              ))}
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="time"
-                aria-label={`Hora medición ${indice + 1}`}
-                value={signo.hora}
-                onChange={(e) => actualizarSignoVital(indice, 'hora', e.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-              />
-              <input
-                type="text"
-                placeholder="TA (ej. 120/80)"
-                aria-label={`TA medición ${indice + 1}`}
-                value={signo.ta}
-                onChange={(e) => actualizarSignoVital(indice, 'ta', e.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-              />
-              <input
-                type="number"
-                placeholder="FC"
-                aria-label={`FC medición ${indice + 1}`}
-                min={0}
-                max={300}
-                value={signo.fc}
-                onChange={(e) => actualizarSignoVital(indice, 'fc', e.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-              />
-              <input
-                type="number"
-                placeholder="FR"
-                aria-label={`FR medición ${indice + 1}`}
-                min={0}
-                max={120}
-                value={signo.fr}
-                onChange={(e) => actualizarSignoVital(indice, 'fr', e.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-              />
-              <input
-                type="number"
-                placeholder="SPO2"
-                aria-label={`SPO2 medición ${indice + 1}`}
-                min={0}
-                max={100}
-                value={signo.spo2}
-                onChange={(e) => actualizarSignoVital(indice, 'spo2', e.target.value)}
-                className="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-              />
-            </div>
-          </div>
-        ))}
+            <input
+              type="text"
+              placeholder='Detalle de "Otros"'
+              value={clinico.tratamientoOtro}
+              onChange={(e) => setClinico((anterior) => ({ ...anterior, tratamientoOtro: e.target.value }))}
+              className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+            />
 
-        <h2 className="mb-3 mt-2 text-sm font-semibold text-slate-900">Localización de lesiones</h2>
-        <div className="mb-4">
-          <DiagramaCorporal
-            valor={clinico.lesionesLocalizadas}
-            onChange={(nuevoValor) =>
-              setClinico((anterior) => ({ ...anterior, lesionesLocalizadas: nuevoValor }))
-            }
-          />
-        </div>
-
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">Escala de Glasgow</h2>
-        <div className="mb-1 grid grid-cols-3 gap-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-ocular">
-              Ocular (1-4)
+            <h2 className="mb-3 text-sm font-semibold text-slate-900">Reflejo pupilar</h2>
+            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pupila-derecha">
+              Derecha
             </label>
             <select
-              id="glasgow-ocular"
-              value={clinico.glasgowOcular}
-              onChange={(e) => setClinico((anterior) => ({ ...anterior, glasgowOcular: e.target.value }))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+              id="pupila-derecha"
+              value={clinico.pupilaDerecha}
+              onChange={(e) =>
+                setClinico((anterior) => ({ ...anterior, pupilaDerecha: e.target.value as ReflejoPupilar | '' }))
+              }
+              className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
             >
               <option value="">Sin registrar</option>
-              {GLASGOW_OCULAR_OPCIONES.map((opcion) => (
+              {REFLEJO_OPCIONES.map((opcion) => (
                 <option key={opcion.valor} value={opcion.valor}>
                   {opcion.etiqueta}
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-verbal">
-              Verbal (1-5)
+            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pupila-izquierda">
+              Izquierda
             </label>
             <select
-              id="glasgow-verbal"
-              value={clinico.glasgowVerbal}
-              onChange={(e) => setClinico((anterior) => ({ ...anterior, glasgowVerbal: e.target.value }))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-            >
-              <option value="">Sin registrar</option>
-              {GLASGOW_VERBAL_OPCIONES.map((opcion) => (
-                <option key={opcion.valor} value={opcion.valor}>
-                  {opcion.etiqueta}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-motora">
-              Motora (1-6)
-            </label>
-            <select
-              id="glasgow-motora"
-              value={clinico.glasgowMotora}
-              onChange={(e) => setClinico((anterior) => ({ ...anterior, glasgowMotora: e.target.value }))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-            >
-              <option value="">Sin registrar</option>
-              {GLASGOW_MOTORA_OPCIONES.map((opcion) => (
-                <option key={opcion.valor} value={opcion.valor}>
-                  {opcion.etiqueta}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <p className="mb-4 text-sm text-slate-500">Total: {glasgowTotal === null ? '— ' : glasgowTotal}/15</p>
-
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="triage">
-          Triage
-        </label>
-        <select
-          id="triage"
-          value={clinico.triage}
-          onChange={(e) => setClinico((anterior) => ({ ...anterior, triage: e.target.value as TriageNivel | '' }))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-        >
-          <option value="">Sin registrar</option>
-          {TRIAGE_OPCIONES.map((opcion) => (
-            <option key={opcion.valor} value={opcion.valor}>
-              {opcion.etiqueta}
-            </option>
-          ))}
-        </select>
-
-        <label className="mb-1 mt-6 block text-sm font-semibold text-slate-900" htmlFor="descripcion">
-          Descripción de la atención
-        </label>
-        <textarea
-          id="descripcion"
-          value={clinico.descripcion}
-          onChange={(e) => setClinico((anterior) => ({ ...anterior, descripcion: e.target.value }))}
-          maxLength={2000}
-          rows={4}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-        />
-
-        <label className="mb-1 mt-6 block text-sm font-semibold text-slate-900" htmlFor="nota-auxiliar">
-          Notas de enfermería
-        </label>
-        <textarea
-          id="nota-auxiliar"
-          value={clinico.notaAuxiliar}
-          onChange={(e) => setClinico((anterior) => ({ ...anterior, notaAuxiliar: e.target.value }))}
-          maxLength={2000}
-          rows={4}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-        />
-
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">Atendido por</h2>
-        {campoTexto('Nombre del auxiliar', 'atendido-por', clinico.atendidoPor, (valor) =>
-          setClinico((anterior) => ({ ...anterior, atendidoPor: valor })),
-        )}
-        <FirmaField
-          etiqueta="Firma de quien atendió"
-          imagenInicial={clinico.firmaAtendidoExistente}
-          canvasRef={firmaAtendidoRef}
-        />
-
-        <label htmlFor="nota-medica" className="mb-1 mt-4 block text-sm font-semibold text-slate-900">
-          Notas del médico
-        </label>
-        <textarea
-          id="nota-medica"
-          value={clinico.notaMedica}
-          onChange={(e) => setClinico((anterior) => ({ ...anterior, notaMedica: e.target.value }))}
-          maxLength={2000}
-          rows={4}
-          disabled={clinico.evolucionadoPor.trim() === ''}
-          className="mb-1 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-        />
-        {clinico.evolucionadoPor.trim() === '' && (
-          <p className="mb-2 text-xs text-slate-500">
-            Elige un médico o escribe su nombre para habilitar la nota médica.
-          </p>
-        )}
-
-        <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">Médico que participó (opcional)</h2>
-        <div className="mb-4">
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="medico-evoluciono">
-            Médico
-          </label>
-          <select
-            id="medico-evoluciono"
-            value={medicoId}
-            onChange={(e) => {
-              const valor = e.target.value
-              setMedicoId(valor)
-              if (valor === '' || valor === 'otro') return
-              const medico = medicos?.find((m) => String(m.id) === valor)
-              if (medico) {
+              id="pupila-izquierda"
+              value={clinico.pupilaIzquierda}
+              onChange={(e) =>
                 setClinico((anterior) => ({
                   ...anterior,
-                  evolucionadoPor: `${medico.nombres} ${medico.apellidos}`,
+                  pupilaIzquierda: e.target.value as ReflejoPupilar | '',
                 }))
               }
-            }}
-            className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          >
-            <option value="">
-              {medicos === null
-                ? 'Cargando médicos…'
-                : medicos.length === 0
-                  ? 'No hay médicos de planta registrados'
-                  : 'Ninguno participó / elige un médico de planta'}
-            </option>
-            {medicos?.map((medico) => (
-              <option key={medico.id} value={medico.id}>
-                {medico.nombres} {medico.apellidos}
-              </option>
-            ))}
-            <option value="otro">Otro (escribir el nombre)</option>
-          </select>
-        </div>
-        {modoOtroMedico &&
-          campoTexto('Nombre del médico', 'evolucionado-por', clinico.evolucionadoPor, (valor) =>
-            setClinico((anterior) => ({ ...anterior, evolucionadoPor: valor })),
-          )}
-        <FirmaField
-          etiqueta="Firma de quien evolucionó"
-          imagenInicial={clinico.firmaEvolucionadoExistente}
-          canvasRef={firmaEvolucionadoRef}
-          disabled={clinico.evolucionadoPor.trim() === ''}
-        />
+              className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+            >
+              <option value="">Sin registrar</option>
+              {REFLEJO_OPCIONES.map((opcion) => (
+                <option key={opcion.valor} value={opcion.valor}>
+                  {opcion.etiqueta}
+                </option>
+              ))}
+            </select>
 
-        <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
-          Profesional que recibe en la IPS/ESE
-        </h2>
-        {campoTexto(
-          'Nombre de quien recibe',
-          'profesional-recibe-nombre',
-          clinico.profesionalRecibeNombre,
-          (valor) => setClinico((anterior) => ({ ...anterior, profesionalRecibeNombre: valor })),
-        )}
-        {campoTexto(
-          'Cédula de quien recibe',
-          'profesional-recibe-cedula',
-          clinico.profesionalRecibeCedula,
-          (valor) => setClinico((anterior) => ({ ...anterior, profesionalRecibeCedula: valor })),
-        )}
-        <FirmaField
-          etiqueta="Firma de quien recibe"
-          imagenInicial={clinico.firmaProfesionalRecibeExistente}
-          canvasRef={firmaProfesionalRecibeRef}
-        />
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-900">Signos vitales</h2>
+              <button type="button" onClick={agregarSignoVital} className="text-sm font-medium text-brand-blue">
+                + Agregar medición
+              </button>
+            </div>
+            {clinico.signosVitales.map((signo, indice) => (
+              <div key={indice} className="mb-3 rounded-lg border border-slate-200 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-500">Medición {indice + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => quitarSignoVital(indice)}
+                    className="text-xs font-medium text-brand-orange-dark"
+                  >
+                    Quitar
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="time"
+                    aria-label={`Hora medición ${indice + 1}`}
+                    value={signo.hora}
+                    onChange={(e) => actualizarSignoVital(indice, 'hora', e.target.value)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="TA (ej. 120/80)"
+                    aria-label={`TA medición ${indice + 1}`}
+                    value={signo.ta}
+                    onChange={(e) => actualizarSignoVital(indice, 'ta', e.target.value)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                  />
+                  <input
+                    type="number"
+                    placeholder="FC"
+                    aria-label={`FC medición ${indice + 1}`}
+                    min={0}
+                    max={300}
+                    value={signo.fc}
+                    onChange={(e) => actualizarSignoVital(indice, 'fc', e.target.value)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                  />
+                  <input
+                    type="number"
+                    placeholder="FR"
+                    aria-label={`FR medición ${indice + 1}`}
+                    min={0}
+                    max={120}
+                    value={signo.fr}
+                    onChange={(e) => actualizarSignoVital(indice, 'fr', e.target.value)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                  />
+                  <input
+                    type="number"
+                    placeholder="SPO2"
+                    aria-label={`SPO2 medición ${indice + 1}`}
+                    min={0}
+                    max={100}
+                    value={signo.spo2}
+                    onChange={(e) => actualizarSignoVital(indice, 'spo2', e.target.value)}
+                    className="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                  />
+                </div>
+              </div>
+            ))}
+
+            <h2 className="mb-3 mt-2 text-sm font-semibold text-slate-900">Localización de lesiones</h2>
+            <div className="mb-4">
+              <DiagramaCorporal
+                valor={clinico.lesionesLocalizadas}
+                onChange={(nuevoValor) =>
+                  setClinico((anterior) => ({ ...anterior, lesionesLocalizadas: nuevoValor }))
+                }
+              />
+            </div>
+
+            <h2 className="mb-3 text-sm font-semibold text-slate-900">Escala de Glasgow</h2>
+            <div className="mb-1 grid grid-cols-3 gap-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-ocular">
+                  Ocular (1-4)
+                </label>
+                <select
+                  id="glasgow-ocular"
+                  value={clinico.glasgowOcular}
+                  onChange={(e) => setClinico((anterior) => ({ ...anterior, glasgowOcular: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                >
+                  <option value="">Sin registrar</option>
+                  {GLASGOW_OCULAR_OPCIONES.map((opcion) => (
+                    <option key={opcion.valor} value={opcion.valor}>
+                      {opcion.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-verbal">
+                  Verbal (1-5)
+                </label>
+                <select
+                  id="glasgow-verbal"
+                  value={clinico.glasgowVerbal}
+                  onChange={(e) => setClinico((anterior) => ({ ...anterior, glasgowVerbal: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                >
+                  <option value="">Sin registrar</option>
+                  {GLASGOW_VERBAL_OPCIONES.map((opcion) => (
+                    <option key={opcion.valor} value={opcion.valor}>
+                      {opcion.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-motora">
+                  Motora (1-6)
+                </label>
+                <select
+                  id="glasgow-motora"
+                  value={clinico.glasgowMotora}
+                  onChange={(e) => setClinico((anterior) => ({ ...anterior, glasgowMotora: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                >
+                  <option value="">Sin registrar</option>
+                  {GLASGOW_MOTORA_OPCIONES.map((opcion) => (
+                    <option key={opcion.valor} value={opcion.valor}>
+                      {opcion.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <p className="mb-4 text-sm text-slate-500">Total: {glasgowTotal === null ? '— ' : glasgowTotal}/15</p>
+
+            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="triage">
+              Triage
+            </label>
+            <select
+              id="triage"
+              value={clinico.triage}
+              onChange={(e) => setClinico((anterior) => ({ ...anterior, triage: e.target.value as TriageNivel | '' }))}
+              className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+            >
+              <option value="">Sin registrar</option>
+              {TRIAGE_OPCIONES.map((opcion) => (
+                <option key={opcion.valor} value={opcion.valor}>
+                  {opcion.etiqueta}
+                </option>
+              ))}
+            </select>
+
+            <label className="mb-1 mt-6 block text-sm font-semibold text-slate-900" htmlFor="descripcion">
+              Descripción de la atención
+            </label>
+            <textarea
+              id="descripcion"
+              value={clinico.descripcion}
+              onChange={(e) => setClinico((anterior) => ({ ...anterior, descripcion: e.target.value }))}
+              maxLength={2000}
+              rows={4}
+              className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+            />
+
+            <label className="mb-1 mt-6 block text-sm font-semibold text-slate-900" htmlFor="nota-auxiliar">
+              Notas de enfermería
+            </label>
+            <textarea
+              id="nota-auxiliar"
+              value={clinico.notaAuxiliar}
+              onChange={(e) => setClinico((anterior) => ({ ...anterior, notaAuxiliar: e.target.value }))}
+              maxLength={2000}
+              rows={4}
+              className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+            />
+
+            <h2 className="mb-3 text-sm font-semibold text-slate-900">Atendido por</h2>
+            {campoTexto('Nombre del auxiliar', 'atendido-por', clinico.atendidoPor, (valor) =>
+              setClinico((anterior) => ({ ...anterior, atendidoPor: valor })),
+            )}
+            <FirmaField
+              etiqueta="Firma de quien atendió"
+              imagenInicial={clinico.firmaAtendidoExistente}
+              canvasRef={firmaAtendidoRef}
+            />
+
+            <label htmlFor="nota-medica" className="mb-1 mt-4 block text-sm font-semibold text-slate-900">
+              Notas del médico
+            </label>
+            <textarea
+              id="nota-medica"
+              value={clinico.notaMedica}
+              onChange={(e) => setClinico((anterior) => ({ ...anterior, notaMedica: e.target.value }))}
+              maxLength={2000}
+              rows={4}
+              disabled={clinico.evolucionadoPor.trim() === ''}
+              className="mb-1 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+            />
+            {clinico.evolucionadoPor.trim() === '' && (
+              <p className="mb-2 text-xs text-slate-500">
+                Elige un médico o escribe su nombre para habilitar la nota médica.
+              </p>
+            )}
+
+            <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">Médico que participó (opcional)</h2>
+            <div className="mb-4">
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="medico-evoluciono">
+                Médico
+              </label>
+              <select
+                id="medico-evoluciono"
+                value={medicoId}
+                onChange={(e) => {
+                  const valor = e.target.value
+                  setMedicoId(valor)
+                  if (valor === '' || valor === 'otro') return
+                  const medico = medicos?.find((m) => String(m.id) === valor)
+                  if (medico) {
+                    setClinico((anterior) => ({
+                      ...anterior,
+                      evolucionadoPor: `${medico.nombres} ${medico.apellidos}`,
+                    }))
+                  }
+                }}
+                className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+              >
+                <option value="">
+                  {medicos === null
+                    ? 'Cargando médicos…'
+                    : medicos.length === 0
+                      ? 'No hay médicos de planta registrados'
+                      : 'Ninguno participó / elige un médico de planta'}
+                </option>
+                {medicos?.map((medico) => (
+                  <option key={medico.id} value={medico.id}>
+                    {medico.nombres} {medico.apellidos}
+                  </option>
+                ))}
+                <option value="otro">Otro (escribir el nombre)</option>
+              </select>
+            </div>
+            {modoOtroMedico &&
+              campoTexto('Nombre del médico', 'evolucionado-por', clinico.evolucionadoPor, (valor) =>
+                setClinico((anterior) => ({ ...anterior, evolucionadoPor: valor })),
+              )}
+            <FirmaField
+              etiqueta="Firma de quien evolucionó"
+              imagenInicial={clinico.firmaEvolucionadoExistente}
+              canvasRef={firmaEvolucionadoRef}
+              disabled={clinico.evolucionadoPor.trim() === ''}
+            />
+
+            <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
+              Profesional que recibe en la IPS/ESE
+            </h2>
+            {campoTexto(
+              'Nombre de quien recibe',
+              'profesional-recibe-nombre',
+              clinico.profesionalRecibeNombre,
+              (valor) => setClinico((anterior) => ({ ...anterior, profesionalRecibeNombre: valor })),
+            )}
+            {campoTexto(
+              'Cédula de quien recibe',
+              'profesional-recibe-cedula',
+              clinico.profesionalRecibeCedula,
+              (valor) => setClinico((anterior) => ({ ...anterior, profesionalRecibeCedula: valor })),
+            )}
+            <FirmaField
+              etiqueta="Firma de quien recibe"
+              imagenInicial={clinico.firmaProfesionalRecibeExistente}
+              canvasRef={firmaProfesionalRecibeRef}
+            />
+          </div>
+        </div>
 
         <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Motivo de la corrección</h2>
         <label className="sr-only" htmlFor="motivo">
