@@ -180,192 +180,200 @@ export function UsuariosPage(): JSX.Element {
     <div>
       <h2 className="mb-6 text-2xl font-semibold text-slate-900">Usuarios</h2>
  
-      <form
-        onSubmit={manejarCrear}
-        className="mb-8 max-w-md rounded-xl border border-slate-200 bg-white p-6"
-      >
-        <h3 className="mb-4 text-sm font-semibold text-slate-700">Nuevo usuario</h3>
- 
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="usr-documento">
-          Documento
-        </label>
-        <input
-          id="usr-documento"
-          type="text"
-          required
-          minLength={5}
-          value={documento}
-          onChange={(evento) => setDocumento(evento.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-        />
- 
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="usr-empleado">
-          Empleado vinculado (opcional)
-        </label>
-        <select
-          id="usr-empleado"
-          value={empleadoId}
-          onChange={(evento) => {
-            const valor = evento.target.value
-            setEmpleadoId(valor)
-            // Autocompletar el documento con la cédula del empleado
-            // elegido -- solo si el campo está vacío, para no pisar
-            // algo que el administrador ya haya escrito a mano.
-            if (valor && documento.trim() === '') {
-              const empleado = empleados.find((candidato) => candidato.id === Number(valor))
-              if (empleado) setDocumento(empleado.cedula)
-            }
-          }}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+      {/* Issue #98: en escritorio el formulario de alta queda a la
+          izquierda (fijo al hacer scroll) y la tabla ocupa el resto del
+          ancho, en vez de apilar un formulario angosto sobre una tabla con
+          media pantalla vacía al lado. */}
+      <div className="grid gap-8 xl:grid-cols-[22rem_minmax(0,1fr)] xl:items-start">
+        <form
+          onSubmit={manejarCrear}
+          className="rounded-xl border border-slate-200 bg-white p-6 xl:sticky xl:top-8"
         >
-          <option value="">— Sin empleado —</option>
-          {/* Solo empleados activos: uno desactivado no debería poder
-              vincularse a un usuario nuevo. Los ya vinculados antes de
-              desactivarse se siguen mostrando en la tabla de abajo,
-              porque esa usa `empleadoPorId` con la lista completa, no
-              esta. */}
-          {empleados
-            .filter((empleado) => empleado.activo)
-            .map((empleado) => (
-              <option key={empleado.id} value={empleado.id}>
-                {empleado.nombres} {empleado.apellidos} ({empleado.cedula})
-              </option>
+          <h3 className="mb-4 text-sm font-semibold text-slate-700">Nuevo usuario</h3>
+ 
+          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="usr-documento">
+            Documento
+          </label>
+          <input
+            id="usr-documento"
+            type="text"
+            required
+            minLength={5}
+            value={documento}
+            onChange={(evento) => setDocumento(evento.target.value)}
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+          />
+ 
+          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="usr-empleado">
+            Empleado vinculado (opcional)
+          </label>
+          <select
+            id="usr-empleado"
+            value={empleadoId}
+            onChange={(evento) => {
+              const valor = evento.target.value
+              setEmpleadoId(valor)
+              // Autocompletar el documento con la cédula del empleado
+              // elegido -- solo si el campo está vacío, para no pisar
+              // algo que el administrador ya haya escrito a mano.
+              if (valor && documento.trim() === '') {
+                const empleado = empleados.find((candidato) => candidato.id === Number(valor))
+                if (empleado) setDocumento(empleado.cedula)
+              }
+            }}
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+          >
+            <option value="">— Sin empleado —</option>
+            {/* Solo empleados activos: uno desactivado no debería poder
+                vincularse a un usuario nuevo. Los ya vinculados antes de
+                desactivarse se siguen mostrando en la tabla de abajo,
+                porque esa usa `empleadoPorId` con la lista completa, no
+                esta. */}
+            {empleados
+              .filter((empleado) => empleado.activo)
+              .map((empleado) => (
+                <option key={empleado.id} value={empleado.id}>
+                  {empleado.nombres} {empleado.apellidos} ({empleado.cedula})
+                </option>
+              ))}
+          </select>
+ 
+          <p className="mb-1 block text-sm font-medium text-slate-700">Roles</p>
+          <div className="mb-4 flex flex-wrap gap-3">
+            {roles.map((rol) => (
+              <label key={rol.id} className="flex items-center gap-1.5 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={rolesSeleccionados.has(rol.id)}
+                  onChange={() => alternarRolFormulario(rol.id)}
+                />
+                {rol.nombre}
+              </label>
             ))}
-        </select>
+          </div>
  
-        <p className="mb-1 block text-sm font-medium text-slate-700">Roles</p>
-        <div className="mb-4 flex flex-wrap gap-3">
-          {roles.map((rol) => (
-            <label key={rol.id} className="flex items-center gap-1.5 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={rolesSeleccionados.has(rol.id)}
-                onChange={() => alternarRolFormulario(rol.id)}
-              />
-              {rol.nombre}
-            </label>
-          ))}
-        </div>
+          {error && (
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
+              {error}
+            </p>
+          )}
+          {mensaje && <p className="mb-4 text-sm text-green-700">{mensaje}</p>}
  
-        {error && (
-          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
-            {error}
-          </p>
+          <button
+            type="submit"
+            disabled={enviando}
+            className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          >
+            {enviando ? 'Creando…' : 'Crear usuario'}
+          </button>
+        </form>
+ 
+        {usuarios === null ? (
+          <p className="text-slate-500">Cargando…</p>
+        ) : (
+          <div className="min-w-0 overflow-x-auto">
+            <table className="w-full border-separate border-spacing-y-1 text-sm">
+              <thead>
+                <tr className="text-left text-slate-500">
+                  <th className="px-3">Documento</th>
+                  <th className="px-3">Empleado</th>
+                  <th className="px-3">Roles</th>
+                  <th className="px-3">Estado</th>
+                  <th className="px-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {usuarios.map((usuario) => (
+                  <tr key={usuario.id} className="rounded-lg bg-white align-top shadow-sm">
+                    <td className="px-3 py-2 font-medium text-slate-900">{usuario.documento}</td>
+                    <td className="px-3 py-2 text-slate-600">
+                      {usuario.empleado_id
+                        ? (() => {
+                            const empleado = empleadoPorId.get(usuario.empleado_id)
+                            return empleado ? `${empleado.nombres} ${empleado.apellidos}` : '—'
+                          })()
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">
+                      {edicionRolesId === usuario.id ? (
+                        <div className="flex flex-col gap-1.5">
+                          {roles.map((rol) => (
+                            <label key={rol.id} className="flex items-center gap-1.5">
+                              <input
+                                type="checkbox"
+                                checked={rolesEdicion.has(rol.id)}
+                                onChange={() => alternarRolEdicion(rol.id)}
+                              />
+                              {rol.nombre}
+                            </label>
+                          ))}
+                          <div className="mt-1 flex gap-3">
+                            <button
+                              type="button"
+                              onClick={() => void guardarRolesEdicion()}
+                              className="text-brand-blue hover:underline"
+                            >
+                              Guardar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEdicionRolesId(null)}
+                              className="text-slate-500 hover:underline"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : usuario.roles.length > 0 ? (
+                        usuario.roles.map((rol) => rol.nombre).join(', ')
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {usuario.activo ? (
+                        <span className="text-green-700">Activo</span>
+                      ) : (
+                        <span className="text-slate-400">Inactivo</span>
+                      )}
+                      {usuario.debe_cambiar_password && (
+                        <span className="ml-1 block text-xs text-brand-amber-dark">
+                          Debe cambiar contraseña
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      {edicionRolesId !== usuario.id && (
+                        <button
+                          type="button"
+                          onClick={() => comenzarEdicionRoles(usuario)}
+                          className="mr-3 text-brand-blue hover:underline"
+                        >
+                          Roles
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => void manejarResetearPassword(usuario)}
+                        className="mr-3 text-brand-blue hover:underline"
+                      >
+                        Resetear contraseña
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void manejarActivo(usuario)}
+                        className={usuario.activo ? 'text-brand-orange-dark hover:underline' : 'text-green-700 hover:underline'}
+                      >
+                        {usuario.activo ? 'Desactivar' : 'Activar'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-        {mensaje && <p className="mb-4 text-sm text-green-700">{mensaje}</p>}
- 
-        <button
-          type="submit"
-          disabled={enviando}
-          className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-        >
-          {enviando ? 'Creando…' : 'Crear usuario'}
-        </button>
-      </form>
- 
-      {usuarios === null ? (
-        <p className="text-slate-500">Cargando…</p>
-      ) : (
-        <table className="w-full max-w-4xl border-separate border-spacing-y-1 text-sm">
-          <thead>
-            <tr className="text-left text-slate-500">
-              <th className="px-3">Documento</th>
-              <th className="px-3">Empleado</th>
-              <th className="px-3">Roles</th>
-              <th className="px-3">Estado</th>
-              <th className="px-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {usuarios.map((usuario) => (
-              <tr key={usuario.id} className="rounded-lg bg-white align-top shadow-sm">
-                <td className="px-3 py-2 font-medium text-slate-900">{usuario.documento}</td>
-                <td className="px-3 py-2 text-slate-600">
-                  {usuario.empleado_id
-                    ? (() => {
-                        const empleado = empleadoPorId.get(usuario.empleado_id)
-                        return empleado ? `${empleado.nombres} ${empleado.apellidos}` : '—'
-                      })()
-                    : '—'}
-                </td>
-                <td className="px-3 py-2 text-slate-600">
-                  {edicionRolesId === usuario.id ? (
-                    <div className="flex flex-col gap-1.5">
-                      {roles.map((rol) => (
-                        <label key={rol.id} className="flex items-center gap-1.5">
-                          <input
-                            type="checkbox"
-                            checked={rolesEdicion.has(rol.id)}
-                            onChange={() => alternarRolEdicion(rol.id)}
-                          />
-                          {rol.nombre}
-                        </label>
-                      ))}
-                      <div className="mt-1 flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => void guardarRolesEdicion()}
-                          className="text-brand-blue hover:underline"
-                        >
-                          Guardar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEdicionRolesId(null)}
-                          className="text-slate-500 hover:underline"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  ) : usuario.roles.length > 0 ? (
-                    usuario.roles.map((rol) => rol.nombre).join(', ')
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td className="px-3 py-2">
-                  {usuario.activo ? (
-                    <span className="text-green-700">Activo</span>
-                  ) : (
-                    <span className="text-slate-400">Inactivo</span>
-                  )}
-                  {usuario.debe_cambiar_password && (
-                    <span className="ml-1 block text-xs text-brand-amber-dark">
-                      Debe cambiar contraseña
-                    </span>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-right whitespace-nowrap">
-                  {edicionRolesId !== usuario.id && (
-                    <button
-                      type="button"
-                      onClick={() => comenzarEdicionRoles(usuario)}
-                      className="mr-3 text-brand-blue hover:underline"
-                    >
-                      Roles
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void manejarResetearPassword(usuario)}
-                    className="mr-3 text-brand-blue hover:underline"
-                  >
-                    Resetear contraseña
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void manejarActivo(usuario)}
-                    className={usuario.activo ? 'text-brand-orange-dark hover:underline' : 'text-green-700 hover:underline'}
-                  >
-                    {usuario.activo ? 'Desactivar' : 'Activar'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      </div>
     </div>
   )
 }
