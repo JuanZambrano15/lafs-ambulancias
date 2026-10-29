@@ -125,113 +125,118 @@ export function ServicioCerradoDetallePage(): JSX.Element {
         ← Volver
       </button>
 
-      <div className="mb-6 rounded-xl bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-xl font-semibold text-slate-900">Datos del formato</h2>
-        <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="text-slate-500">Paciente</dt>
-            <dd className="font-medium text-slate-900">
-              {atencion.paciente_nombres
-                ? `${atencion.paciente_nombres} ${atencion.paciente_apellidos ?? ''}`
-                : 'NN (sin identificar)'}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Documento</dt>
-            <dd className="font-medium text-slate-900">
-              {atencion.paciente_numero_documento ?? '—'}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Tipo</dt>
-            <dd className="font-medium text-slate-900">{etiquetaTipoServicio(atencion)}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Móvil</dt>
-            <dd className="font-medium text-slate-900">{atencion.ambulancia.movil}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Tripulación</dt>
-            <dd className="font-medium text-slate-900">
-              {atencion.responsable.nombres} {atencion.responsable.apellidos} (responsable),{' '}
-              {atencion.conductor.nombres} {atencion.conductor.apellidos} (conductor)
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Cerrada</dt>
-            <dd className="font-medium text-slate-900">{formatearFecha(atencion.cerrada_en)}</dd>
-          </div>
-        </dl>
+      {/* Issue #98: datos y acciones a la izquierda, historial de
+          versiones a la derecha (como en la maqueta); apilados en pantallas
+          angostas. */}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start">
+        <div className="rounded-xl bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-xl font-semibold text-slate-900">Datos del formato</h2>
+          <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-slate-500">Paciente</dt>
+              <dd className="font-medium text-slate-900">
+                {atencion.paciente_nombres
+                  ? `${atencion.paciente_nombres} ${atencion.paciente_apellidos ?? ''}`
+                  : 'NN (sin identificar)'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Documento</dt>
+              <dd className="font-medium text-slate-900">
+                {atencion.paciente_numero_documento ?? '—'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Tipo</dt>
+              <dd className="font-medium text-slate-900">{etiquetaTipoServicio(atencion)}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Móvil</dt>
+              <dd className="font-medium text-slate-900">{atencion.ambulancia.movil}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Tripulación</dt>
+              <dd className="font-medium text-slate-900">
+                {atencion.responsable.nombres} {atencion.responsable.apellidos} (responsable),{' '}
+                {atencion.conductor.nombres} {atencion.conductor.apellidos} (conductor)
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Cerrada</dt>
+              <dd className="font-medium text-slate-900">{formatearFecha(atencion.cerrada_en)}</dd>
+            </div>
+          </dl>
 
-        {errorDescarga && (
-          <p role="alert" className="mt-4 text-sm text-brand-orange-dark">
-            {errorDescarga}
-          </p>
-        )}
+          {errorDescarga && (
+            <p role="alert" className="mt-4 text-sm text-brand-orange-dark">
+              {errorDescarga}
+            </p>
+          )}
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          {atencion.tiene_pdf ? (
+          <div className="mt-6 flex flex-wrap gap-3">
+            {atencion.tiene_pdf ? (
+              <button
+                type="button"
+                disabled={descargando}
+                onClick={() => void manejarDescargar()}
+                className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {descargando ? 'Descargando…' : 'Descargar PDF'}
+              </button>
+            ) : (
+              <span className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-400">
+                Sin PDF
+              </span>
+            )}
             <button
               type="button"
-              disabled={descargando}
-              onClick={() => void manejarDescargar()}
-              className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              onClick={irACorregir}
+              className="rounded-lg border border-brand-blue px-4 py-2 text-sm font-medium text-brand-blue"
             >
-              {descargando ? 'Descargando…' : 'Descargar PDF'}
+              Corregir formato
             </button>
-          ) : (
-            <span className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-400">
-              Sin PDF
-            </span>
+            {atencion.tipo === 'atencion_soat' && (
+              <Link
+                to={`/atenciones/${id}/fotos-accidente-soat`}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              >
+                Fotos
+              </Link>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-white p-6 shadow-sm">
+          <h2 className="mb-1 text-xl font-semibold text-slate-900">Historial de versiones</h2>
+          <p className="mb-4 text-sm text-slate-500">
+            Cada corrección hecha por un administrador sobre este formato ya cerrado, con el motivo
+            que la justificó. No muestra notas médicas ni diagnóstico.
+          </p>
+          {errorHistorial && (
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
+              {errorHistorial}
+            </p>
           )}
-          <button
-            type="button"
-            onClick={irACorregir}
-            className="rounded-lg border border-brand-blue px-4 py-2 text-sm font-medium text-brand-blue"
-          >
-            Corregir formato
-          </button>
-          {atencion.tipo === 'atencion_soat' && (
-            <Link
-              to={`/atenciones/${id}/fotos-accidente-soat`}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
-            >
-              Fotos
-            </Link>
+          {historial === null ? (
+            <p className="text-slate-500">Cargando…</p>
+          ) : historial.length === 0 ? (
+            <p className="text-slate-500">Este formato nunca se ha corregido.</p>
+          ) : (
+            <ul className="space-y-2">
+              {historial.map((version) => (
+                <li
+                  key={version.id}
+                  className="rounded-lg border border-slate-200 px-4 py-3 text-sm"
+                >
+                  <p className="font-medium text-slate-900">
+                    {formatearFecha(version.corregido_en)} — {version.corregido_por.documento}
+                  </p>
+                  <p className="text-slate-600">{version.motivo}</p>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-      </div>
-
-      <div className="rounded-xl bg-white p-6 shadow-sm">
-        <h2 className="mb-1 text-xl font-semibold text-slate-900">Historial de versiones</h2>
-        <p className="mb-4 text-sm text-slate-500">
-          Cada corrección hecha por un administrador sobre este formato ya cerrado, con el motivo
-          que la justificó. No muestra notas médicas ni diagnóstico.
-        </p>
-        {errorHistorial && (
-          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
-            {errorHistorial}
-          </p>
-        )}
-        {historial === null ? (
-          <p className="text-slate-500">Cargando…</p>
-        ) : historial.length === 0 ? (
-          <p className="text-slate-500">Este formato nunca se ha corregido.</p>
-        ) : (
-          <ul className="space-y-2">
-            {historial.map((version) => (
-              <li
-                key={version.id}
-                className="rounded-lg border border-slate-200 px-4 py-3 text-sm"
-              >
-                <p className="font-medium text-slate-900">
-                  {formatearFecha(version.corregido_en)} — {version.corregido_por.documento}
-                </p>
-                <p className="text-slate-600">{version.motivo}</p>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
     </section>
   )
