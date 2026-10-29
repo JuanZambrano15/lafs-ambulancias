@@ -16,6 +16,7 @@ import { ApiError, listarAmbulanciasDisponibles, listarConductoresDisponibles } 
 import { crearAtencionConRespaldo } from '../lib/trasladoOffline'
 import type { Ambulancia, Empleado, TipoAtencion } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
+import { BotonTema } from '../components/BotonTema'
  
 const TIPOS: { valor: TipoAtencion; etiqueta: string }[] = [
   { valor: 'traslado', etiqueta: 'Traslado asistencial' },
@@ -90,13 +91,19 @@ export function CrearAtencionPage(): JSX.Element {
  
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6">
-      <div className="mx-auto max-w-sm sm:max-w-2xl lg:max-w-3xl">
-        <button
-          onClick={() => navigate(-1)}
-          className="mb-4 text-sm font-medium text-slate-500"
-        >
-          ← Volver
-        </button>
+      {/* Issue #98: antes el contenedor se quedaba en 768px aun en la
+          tablet horizontal (1280px), con márgenes enormes a los lados; y
+          en una tablet vertical de 600px se encogía a 384px. Ahora ocupa el
+          ancho disponible y, desde `lg`, se reparte en columnas. */}
+      <div className="mx-auto w-full max-w-3xl lg:max-w-5xl">
+        {/* Issue #98: el botón de modo oscuro va en la misma fila que
+            "Volver", para poder cambiarlo sin salir del formulario. */}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <button onClick={() => navigate(-1)} className="text-sm font-medium text-slate-500">
+            ← Volver
+          </button>
+          <BotonTema compacto />
+        </div>
  
         <form onSubmit={manejarEnvio} className="rounded-xl bg-white p-6 shadow-sm">
           <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
@@ -116,63 +123,69 @@ export function CrearAtencionPage(): JSX.Element {
           )}
  
           {!cargando && (
-            <>
-              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="tipo">
-                Tipo de atención
-              </label>
-              <select
-                id="tipo"
-                value={tipo}
-                onChange={(evento) => setTipo(evento.target.value as TipoAtencion)}
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-              >
-                {TIPOS.map((opcion) => (
-                  <option key={opcion.valor} value={opcion.valor}>
-                    {opcion.etiqueta}
-                  </option>
-                ))}
-              </select>
+            <div className="grid gap-x-4 md:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="tipo">
+                  Tipo de atención
+                </label>
+                <select
+                  id="tipo"
+                  value={tipo}
+                  onChange={(evento) => setTipo(evento.target.value as TipoAtencion)}
+                  className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                >
+                  {TIPOS.map((opcion) => (
+                    <option key={opcion.valor} value={opcion.valor}>
+                      {opcion.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </div>
  
-              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="ambulancia">
-                Móvil
-              </label>
-              <select
-                id="ambulancia"
-                required
-                value={ambulanciaId}
-                onChange={(evento) => setAmbulanciaId(evento.target.value)}
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-              >
-                <option value="">
-                  {ambulancias?.length === 0 ? 'No hay móviles disponibles' : 'Elige un móvil'}
-                </option>
-                {ambulancias?.map((ambulancia) => (
-                  <option key={ambulancia.id} value={ambulancia.id}>
-                    {ambulancia.movil} — {ambulancia.placa}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="ambulancia">
+                  Móvil
+                </label>
+                <select
+                  id="ambulancia"
+                  required
+                  value={ambulanciaId}
+                  onChange={(evento) => setAmbulanciaId(evento.target.value)}
+                  className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                >
+                  <option value="">
+                    {ambulancias?.length === 0 ? 'No hay móviles disponibles' : 'Elige un móvil'}
                   </option>
-                ))}
-              </select>
+                  {ambulancias?.map((ambulancia) => (
+                    <option key={ambulancia.id} value={ambulancia.id}>
+                      {ambulancia.movil} — {ambulancia.placa}
+                    </option>
+                  ))}
+                </select>
+              </div>
  
-              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="conductor">
-                Conductor
-              </label>
-              <select
-                id="conductor"
-                required
-                value={conductorId}
-                onChange={(evento) => setConductorId(evento.target.value)}
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-              >
-                <option value="">
-                  {conductores?.length === 0 ? 'No hay conductores disponibles' : 'Elige un conductor'}
-                </option>
-                {conductores?.map((conductor) => (
-                  <option key={conductor.id} value={conductor.id}>
-                    {conductor.nombres} {conductor.apellidos}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="conductor">
+                  Conductor
+                </label>
+                <select
+                  id="conductor"
+                  required
+                  value={conductorId}
+                  onChange={(evento) => setConductorId(evento.target.value)}
+                  className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                >
+                  <option value="">
+                    {conductores?.length === 0 ? 'No hay conductores disponibles' : 'Elige un conductor'}
                   </option>
-                ))}
-              </select>
-            </>
+                  {conductores?.map((conductor) => (
+                    <option key={conductor.id} value={conductor.id}>
+                      {conductor.nombres} {conductor.apellidos}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           )}
  
           {error && (
