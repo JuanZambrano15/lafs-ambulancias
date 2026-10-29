@@ -149,7 +149,10 @@ export const FirmaCanvas = forwardRef<FirmaCanvasHandle, FirmaCanvasProps>(
         aria-disabled={disabled}
         className={
           className ??
-          `rounded-lg border border-slate-300 bg-white ${disabled ? 'cursor-not-allowed opacity-50' : ''}`
+          // Issue #98: `bg-papel` y no `bg-white` -- en modo oscuro
+          // `bg-white` pasa a ser la superficie oscura y la tinta (que se
+          // exporta oscura sobre transparente, para el PDF) no se veria.
+          `rounded-lg border border-slate-300 bg-papel ${disabled ? 'cursor-not-allowed opacity-50' : ''}`
         }
       />
     )
