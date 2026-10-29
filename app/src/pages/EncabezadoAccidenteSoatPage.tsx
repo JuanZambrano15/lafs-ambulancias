@@ -46,6 +46,7 @@ import type {
   TipoDocumentoPaciente,
 } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
+import { BotonTema } from '../components/BotonTema'
  
 /** Mismos campos que `FormatoAccidenteSoatEncabezado`, pero los que
  * son número o texto opcional se manejan como string de formulario. */
@@ -253,10 +254,19 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
  
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6">
-      <div className="mx-auto max-w-sm sm:max-w-2xl lg:max-w-3xl">
-        <button onClick={() => navigate(-1)} className="mb-4 text-sm font-medium text-slate-500">
-          ← Volver
-        </button>
+      {/* Issue #98: antes el contenedor se quedaba en 768px aun en la
+          tablet horizontal (1280px), con márgenes enormes a los lados; y
+          en una tablet vertical de 600px se encogía a 384px. Ahora ocupa el
+          ancho disponible y, desde `lg`, se reparte en columnas. */}
+      <div className="mx-auto w-full max-w-3xl lg:max-w-6xl">
+        {/* Issue #98: el botón de modo oscuro va en la misma fila que
+            "Volver", para poder cambiarlo sin salir del formulario. */}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <button onClick={() => navigate(-1)} className="text-sm font-medium text-slate-500">
+            ← Volver
+          </button>
+          <BotonTema compacto />
+        </div>
  
         <form onSubmit={manejarEnvio} className="rounded-xl bg-white p-6 shadow-sm">
           <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
@@ -272,18 +282,20 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
           )}
  
           <h2 className="mb-3 text-sm font-semibold text-slate-900">Datos de la atención</h2>
-          {campoRequerido('Fecha', 'fecha-atencion', {
-            required: true,
-            type: 'date',
-            value: campos.fecha_atencion,
-            onChange: (e) => actualizar('fecha_atencion', e.target.value),
-          })}
-          {campoRequerido('Hora de atención', 'hora-atencion', {
-            required: true,
-            type: 'time',
-            value: campos.hora_atencion,
-            onChange: (e) => actualizar('hora_atencion', e.target.value),
-          })}
+          <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+            {campoRequerido('Fecha', 'fecha-atencion', {
+              required: true,
+              type: 'date',
+              value: campos.fecha_atencion,
+              onChange: (e) => actualizar('fecha_atencion', e.target.value),
+            })}
+            {campoRequerido('Hora de atención', 'hora-atencion', {
+              required: true,
+              type: 'time',
+              value: campos.hora_atencion,
+              onChange: (e) => actualizar('hora_atencion', e.target.value),
+            })}
+          </div>
  
           <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Paciente</h2>
           <label className="mb-4 flex items-center gap-2 text-sm text-slate-700">
@@ -301,27 +313,29 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
             </p>
           )}
           {campos.identificado && (
-            <>
-              <label
-                className="mb-1 block text-sm font-medium text-slate-700"
-                htmlFor="tipo-documento"
-              >
-                Tipo de documento
-              </label>
-              <select
-                id="tipo-documento"
-                value={campos.paciente_tipo_documento}
-                onChange={(e) =>
-                  actualizar('paciente_tipo_documento', e.target.value as TipoDocumentoPaciente)
-                }
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-              >
-                {TIPOS_DOCUMENTO.map((opcion) => (
-                  <option key={opcion.valor} value={opcion.valor}>
-                    {opcion.etiqueta}
-                  </option>
-                ))}
-              </select>
+            <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <label
+                  className="mb-1 block text-sm font-medium text-slate-700"
+                  htmlFor="tipo-documento"
+                >
+                  Tipo de documento
+                </label>
+                <select
+                  id="tipo-documento"
+                  value={campos.paciente_tipo_documento}
+                  onChange={(e) =>
+                    actualizar('paciente_tipo_documento', e.target.value as TipoDocumentoPaciente)
+                  }
+                  className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                >
+                  {TIPOS_DOCUMENTO.map((opcion) => (
+                    <option key={opcion.valor} value={opcion.valor}>
+                      {opcion.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {campoRequerido('Número de documento', 'numero-documento', {
                 value: campos.paciente_numero_documento,
                 onChange: (e) => actualizar('paciente_numero_documento', e.target.value),
@@ -344,51 +358,57 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
                 value: campos.paciente_edad,
                 onChange: (e) => actualizar('paciente_edad', e.target.value),
               })}
-              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="sexo">
-                Sexo
-              </label>
-              <select
-                id="sexo"
-                value={campos.paciente_sexo}
-                onChange={(e) => actualizar('paciente_sexo', e.target.value as SexoPaciente)}
-                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-              >
-                <option value="m">Masculino</option>
-                <option value="f">Femenino</option>
-              </select>
-            </>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="sexo">
+                  Sexo
+                </label>
+                <select
+                  id="sexo"
+                  value={campos.paciente_sexo}
+                  onChange={(e) => actualizar('paciente_sexo', e.target.value as SexoPaciente)}
+                  className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                >
+                  <option value="m">Masculino</option>
+                  <option value="f">Femenino</option>
+                </select>
+              </div>
+            </div>
           )}
  
           <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Datos de recogida</h2>
-          {campoRequerido('Lugar de ocurrencia', 'lugar-ocurrencia', {
-            required: true,
-            value: campos.lugar_ocurrencia,
-            onChange: (e) => actualizar('lugar_ocurrencia', e.target.value),
-          })}
-          {campoRequerido('Ciudad', 'ciudad', {
-            required: true,
-            value: campos.ciudad,
-            onChange: (e) => actualizar('ciudad', e.target.value),
-          })}
-          {campoRequerido('Teléfono de contacto (opcional)', 'telefono-contacto', {
-            value: campos.telefono_contacto,
-            onChange: (e) => actualizar('telefono_contacto', e.target.value),
-          })}
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="rol-victima">
-            Rol de la víctima
-          </label>
-          <select
-            id="rol-victima"
-            value={campos.rol_victima}
-            onChange={(e) => actualizar('rol_victima', e.target.value as RolVictima)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          >
-            {ROLES_VICTIMA.map((opcion) => (
-              <option key={opcion.valor} value={opcion.valor}>
-                {opcion.etiqueta}
-              </option>
-            ))}
-          </select>
+          <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+            {campoRequerido('Lugar de ocurrencia', 'lugar-ocurrencia', {
+              required: true,
+              value: campos.lugar_ocurrencia,
+              onChange: (e) => actualizar('lugar_ocurrencia', e.target.value),
+            })}
+            {campoRequerido('Ciudad', 'ciudad', {
+              required: true,
+              value: campos.ciudad,
+              onChange: (e) => actualizar('ciudad', e.target.value),
+            })}
+            {campoRequerido('Teléfono de contacto (opcional)', 'telefono-contacto', {
+              value: campos.telefono_contacto,
+              onChange: (e) => actualizar('telefono_contacto', e.target.value),
+            })}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="rol-victima">
+                Rol de la víctima
+              </label>
+              <select
+                id="rol-victima"
+                value={campos.rol_victima}
+                onChange={(e) => actualizar('rol_victima', e.target.value as RolVictima)}
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+              >
+                {ROLES_VICTIMA.map((opcion) => (
+                  <option key={opcion.valor} value={opcion.valor}>
+                    {opcion.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
  
           <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">
             Vehículo accidentado (opcional)
@@ -396,37 +416,41 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
           <p className="mb-3 text-sm text-slate-500">
             Se puede completar después si todavía no se conoce.
           </p>
-          {campoRequerido('Placa del vehículo', 'vehiculo-placa', {
-            value: campos.vehiculo_placa,
-            onChange: (e) => actualizar('vehiculo_placa', e.target.value),
-          })}
-          {campoRequerido('Tipo de vehículo', 'vehiculo-tipo', {
-            value: campos.vehiculo_tipo,
-            onChange: (e) => actualizar('vehiculo_tipo', e.target.value),
-          })}
-          {campoRequerido('Marca del vehículo', 'vehiculo-marca', {
-            value: campos.vehiculo_marca,
-            onChange: (e) => actualizar('vehiculo_marca', e.target.value),
-          })}
+          <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+            {campoRequerido('Placa del vehículo', 'vehiculo-placa', {
+              value: campos.vehiculo_placa,
+              onChange: (e) => actualizar('vehiculo_placa', e.target.value),
+            })}
+            {campoRequerido('Tipo de vehículo', 'vehiculo-tipo', {
+              value: campos.vehiculo_tipo,
+              onChange: (e) => actualizar('vehiculo_tipo', e.target.value),
+            })}
+            {campoRequerido('Marca del vehículo', 'vehiculo-marca', {
+              value: campos.vehiculo_marca,
+              onChange: (e) => actualizar('vehiculo_marca', e.target.value),
+            })}
+          </div>
 
           <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Póliza (opcional)</h2>
           <p className="mb-3 text-sm text-slate-500">
             Se puede completar después si todavía no se conoce.
           </p>
-          {campoRequerido('Número de póliza', 'numero-poliza', {
-            value: campos.numero_poliza,
-            onChange: (e) => actualizar('numero_poliza', e.target.value),
-          })}
-          {campoRequerido('Vigente desde', 'poliza-desde', {
-            type: 'date',
-            value: campos.poliza_vigente_desde,
-            onChange: (e) => actualizar('poliza_vigente_desde', e.target.value),
-          })}
-          {campoRequerido('Vigente hasta', 'poliza-hasta', {
-            type: 'date',
-            value: campos.poliza_vigente_hasta,
-            onChange: (e) => actualizar('poliza_vigente_hasta', e.target.value),
-          })}
+          <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+            {campoRequerido('Número de póliza', 'numero-poliza', {
+              value: campos.numero_poliza,
+              onChange: (e) => actualizar('numero_poliza', e.target.value),
+            })}
+            {campoRequerido('Vigente desde', 'poliza-desde', {
+              type: 'date',
+              value: campos.poliza_vigente_desde,
+              onChange: (e) => actualizar('poliza_vigente_desde', e.target.value),
+            })}
+            {campoRequerido('Vigente hasta', 'poliza-hasta', {
+              type: 'date',
+              value: campos.poliza_vigente_hasta,
+              onChange: (e) => actualizar('poliza_vigente_hasta', e.target.value),
+            })}
+          </div>
  
           {error && (
             <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
