@@ -1,4 +1,11 @@
-@import 'tailwindcss';
+/*
+ * Issue #98: el modo oscuro se activa con `data-tema="oscuro"` en
+ * <html> (lo pone `lib/tema.ts` y el script de index.html antes del
+ * primer pintado). Con esta variante, cualquier pantalla nueva puede
+ * usar `dark:` de Tailwind si necesita algo puntual.
+ */
+@custom-variant dark (&:where([data-tema='oscuro'], [data-tema='oscuro'] *));
+
 @theme {
   --color-brand-blue: #2B6CB0;
   --color-brand-blue-soft: #EAF2FB;
@@ -15,4 +22,72 @@
   --color-brand-orange: #D9731E;
   --color-brand-orange-soft: #FBE7D7;
   --color-brand-orange-dark: #9A4A14;
+
+  /* Issue #__ISSUE__: fondo de "hoja de papel" que NO cambia con el modo
+     oscuro -- lo usan el lienzo de firma y la vista previa de una firma
+     guardada. La firma se dibuja con tinta oscura sobre transparente
+     (así queda en el PDF), así que sobre un fondo oscuro no se vería. */
+  --color-papel: #FFFFFF;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-slate-50);
+}
+
+/*
+ * Issue #98: modo oscuro sin tocar las clases de cada pantalla.
+ * Todas las pantallas usan la misma paleta corta (white + slate-* +
+ * brand-*), y en Tailwind v4 cada clase de color lee su variable
+ * (`bg-white` -> `var(--color-white)`). Basta con redefinir esas
+ * variables: el "blanco" de las tarjetas pasa a ser la superficie
+ * oscura, los slate claros se vuelven fondos oscuros y los slate
+ * oscuros (texto) se vuelven claros. Los colores de marca se aclaran
+ * para mantener el contraste, y por eso `text-white` sobre un botón
+ * `bg-brand-blue` queda oscuro sobre azul claro (mismo criterio de la
+ * maqueta). Sin selector `prefers-color-scheme` aquí: la preferencia
+ * del sistema ya la traduce `lib/tema.ts` a este atributo.
+ */
+:root[data-tema='oscuro'] {
+  color-scheme: dark;
+
+  --color-white: #16212E;
+  --color-slate-50: #0E1620;
+  --color-slate-100: #0B131B;
+  --color-slate-200: #263646;
+  --color-slate-300: #36495C;
+  --color-slate-400: #6E8296;
+  --color-slate-500: #98A9BA;
+  --color-slate-600: #B2C0CD;
+  --color-slate-700: #C9D4DE;
+  --color-slate-800: #DEE6ED;
+  --color-slate-900: #EEF3F7;
+  --color-green-700: #5CD08A;
+
+  --color-brand-blue: #6DB2F2;
+  --color-brand-blue-soft: #1B2E43;
+  --color-brand-blue-dark: #A9D1F7;
+
+  --color-brand-green: #5CD08A;
+  --color-brand-green-soft: #163526;
+  --color-brand-green-dark: #8FE0AE;
+
+  --color-brand-amber: #F2C14E;
+  --color-brand-amber-soft: #3A2E10;
+  --color-brand-amber-dark: #F5D27E;
+
+  --color-brand-orange: #F29A5B;
+  --color-brand-orange-soft: #3D2414;
+  --color-brand-orange-dark: #F7B88A;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
 }
