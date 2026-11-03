@@ -51,11 +51,11 @@
  * traslado: pide el PIN de firma, lo valida localmente si hay un hash
  * en este dispositivo y manda el cierre, en línea o encolado.
  */
-
+ 
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, JSX, RefObject } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-
+ 
 import { useAuth } from '../auth/AuthContext'
 import { DiagramaCorporal } from '../components/DiagramaCorporal'
 import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
@@ -78,16 +78,16 @@ import type {
 } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
 import { BotonTema } from '../components/BotonTema'
-
+ 
 const PIN_VALIDO = /^\d{4}$/
-
+ 
 /** "HH:MM" en hora local, el mismo formato que produce un `<input
  * type="time">` -- mismo criterio que `ClinicoTrasladoPage` (issue #52). */
 function horaActual(): string {
   const ahora = new Date()
   return `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
 }
-
+ 
 interface SignoVitalForm {
   hora: string
   ta: string
@@ -95,7 +95,7 @@ interface SignoVitalForm {
   fr: string
   spo2: string
 }
-
+ 
 interface EstadoClinico {
   tratamiento: TratamientoAplicado[]
   tratamientoOtro: string
@@ -126,12 +126,18 @@ interface EstadoClinico {
   profesionalRecibeCedula: string
   firmaProfesionalRecibeExistente: string | null
 }
-
+ 
 const ESTADO_VACIO: EstadoClinico = {
   tratamiento: [],
   tratamientoOtro: '',
-  pupilaDerecha: '',
-  pupilaIzquierda: '',
+  // Mismo criterio que el formato de traslado: el papel/PDF no tiene
+  // fila para "sin registrar" en el reflejo pupilar, así que dejarlo
+  // en blanco por defecto dejaba esa fila sin marcar en el PDF. "No
+  // reactiva" es el valor por defecto más seguro: se nota rápido si en
+  // verdad hay reflejo y hay que cambiarlo. (La columna en la base de
+  // datos sigue aceptando null; solo se quita la opción del front.)
+  pupilaDerecha: 'no_reactiva',
+  pupilaIzquierda: 'no_reactiva',
   signosVitales: [],
   lesionesLocalizadas: [],
   glasgowOcular: '',
@@ -149,7 +155,7 @@ const ESTADO_VACIO: EstadoClinico = {
   profesionalRecibeCedula: '',
   firmaProfesionalRecibeExistente: null,
 }
-
+ 
 const TRATAMIENTO_OPCIONES: { valor: TratamientoAplicado; etiqueta: string }[] = [
   { valor: 'collar_cervical', etiqueta: 'Collar cervical' },
   { valor: 'inmovilizacion', etiqueta: 'Inmovilización' },
@@ -166,7 +172,7 @@ const TRATAMIENTO_OPCIONES: { valor: TratamientoAplicado; etiqueta: string }[] =
   { valor: 'asepsia', etiqueta: 'Asepsia' },
   { valor: 'otros', etiqueta: 'Otros' },
 ]
-
+ 
 const REFLEJO_OPCIONES: { valor: ReflejoPupilar; etiqueta: string }[] = [
   { valor: 'midriatica', etiqueta: 'Midriática' },
   { valor: 'miotica', etiqueta: 'Miótica' },
@@ -174,7 +180,7 @@ const REFLEJO_OPCIONES: { valor: ReflejoPupilar; etiqueta: string }[] = [
   { valor: 'anisocorica', etiqueta: 'Anisocórica' },
   { valor: 'no_reactiva', etiqueta: 'No reactiva' },
 ]
-
+ 
 // Mismos catálogos cerrados que `ClinicoTrasladoPage` (issue #53) --
 // el backend valida los mismos rangos (glasgow_ocular 1-4,
 // glasgow_verbal 1-5, glasgow_motora 1-6 en
@@ -185,7 +191,7 @@ const GLASGOW_OCULAR_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 2, etiqueta: '2 - Al dolor' },
   { valor: 1, etiqueta: '1 - Ninguna' },
 ]
-
+ 
 const GLASGOW_VERBAL_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 5, etiqueta: '5 - Orientado' },
   { valor: 4, etiqueta: '4 - Confuso' },
@@ -193,7 +199,7 @@ const GLASGOW_VERBAL_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 2, etiqueta: '2 - Sonidos incomprensibles' },
   { valor: 1, etiqueta: '1 - Ninguna' },
 ]
-
+ 
 const GLASGOW_MOTORA_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 6, etiqueta: '6 - Obedece órdenes' },
   { valor: 5, etiqueta: '5 - Localiza el dolor' },
@@ -202,21 +208,21 @@ const GLASGOW_MOTORA_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 2, etiqueta: '2 - Extensión anormal' },
   { valor: 1, etiqueta: '1 - Ninguna' },
 ]
-
+ 
 const TRIAGE_OPCIONES: { valor: TriageNivel; etiqueta: string }[] = [
   { valor: 'i', etiqueta: 'I - Prioridad inmediata' },
   { valor: 'ii', etiqueta: 'II - Prioridad urgente' },
   { valor: 'iii', etiqueta: 'III - Prioridad no urgente' },
 ]
-
+ 
 function alternarEnLista<T>(lista: T[], valor: T): T[] {
   return lista.includes(valor) ? lista.filter((v) => v !== valor) : [...lista, valor]
 }
-
+ 
 function aNumeroONulo(valor: string): number | null {
   return valor === '' ? null : Number(valor)
 }
-
+ 
 /** Qué le falta al formulario para poder cerrar -- espejo de
  * `_campos_faltantes_para_cerrar_soat` en el backend. `identificado`
  * e `identidadCompleta` vienen del encabezado (cargado junto con lo
@@ -253,7 +259,7 @@ function camposFaltantesParaCerrarSoat(
   }
   return faltantes
 }
-
+ 
 export function ClinicoAccidenteSoatPage(): JSX.Element {
   const navigate = useNavigate()
   const { atencionId } = useParams<{ atencionId: string }>()
@@ -268,7 +274,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
   const firmaAtendidoRef = useRef<FirmaCanvasHandle>(null)
   const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
   const firmaProfesionalRecibeRef = useRef<FirmaCanvasHandle>(null)
-
+ 
   const [campos, setCampos] = useState<EstadoClinico>(ESTADO_VACIO)
   const [horaEntrega, setHoraEntrega] = useState('')
   // Del encabezado (issue #17) -- deciden si la identidad del
@@ -285,19 +291,19 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
-
+ 
   const [mostrarCierre, setMostrarCierre] = useState(false)
   const [pinCierre, setPinCierre] = useState('')
   const [cerrando, setCerrando] = useState(false)
   const [errorCierre, setErrorCierre] = useState<string | null>(null)
-
+ 
   // Médico opcional (issue #70, corrección) -- selector de médicos de
   // planta para elegir, más "otro" para escribir el nombre a mano si
   // no está en la lista, mismo patrón que `ClinicoTrasladoPage` (issue
   // #63). `null` mientras carga.
   const [medicos, setMedicos] = useState<Empleado[] | null>(null)
   const [medicoId, setMedicoId] = useState('')
-
+ 
   useEffect(() => {
     // `perfil === undefined` mientras se restaura la sesión guardada
     // -- se espera a que se resuelva para no pedir la lista de
@@ -308,7 +314,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
       .then(setMedicos)
       .catch(() => setMedicos([]))
   }, [perfil, tieneRolMedico])
-
+ 
   useEffect(() => {
     // Issue #70 (QA) -- se guarda si este efecto sigue siendo el
     // vigente antes de aplicar su resultado, para no dejar mostrado
@@ -337,8 +343,10 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
         setCampos({
           tratamiento: existente.tratamiento,
           tratamientoOtro: existente.tratamiento_otro ?? '',
-          pupilaDerecha: existente.pupila_derecha ?? '',
-          pupilaIzquierda: existente.pupila_izquierda ?? '',
+          // Igual que ESTADO_VACIO: un formato ya guardado sin reflejo
+          // registrado se precarga como "no reactiva", no en blanco.
+          pupilaDerecha: existente.pupila_derecha ?? 'no_reactiva',
+          pupilaIzquierda: existente.pupila_izquierda ?? 'no_reactiva',
           signosVitales: existente.signos_vitales.map((signo) => ({
             hora: signo.hora,
             ta: signo.ta ?? '',
@@ -411,21 +419,21 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
       vigente = false
     }
   }, [id, perfil?.empleado_nombre_completo, tieneRolAuxiliar, tieneRolMedico])
-
+ 
   function agregarSignoVital(): void {
     setCampos((anterior) => ({
       ...anterior,
       signosVitales: [...anterior.signosVitales, { hora: horaActual(), ta: '', fc: '', fr: '', spo2: '' }],
     }))
   }
-
+ 
   function quitarSignoVital(indice: number): void {
     setCampos((anterior) => ({
       ...anterior,
       signosVitales: anterior.signosVitales.filter((_, i) => i !== indice),
     }))
   }
-
+ 
   function actualizarSignoVital(indice: number, campo: keyof SignoVitalForm, valor: string): void {
     setCampos((anterior) => ({
       ...anterior,
@@ -434,18 +442,18 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
       ),
     }))
   }
-
+ 
   const glasgowTotal =
     campos.glasgowOcular !== '' && campos.glasgowVerbal !== '' && campos.glasgowMotora !== ''
       ? Number(campos.glasgowOcular) + Number(campos.glasgowVerbal) + Number(campos.glasgowMotora)
       : null
-
+ 
   const faltantesParaCerrar = camposFaltantesParaCerrarSoat(
     campos,
     identificado ?? false,
     identidadCompleta,
   )
-
+ 
   // Issue #63 (mismo criterio en `ClinicoTrasladoPage`) -- si quien
   // está logueado no es el médico, el nombre de "quien evolucionó" se
   // elige del selector de médicos de planta, o se escribe a mano con
@@ -453,7 +461,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
   const mostrarSelectorMedico = !tieneRolMedico
   const modoOtroMedico =
     mostrarSelectorMedico && (medicoId === 'otro' || (medicoId === '' && campos.evolucionadoPor !== ''))
-
+ 
   /** Arma el payload de lo clínico a partir del estado actual del
    * formulario -- lo usan tanto "Guardar" como "Cerrar atención",
    * mismo motivo que en `ClinicoTrasladoPage` (issue #63, comentario):
@@ -515,7 +523,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
         firmaProfesionalRecibeRef.current?.exportar() ?? campos.firmaProfesionalRecibeExistente,
     }
   }
-
+ 
   async function manejarEnvio(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setError(null)
@@ -529,7 +537,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
       setGuardando(false)
     }
   }
-
+ 
   /** Cierra la atención con el PIN de firma -- mismo flujo que
    * `ClinicoTrasladoPage.manejarCierre` (issue #12, ADR-0010), más el
    * paso propio de este formato: la hora de entrega se pide acá
@@ -539,7 +547,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
   async function manejarCierre(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setErrorCierre(null)
-
+ 
     if (horaEntrega.trim() === '') {
       setErrorCierre('Falta la hora de entrega')
       return
@@ -548,7 +556,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
       setErrorCierre('El PIN debe ser de 4 dígitos')
       return
     }
-
+ 
     setCerrando(true)
     try {
       const localmenteValido = await pinLocalValido(pinCierre)
@@ -556,7 +564,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
         setErrorCierre('PIN incorrecto')
         return
       }
-
+ 
       if (encabezadoCargado !== null) {
         await guardarEncabezadoAccidenteSoatConRespaldo(id, {
           ...encabezadoCargado,
@@ -572,7 +580,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
       setCerrando(false)
     }
   }
-
+ 
   if (cargando) {
     return (
       <div className="min-h-screen bg-slate-100 px-4 py-6">
@@ -580,7 +588,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
       </div>
     )
   }
-
+ 
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6">
       {/* Issue #__ISSUE__: antes el contenedor se quedaba en 768px aun en la
@@ -596,21 +604,21 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
           </button>
           <BotonTema compacto />
         </div>
-
+ 
         <form onSubmit={manejarEnvio} className="rounded-xl bg-white p-6 shadow-sm">
           <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
           <h1 className="mb-1 text-xl font-semibold text-slate-900">Atención del paciente</h1>
           <p className="mb-6 text-sm text-slate-500">
             Se puede guardar el avance las veces que haga falta.
           </p>
-
+ 
           {errorCarga && (
             <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
               {errorCarga}
             </p>
           )}
-
-          {/* Issue #98: en la tablet horizontal el formato se reparte en
+ 
+          {/* Issue #__ISSUE__: en la tablet horizontal el formato se reparte en
               dos columnas, como en la maqueta: a la izquierda el estado del
               paciente (lo que se mide), a la derecha el diagrama de lesiones y
               lo que se escribe/firma. En vertical o en celular sigue siendo una
@@ -644,7 +652,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                 }
                 className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               />
-
+ 
               <h2 className="mb-3 text-sm font-semibold text-slate-900">Reflejo pupilar</h2>
               <div className="grid gap-x-4 sm:grid-cols-2">
                 <div>
@@ -662,7 +670,8 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                     }
                     className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
                   >
-                    <option value="">Sin registrar</option>
+                    {/* Sin opción "Sin registrar" -- el PDF no tiene fila para
+                        eso (ver ESTADO_VACIO arriba). */}
                     {REFLEJO_OPCIONES.map((opcion) => (
                       <option key={opcion.valor} value={opcion.valor}>
                         {opcion.etiqueta}
@@ -685,7 +694,6 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                     }
                     className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
                   >
-                    <option value="">Sin registrar</option>
                     {REFLEJO_OPCIONES.map((opcion) => (
                       <option key={opcion.valor} value={opcion.valor}>
                         {opcion.etiqueta}
@@ -694,7 +702,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   </select>
                 </div>
               </div>
-
+ 
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-slate-900">Signos vitales</h2>
                 <button
@@ -766,8 +774,8 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   </div>
                 </div>
               ))}
-
-
+ 
+ 
               <h2 className="mb-3 text-sm font-semibold text-slate-900">Escala de Glasgow</h2>
               <div className="mb-1 grid grid-cols-3 gap-2">
                 <div>
@@ -834,7 +842,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
               <p className="mb-4 text-sm text-slate-500">
                 Total: {glasgowTotal === null ? '— ' : glasgowTotal}/15
               </p>
-
+ 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="triage">
                   Triage
@@ -855,7 +863,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   ))}
                 </select>
               </div>
-
+ 
               <label
                 className="mb-1 mt-6 block text-sm font-semibold text-slate-900"
                 htmlFor="descripcion"
@@ -870,7 +878,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                 rows={4}
                 className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               />
-
+ 
               <label
                 className="mb-1 mt-6 block text-sm font-semibold text-slate-900"
                 htmlFor="nota-auxiliar"
@@ -888,7 +896,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                 className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               />
             </div>
-
+ 
             <div>
               <h2 className="mb-3 mt-2 text-sm font-semibold text-slate-900 lg:mt-0">
                 Localización de lesiones
@@ -901,7 +909,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   }
                 />
               </div>
-
+ 
               <h2 className="mb-3 text-sm font-semibold text-slate-900">Atendido por</h2>
               {campoTexto('Nombre del auxiliar', 'atendido-por', campos.atendidoPor, (valor) =>
                 setCampos((anterior) => ({ ...anterior, atendidoPor: valor })),
@@ -914,7 +922,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   canvasRef={firmaAtendidoRef}
                 />
               )}
-
+ 
               <label
                 htmlFor="nota-medica"
                 className="mb-1 mt-4 block text-sm font-semibold text-slate-900"
@@ -937,7 +945,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   Elige un médico o escribe su nombre para habilitar la nota médica.
                 </p>
               )}
-
+ 
               <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
                 Médico que participó (opcional)
               </h2>
@@ -1028,7 +1036,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   disabled={campos.evolucionadoPor.trim() === ''}
                 />
               )}
-
+ 
               <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
                 Profesional que recibe en la IPS/ESE
               </h2>
@@ -1057,14 +1065,14 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
               />
             </div>
           </div>
-
+ 
           {error && (
             <p role="alert" className="mb-4 mt-4 text-sm text-brand-orange-dark">
               {error}
             </p>
           )}
-
-          {/* Issue #98: "Guardar" queda pegado abajo mientras se baja
+ 
+          {/* Issue #__ISSUE__: "Guardar" queda pegado abajo mientras se baja
               por el formulario -- en la tablet ya no hay que bajar hasta el
               final para guardar el avance. Sigue siendo el mismo botón de
               envío del formulario. */}
@@ -1078,7 +1086,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
             </button>
           </div>
         </form>
-
+ 
         {(tieneRolAuxiliar || tieneRolMedico) && (
           <div className="mt-4 rounded-xl bg-white p-6 shadow-sm">
             {faltantesParaCerrar.length > 0 && (
@@ -1110,7 +1118,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                   La hora de entrega es el último dato que se conoce al entregar al paciente -- se
                   pide acá y no antes.
                 </p>
-
+ 
                 <div className="mb-4">
                   <label
                     className="mb-1 block text-sm font-medium text-slate-700"
@@ -1126,7 +1134,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                     className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
                   />
                 </div>
-
+ 
                 <div className="max-w-xs">
                   <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pin-cierre">
                     PIN
@@ -1143,13 +1151,13 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                     className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-orange-dark focus:outline-none"
                   />
                 </div>
-
+ 
                 {errorCierre && (
                   <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
                     {errorCierre}
                   </p>
                 )}
-
+ 
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -1178,7 +1186,7 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
     </div>
   )
 }
-
+ 
 /**
  * Firma de quien atiende/evoluciona (issue #11), mismo componente que
  * `ClinicoTrasladoPage.FirmaField`. Si el usuario logueado ya tiene
@@ -1224,7 +1232,7 @@ function FirmaField({
     </div>
   )
 }
-
+ 
 function campoTexto(
   etiqueta: string,
   id: string,
