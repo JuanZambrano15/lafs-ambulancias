@@ -10,11 +10,11 @@
  *
  * Al guardar, vuelve al detalle del servicio.
  */
-
+ 
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, JSX, RefObject } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-
+ 
 import { DiagramaCorporal } from '../components/DiagramaCorporal'
 import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
 import {
@@ -35,7 +35,7 @@ import type {
   TratamientoAplicado,
   TriageNivel,
 } from '../lib/types'
-
+ 
 interface CamposEncabezado {
   fecha_atencion: string
   hora_atencion: string
@@ -59,7 +59,7 @@ interface CamposEncabezado {
   vehiculo_tipo: string
   vehiculo_marca: string
 }
-
+ 
 const ENCABEZADO_VACIO: CamposEncabezado = {
   fecha_atencion: '',
   hora_atencion: '',
@@ -83,7 +83,7 @@ const ENCABEZADO_VACIO: CamposEncabezado = {
   vehiculo_tipo: '',
   vehiculo_marca: '',
 }
-
+ 
 interface SignoVitalForm {
   hora: string
   ta: string
@@ -91,7 +91,7 @@ interface SignoVitalForm {
   fr: string
   spo2: string
 }
-
+ 
 interface CamposClinico {
   tratamiento: TratamientoAplicado[]
   tratamientoOtro: string
@@ -114,12 +114,18 @@ interface CamposClinico {
   profesionalRecibeCedula: string
   firmaProfesionalRecibeExistente: string | null
 }
-
+ 
 const CLINICO_VACIO: CamposClinico = {
   tratamiento: [],
   tratamientoOtro: '',
-  pupilaDerecha: '',
-  pupilaIzquierda: '',
+  // Mismo criterio que el formato de traslado: el papel/PDF no tiene
+  // fila para "sin registrar" en el reflejo pupilar, así que dejarlo
+  // en blanco por defecto dejaba esa fila sin marcar en el PDF. "No
+  // reactiva" es el valor por defecto más seguro: se nota rápido si en
+  // verdad hay reflejo y hay que cambiarlo. (La columna en la base de
+  // datos sigue aceptando null; solo se quita la opción del front.)
+  pupilaDerecha: 'no_reactiva',
+  pupilaIzquierda: 'no_reactiva',
   signosVitales: [],
   lesionesLocalizadas: [],
   glasgowOcular: '',
@@ -137,7 +143,7 @@ const CLINICO_VACIO: CamposClinico = {
   profesionalRecibeCedula: '',
   firmaProfesionalRecibeExistente: null,
 }
-
+ 
 const TIPOS_DOCUMENTO: { valor: TipoDocumentoPaciente; etiqueta: string }[] = [
   { valor: 'rc', etiqueta: 'Registro Civil' },
   { valor: 'ti', etiqueta: 'Tarjeta de Identidad' },
@@ -145,7 +151,7 @@ const TIPOS_DOCUMENTO: { valor: TipoDocumentoPaciente; etiqueta: string }[] = [
   { valor: 'ce', etiqueta: 'Cédula de Extranjería' },
   { valor: 'ppt', etiqueta: 'Permiso de Protección Temporal' },
 ]
-
+ 
 const ROLES_VICTIMA: { valor: RolVictima; etiqueta: string }[] = [
   { valor: 'conductor', etiqueta: 'Conductor' },
   { valor: 'pasajero', etiqueta: 'Pasajero' },
@@ -153,7 +159,7 @@ const ROLES_VICTIMA: { valor: RolVictima; etiqueta: string }[] = [
   { valor: 'peaton', etiqueta: 'Peatón' },
   { valor: 'otro', etiqueta: 'Otro' },
 ]
-
+ 
 const TRATAMIENTO_OPCIONES: { valor: TratamientoAplicado; etiqueta: string }[] = [
   { valor: 'collar_cervical', etiqueta: 'Collar cervical' },
   { valor: 'inmovilizacion', etiqueta: 'Inmovilización' },
@@ -170,7 +176,7 @@ const TRATAMIENTO_OPCIONES: { valor: TratamientoAplicado; etiqueta: string }[] =
   { valor: 'asepsia', etiqueta: 'Asepsia' },
   { valor: 'otros', etiqueta: 'Otros' },
 ]
-
+ 
 const REFLEJO_OPCIONES: { valor: ReflejoPupilar; etiqueta: string }[] = [
   { valor: 'midriatica', etiqueta: 'Midriática' },
   { valor: 'miotica', etiqueta: 'Miótica' },
@@ -178,14 +184,14 @@ const REFLEJO_OPCIONES: { valor: ReflejoPupilar; etiqueta: string }[] = [
   { valor: 'anisocorica', etiqueta: 'Anisocórica' },
   { valor: 'no_reactiva', etiqueta: 'No reactiva' },
 ]
-
+ 
 const GLASGOW_OCULAR_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 4, etiqueta: '4 - Espontánea' },
   { valor: 3, etiqueta: '3 - Al estímulo verbal' },
   { valor: 2, etiqueta: '2 - Al dolor' },
   { valor: 1, etiqueta: '1 - Ninguna' },
 ]
-
+ 
 const GLASGOW_VERBAL_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 5, etiqueta: '5 - Orientado' },
   { valor: 4, etiqueta: '4 - Confuso' },
@@ -193,7 +199,7 @@ const GLASGOW_VERBAL_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 2, etiqueta: '2 - Sonidos incomprensibles' },
   { valor: 1, etiqueta: '1 - Ninguna' },
 ]
-
+ 
 const GLASGOW_MOTORA_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 6, etiqueta: '6 - Obedece órdenes' },
   { valor: 5, etiqueta: '5 - Localiza el dolor' },
@@ -202,26 +208,26 @@ const GLASGOW_MOTORA_OPCIONES: { valor: number; etiqueta: string }[] = [
   { valor: 2, etiqueta: '2 - Extensión anormal' },
   { valor: 1, etiqueta: '1 - Ninguna' },
 ]
-
+ 
 const TRIAGE_OPCIONES: { valor: TriageNivel; etiqueta: string }[] = [
   { valor: 'i', etiqueta: 'I - Prioridad inmediata' },
   { valor: 'ii', etiqueta: 'II - Prioridad urgente' },
   { valor: 'iii', etiqueta: 'III - Prioridad no urgente' },
 ]
-
+ 
 function alternarEnLista<T>(lista: T[], valor: T): T[] {
   return lista.includes(valor) ? lista.filter((v) => v !== valor) : [...lista, valor]
 }
-
+ 
 function aNumeroONulo(valor: string): number | null {
   return valor === '' ? null : Number(valor)
 }
-
+ 
 function horaActual(): string {
   const ahora = new Date()
   return `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
 }
-
+ 
 function campoRequerido(
   label: string,
   id: string,
@@ -240,7 +246,7 @@ function campoRequerido(
     </div>
   )
 }
-
+ 
 function campoTexto(
   etiqueta: string,
   id: string,
@@ -262,7 +268,7 @@ function campoTexto(
     </div>
   )
 }
-
+ 
 function FirmaField({
   etiqueta,
   imagenInicial,
@@ -281,7 +287,7 @@ function FirmaField({
     </div>
   )
 }
-
+ 
 export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
   const navigate = useNavigate()
   const { atencionId } = useParams<{ atencionId: string }>()
@@ -289,7 +295,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
   const firmaAtendidoRef = useRef<FirmaCanvasHandle>(null)
   const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
   const firmaProfesionalRecibeRef = useRef<FirmaCanvasHandle>(null)
-
+ 
   const [encabezado, setEncabezado] = useState<CamposEncabezado>(ENCABEZADO_VACIO)
   const [clinico, setClinico] = useState<CamposClinico>(CLINICO_VACIO)
   const [motivo, setMotivo] = useState('')
@@ -297,16 +303,16 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
-
+ 
   const [medicos, setMedicos] = useState<Empleado[] | null>(null)
   const [medicoId, setMedicoId] = useState('')
-
+ 
   useEffect(() => {
     listarMedicosDisponibles()
       .then(setMedicos)
       .catch(() => setMedicos([]))
   }, [])
-
+ 
   useEffect(() => {
     obtenerFormatoAccidenteSoat(id)
       .then((existente) => {
@@ -336,8 +342,10 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
         setClinico({
           tratamiento: existente.tratamiento,
           tratamientoOtro: existente.tratamiento_otro ?? '',
-          pupilaDerecha: existente.pupila_derecha ?? '',
-          pupilaIzquierda: existente.pupila_izquierda ?? '',
+          // Igual que ESTADO_VACIO: un formato ya guardado sin reflejo
+          // registrado se precarga como "no reactiva", no en blanco.
+          pupilaDerecha: existente.pupila_derecha ?? 'no_reactiva',
+          pupilaIzquierda: existente.pupila_izquierda ?? 'no_reactiva',
           signosVitales: existente.signos_vitales.map((signo) => ({
             hora: signo.hora,
             ta: signo.ta ?? '',
@@ -367,28 +375,28 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
       })
       .finally(() => setCargando(false))
   }, [id])
-
+ 
   function actualizarEncabezado<K extends keyof CamposEncabezado>(
     campo: K,
     valor: CamposEncabezado[K],
   ): void {
     setEncabezado((anterior) => ({ ...anterior, [campo]: valor }))
   }
-
+ 
   function agregarSignoVital(): void {
     setClinico((anterior) => ({
       ...anterior,
       signosVitales: [...anterior.signosVitales, { hora: horaActual(), ta: '', fc: '', fr: '', spo2: '' }],
     }))
   }
-
+ 
   function quitarSignoVital(indice: number): void {
     setClinico((anterior) => ({
       ...anterior,
       signosVitales: anterior.signosVitales.filter((_, i) => i !== indice),
     }))
   }
-
+ 
   function actualizarSignoVital(indice: number, campo: keyof SignoVitalForm, valor: string): void {
     setClinico((anterior) => ({
       ...anterior,
@@ -397,14 +405,14 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
       ),
     }))
   }
-
+ 
   const glasgowTotal =
     clinico.glasgowOcular !== '' && clinico.glasgowVerbal !== '' && clinico.glasgowMotora !== ''
       ? Number(clinico.glasgowOcular) + Number(clinico.glasgowVerbal) + Number(clinico.glasgowMotora)
       : null
-
+ 
   const modoOtroMedico = medicoId === 'otro' || (medicoId === '' && clinico.evolucionadoPor !== '')
-
+ 
   async function manejarEnvio(evento: FormEvent): Promise<void> {
     evento.preventDefault()
     setError(null)
@@ -479,17 +487,17 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
       setGuardando(false)
     }
   }
-
+ 
   if (cargando) {
     return <p className="text-slate-500">Cargando formato…</p>
   }
-
+ 
   return (
     <section>
       <button onClick={() => navigate(-1)} className="mb-4 text-sm font-medium text-slate-500">
         ← Volver
       </button>
-
+ 
       <form onSubmit={manejarEnvio} className="max-w-6xl rounded-xl bg-white p-6 shadow-sm">
         <h1 className="mb-1 text-xl font-semibold text-slate-900">Corregir formato</h1>
         <p className="mb-6 text-sm text-slate-500">
@@ -497,14 +505,14 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
           motivo que se indique abajo. Las notas, la descripción y quién las firma nunca aparecen
           en el historial.
         </p>
-
+ 
         {errorCarga && (
           <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
             {errorCarga}
           </p>
         )}
-
-        {/* Issue #98: en escritorio, encabezado a la izquierda y parte
+ 
+        {/* Issue #__ISSUE__: en escritorio, encabezado a la izquierda y parte
             clínica a la derecha, en vez de una sola columna angosta de más de
             cien campos. El motivo y el botón quedan abajo, a todo el ancho. */}
         <div className="grid gap-x-10 xl:grid-cols-2">
@@ -527,7 +535,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
               value: encabezado.hora_entrega,
               onChange: (e) => actualizarEncabezado('hora_entrega', e.target.value),
             })}
-
+ 
             <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Paciente</h2>
             <label className="mb-4 flex items-center gap-2 text-sm text-slate-700">
               <input
@@ -597,7 +605,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
                 </select>
               </>
             )}
-
+ 
             <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Datos de recogida</h2>
             {campoRequerido('Lugar de ocurrencia', 'lugar-ocurrencia', {
               required: true,
@@ -628,7 +636,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
                 </option>
               ))}
             </select>
-
+ 
             <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">
               Vehículo accidentado (opcional)
             </h2>
@@ -644,7 +652,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
               value: encabezado.vehiculo_marca,
               onChange: (e) => actualizarEncabezado('vehiculo_marca', e.target.value),
             })}
-
+ 
             <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Póliza (opcional)</h2>
             {campoRequerido('Número de póliza', 'numero-poliza', {
               value: encabezado.numero_poliza,
@@ -661,7 +669,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
               onChange: (e) => actualizarEncabezado('poliza_vigente_hasta', e.target.value),
             })}
           </div>
-
+ 
           <div>
             <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900 xl:mt-0">Tratamiento</h2>
             <div className="mb-2 grid grid-cols-2 gap-1">
@@ -688,7 +696,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
               onChange={(e) => setClinico((anterior) => ({ ...anterior, tratamientoOtro: e.target.value }))}
               className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
             />
-
+ 
             <h2 className="mb-3 text-sm font-semibold text-slate-900">Reflejo pupilar</h2>
             <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pupila-derecha">
               Derecha
@@ -701,7 +709,8 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
               }
               className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
             >
-              <option value="">Sin registrar</option>
+              {/* Sin opción "Sin registrar" -- el PDF no tiene fila para
+                  eso (ver ESTADO_VACIO arriba). */}
               {REFLEJO_OPCIONES.map((opcion) => (
                 <option key={opcion.valor} value={opcion.valor}>
                   {opcion.etiqueta}
@@ -722,14 +731,13 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
               }
               className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
             >
-              <option value="">Sin registrar</option>
               {REFLEJO_OPCIONES.map((opcion) => (
                 <option key={opcion.valor} value={opcion.valor}>
                   {opcion.etiqueta}
                 </option>
               ))}
             </select>
-
+ 
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-900">Signos vitales</h2>
               <button type="button" onClick={agregarSignoVital} className="text-sm font-medium text-brand-blue">
@@ -797,7 +805,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
                 </div>
               </div>
             ))}
-
+ 
             <h2 className="mb-3 mt-2 text-sm font-semibold text-slate-900">Localización de lesiones</h2>
             <div className="mb-4">
               <DiagramaCorporal
@@ -807,7 +815,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
                 }
               />
             </div>
-
+ 
             <h2 className="mb-3 text-sm font-semibold text-slate-900">Escala de Glasgow</h2>
             <div className="mb-1 grid grid-cols-3 gap-2">
               <div>
@@ -866,7 +874,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
               </div>
             </div>
             <p className="mb-4 text-sm text-slate-500">Total: {glasgowTotal === null ? '— ' : glasgowTotal}/15</p>
-
+ 
             <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="triage">
               Triage
             </label>
@@ -883,7 +891,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
                 </option>
               ))}
             </select>
-
+ 
             <label className="mb-1 mt-6 block text-sm font-semibold text-slate-900" htmlFor="descripcion">
               Descripción de la atención
             </label>
@@ -895,7 +903,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
               rows={4}
               className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
             />
-
+ 
             <label className="mb-1 mt-6 block text-sm font-semibold text-slate-900" htmlFor="nota-auxiliar">
               Notas de enfermería
             </label>
@@ -907,7 +915,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
               rows={4}
               className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
             />
-
+ 
             <h2 className="mb-3 text-sm font-semibold text-slate-900">Atendido por</h2>
             {campoTexto('Nombre del auxiliar', 'atendido-por', clinico.atendidoPor, (valor) =>
               setClinico((anterior) => ({ ...anterior, atendidoPor: valor })),
@@ -917,7 +925,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
               imagenInicial={clinico.firmaAtendidoExistente}
               canvasRef={firmaAtendidoRef}
             />
-
+ 
             <label htmlFor="nota-medica" className="mb-1 mt-4 block text-sm font-semibold text-slate-900">
               Notas del médico
             </label>
@@ -935,7 +943,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
                 Elige un médico o escribe su nombre para habilitar la nota médica.
               </p>
             )}
-
+ 
             <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">Médico que participó (opcional)</h2>
             <div className="mb-4">
               <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="medico-evoluciono">
@@ -983,7 +991,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
               canvasRef={firmaEvolucionadoRef}
               disabled={clinico.evolucionadoPor.trim() === ''}
             />
-
+ 
             <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
               Profesional que recibe en la IPS/ESE
             </h2>
@@ -1006,7 +1014,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
             />
           </div>
         </div>
-
+ 
         <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Motivo de la corrección</h2>
         <label className="sr-only" htmlFor="motivo">
           Motivo de la corrección
@@ -1020,13 +1028,13 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
           placeholder="Por qué se está corrigiendo este formato"
           className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
         />
-
+ 
         {error && (
           <p role="alert" className="mb-4 mt-4 text-sm text-brand-orange-dark">
             {error}
           </p>
         )}
-
+ 
         <button
           type="submit"
           disabled={guardando}
