@@ -11,11 +11,11 @@
  * traslado asistencial no, y termina en el botón de PDF -- mismo
  * criterio que ya regía en `ServiciosCerradosPage`/`FormatosCerradosPage`.
  */
-
+ 
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-
+ 
 import {
   ApiError,
   descargarPdfFormatoAccidenteSoat,
@@ -25,32 +25,32 @@ import {
   obtenerAtencionCerrada,
 } from '../lib/api'
 import type { AtencionCerrada, FormatoAccidenteSoatVersionOut, FormatoVersionOut } from '../lib/types'
-
+ 
 function etiquetaTipoServicio(atencion: AtencionCerrada): string {
   if (atencion.tipo === 'atencion_soat') return 'Accidente SOAT'
   return atencion.nivel_servicio === 'medicalizado' ? 'Traslado medicalizado' : 'Traslado básico'
 }
-
+ 
 function formatearFecha(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : '—'
 }
-
+ 
 type Version = FormatoVersionOut | FormatoAccidenteSoatVersionOut
-
+ 
 export function ServicioCerradoDetallePage(): JSX.Element {
   const navigate = useNavigate()
   const { atencionId } = useParams<{ atencionId: string }>()
   const id = Number(atencionId)
-
+ 
   const [atencion, setAtencion] = useState<AtencionCerrada | null>(null)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
-
+ 
   const [descargando, setDescargando] = useState(false)
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null)
-
+ 
   const [historial, setHistorial] = useState<Version[] | null>(null)
   const [errorHistorial, setErrorHistorial] = useState<string | null>(null)
-
+ 
   useEffect(() => {
     obtenerAtencionCerrada(id)
       .then(setAtencion)
@@ -58,7 +58,7 @@ export function ServicioCerradoDetallePage(): JSX.Element {
         setErrorCarga(err instanceof ApiError ? err.message : 'No se pudo cargar el servicio')
       })
   }, [id])
-
+ 
   useEffect(() => {
     const cargarHistorial =
       atencion === null
@@ -75,7 +75,7 @@ export function ServicioCerradoDetallePage(): JSX.Element {
         )
       })
   }, [id, atencion])
-
+ 
   async function manejarDescargar(): Promise<void> {
     if (atencion === null) return
     setErrorDescarga(null)
@@ -92,7 +92,7 @@ export function ServicioCerradoDetallePage(): JSX.Element {
       setDescargando(false)
     }
   }
-
+ 
   function irACorregir(): void {
     if (atencion === null) return
     navigate(
@@ -101,7 +101,7 @@ export function ServicioCerradoDetallePage(): JSX.Element {
         : `/atenciones/${id}/corregir/traslado`,
     )
   }
-
+ 
   if (errorCarga) {
     return (
       <section>
@@ -114,18 +114,18 @@ export function ServicioCerradoDetallePage(): JSX.Element {
       </section>
     )
   }
-
+ 
   if (atencion === null) {
     return <p className="text-slate-500">Cargando…</p>
   }
-
+ 
   return (
     <section>
       <button onClick={() => navigate(-1)} className="mb-4 text-sm font-medium text-slate-500">
         ← Volver
       </button>
-
-      {/* Issue #98: datos y acciones a la izquierda, historial de
+ 
+      {/* Issue #__ISSUE__: datos y acciones a la izquierda, historial de
           versiones a la derecha (como en la maqueta); apilados en pantallas
           angostas. */}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start">
@@ -166,13 +166,13 @@ export function ServicioCerradoDetallePage(): JSX.Element {
               <dd className="font-medium text-slate-900">{formatearFecha(atencion.cerrada_en)}</dd>
             </div>
           </dl>
-
+ 
           {errorDescarga && (
             <p role="alert" className="mt-4 text-sm text-brand-orange-dark">
               {errorDescarga}
             </p>
           )}
-
+ 
           <div className="mt-6 flex flex-wrap gap-3">
             {atencion.tiene_pdf ? (
               <button
@@ -205,12 +205,12 @@ export function ServicioCerradoDetallePage(): JSX.Element {
             )}
           </div>
         </div>
-
+ 
         <div className="rounded-xl bg-white p-6 shadow-sm">
           <h2 className="mb-1 text-xl font-semibold text-slate-900">Historial de versiones</h2>
           <p className="mb-4 text-sm text-slate-500">
             Cada corrección hecha por un administrador sobre este formato ya cerrado, con el motivo
-            que la justificó. 
+            que la justificó.
           </p>
           {errorHistorial && (
             <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
