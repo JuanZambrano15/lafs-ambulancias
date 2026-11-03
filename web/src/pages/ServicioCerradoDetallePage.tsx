@@ -210,7 +210,7 @@ export function ServicioCerradoDetallePage(): JSX.Element {
           <h2 className="mb-1 text-xl font-semibold text-slate-900">Historial de versiones</h2>
           <p className="mb-4 text-sm text-slate-500">
             Cada corrección hecha por un administrador sobre este formato ya cerrado, con el motivo
-            que la justificó. No muestra notas médicas ni diagnóstico.
+            que la justificó. 
           </p>
           {errorHistorial && (
             <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
