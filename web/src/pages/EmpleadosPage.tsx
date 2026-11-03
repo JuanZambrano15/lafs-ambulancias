@@ -120,159 +120,167 @@ export function EmpleadosPage(): JSX.Element {
     <div>
       <h2 className="mb-6 text-2xl font-semibold text-slate-900">Empleados</h2>
 
-      <form
-        onSubmit={manejarEnvio}
-        className="mb-8 max-w-md rounded-xl border border-slate-200 bg-white p-6"
-      >
-        <h3 className="mb-4 text-sm font-semibold text-slate-700">
-          {edicion ? `Editar: ${edicion.nombres} ${edicion.apellidos}` : 'Nuevo empleado'}
-        </h3>
-
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-nombres">
-          Nombres
-        </label>
-        <input
-          id="emp-nombres"
-          type="text"
-          required
-          value={formulario.nombres}
-          onChange={(evento) => setFormulario((f) => ({ ...f, nombres: evento.target.value }))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-        />
-
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-apellidos">
-          Apellidos
-        </label>
-        <input
-          id="emp-apellidos"
-          type="text"
-          required
-          value={formulario.apellidos}
-          onChange={(evento) => setFormulario((f) => ({ ...f, apellidos: evento.target.value }))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-        />
-
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-cedula">
-          Cédula
-        </label>
-        <input
-          id="emp-cedula"
-          type="text"
-          required
-          disabled={edicion !== null}
-          value={formulario.cedula}
-          onChange={(evento) => setFormulario((f) => ({ ...f, cedula: evento.target.value }))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none disabled:bg-slate-100 disabled:text-slate-500"
-        />
-
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-telefono">
-          Teléfono (opcional)
-        </label>
-        <input
-          id="emp-telefono"
-          type="text"
-          value={formulario.telefono}
-          onChange={(evento) => setFormulario((f) => ({ ...f, telefono: evento.target.value }))}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-        />
-
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-vinculacion">
-          Vinculación
-        </label>
-        <select
-          id="emp-vinculacion"
-          value={formulario.tipo_vinculacion}
-          onChange={(evento) =>
-            setFormulario((f) => ({
-              ...f,
-              tipo_vinculacion: evento.target.value as TipoVinculacion,
-            }))
-          }
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+      {/* Issue #98: en escritorio el formulario de alta queda a la
+          izquierda (fijo al hacer scroll) y la tabla ocupa el resto del
+          ancho, en vez de apilar un formulario angosto sobre una tabla con
+          media pantalla vacía al lado. */}
+      <div className="grid gap-8 xl:grid-cols-[22rem_minmax(0,1fr)] xl:items-start">
+        <form
+          onSubmit={manejarEnvio}
+          className="rounded-xl border border-slate-200 bg-white p-6 xl:sticky xl:top-8"
         >
-          <option value="planta">Planta</option>
-          <option value="ocasional">Ocasional</option>
-        </select>
+          <h3 className="mb-4 text-sm font-semibold text-slate-700">
+            {edicion ? `Editar: ${edicion.nombres} ${edicion.apellidos}` : 'Nuevo empleado'}
+          </h3>
 
-        {error && (
-          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
-            {error}
-          </p>
-        )}
+          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-nombres">
+            Nombres
+          </label>
+          <input
+            id="emp-nombres"
+            type="text"
+            required
+            value={formulario.nombres}
+            onChange={(evento) => setFormulario((f) => ({ ...f, nombres: evento.target.value }))}
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+          />
 
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={enviando}
-            className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-apellidos">
+            Apellidos
+          </label>
+          <input
+            id="emp-apellidos"
+            type="text"
+            required
+            value={formulario.apellidos}
+            onChange={(evento) => setFormulario((f) => ({ ...f, apellidos: evento.target.value }))}
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+          />
+
+          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-cedula">
+            Cédula
+          </label>
+          <input
+            id="emp-cedula"
+            type="text"
+            required
+            disabled={edicion !== null}
+            value={formulario.cedula}
+            onChange={(evento) => setFormulario((f) => ({ ...f, cedula: evento.target.value }))}
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none disabled:bg-slate-100 disabled:text-slate-500"
+          />
+
+          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-telefono">
+            Teléfono (opcional)
+          </label>
+          <input
+            id="emp-telefono"
+            type="text"
+            value={formulario.telefono}
+            onChange={(evento) => setFormulario((f) => ({ ...f, telefono: evento.target.value }))}
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+          />
+
+          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="emp-vinculacion">
+            Vinculación
+          </label>
+          <select
+            id="emp-vinculacion"
+            value={formulario.tipo_vinculacion}
+            onChange={(evento) =>
+              setFormulario((f) => ({
+                ...f,
+                tipo_vinculacion: evento.target.value as TipoVinculacion,
+              }))
+            }
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
           >
-            {edicion ? 'Guardar cambios' : 'Crear empleado'}
-          </button>
-          {edicion && (
-            <button
-              type="button"
-              onClick={cancelarEdicion}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-            >
-              Cancelar
-            </button>
-          )}
-        </div>
-      </form>
+            <option value="planta">Planta</option>
+            <option value="ocasional">Ocasional</option>
+          </select>
 
-      {empleados === null ? (
-        <p className="text-slate-500">Cargando…</p>
-      ) : (
-        <table className="w-full max-w-3xl border-separate border-spacing-y-1 text-sm">
-          <thead>
-            <tr className="text-left text-slate-500">
-              <th className="px-3">Nombre</th>
-              <th className="px-3">Cédula</th>
-              <th className="px-3">Vinculación</th>
-              <th className="px-3">Estado</th>
-              <th className="px-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {empleados.map((empleado) => (
-              <tr key={empleado.id} className="rounded-lg bg-white shadow-sm">
-                <td className="px-3 py-2 font-medium text-slate-900">
-                  {empleado.nombres} {empleado.apellidos}
-                </td>
-                <td className="px-3 py-2 text-slate-600">{empleado.cedula}</td>
-                <td className="px-3 py-2 text-slate-600 capitalize">
-                  {empleado.tipo_vinculacion}
-                </td>
-                <td className="px-3 py-2">
-                  {empleado.activo ? (
-                    <span className="text-green-700">Activo</span>
-                  ) : (
-                    <span className="text-slate-400">Inactivo</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => comenzarEdicion(empleado)}
-                    className="mr-3 text-brand-blue hover:underline"
-                  >
-                    Editar
-                  </button>
-                  {empleado.activo && (
-                    <button
-                      type="button"
-                      onClick={() => void manejarDesactivar(empleado)}
-                      className="text-brand-orange-dark hover:underline"
-                    >
-                      Desactivar
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+          {error && (
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
+              {error}
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={enviando}
+              className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {edicion ? 'Guardar cambios' : 'Crear empleado'}
+            </button>
+            {edicion && (
+              <button
+                type="button"
+                onClick={cancelarEdicion}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
+        </form>
+
+        {empleados === null ? (
+          <p className="text-slate-500">Cargando…</p>
+        ) : (
+          <div className="min-w-0 overflow-x-auto">
+            <table className="w-full border-separate border-spacing-y-1 text-sm">
+              <thead>
+                <tr className="text-left text-slate-500">
+                  <th className="px-3">Nombre</th>
+                  <th className="px-3">Cédula</th>
+                  <th className="px-3">Vinculación</th>
+                  <th className="px-3">Estado</th>
+                  <th className="px-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {empleados.map((empleado) => (
+                  <tr key={empleado.id} className="rounded-lg bg-white shadow-sm">
+                    <td className="px-3 py-2 font-medium text-slate-900">
+                      {empleado.nombres} {empleado.apellidos}
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">{empleado.cedula}</td>
+                    <td className="px-3 py-2 text-slate-600 capitalize">
+                      {empleado.tipo_vinculacion}
+                    </td>
+                    <td className="px-3 py-2">
+                      {empleado.activo ? (
+                        <span className="text-green-700">Activo</span>
+                      ) : (
+                        <span className="text-slate-400">Inactivo</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => comenzarEdicion(empleado)}
+                        className="mr-3 text-brand-blue hover:underline"
+                      >
+                        Editar
+                      </button>
+                      {empleado.activo && (
+                        <button
+                          type="button"
+                          onClick={() => void manejarDesactivar(empleado)}
+                          className="text-brand-orange-dark hover:underline"
+                        >
+                          Desactivar
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

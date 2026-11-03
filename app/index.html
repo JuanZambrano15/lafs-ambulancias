@@ -1,10 +1,32 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
     <title>LAFS Ambulancias</title>
+    <!--
+      Issue #98: aplica el modo claro/oscuro antes del primer pintado
+      (sin esto la pantalla parpadea en claro mientras carga React). Es
+      el mismo cálculo de src/lib/tema.ts: la elección guardada y, si no
+      hay, la preferencia del sistema.
+    -->
+    <script>
+      (function () {
+        var tema = null
+        try {
+          tema = window.localStorage.getItem('lafs-tema')
+        } catch (e) {}
+        if (tema !== 'claro' && tema !== 'oscuro') {
+          tema =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'oscuro'
+              : 'claro'
+        }
+        document.documentElement.setAttribute('data-tema', tema)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

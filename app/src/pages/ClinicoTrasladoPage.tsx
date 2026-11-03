@@ -65,6 +65,7 @@ import type {
   TratamientoAplicado,
 } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
+import { BotonTema } from '../components/BotonTema'
  
 const PIN_VALIDO = /^\d{4}$/
  
@@ -651,10 +652,19 @@ export function ClinicoTrasladoPage(): JSX.Element {
  
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6">
-      <div className="mx-auto max-w-sm sm:max-w-2xl lg:max-w-3xl">
-        <button onClick={() => navigate(-1)} className="mb-4 text-sm font-medium text-slate-500">
-          ← Volver
-        </button>
+      {/* Issue #__ISSUE__: antes el contenedor se quedaba en 768px aun en la
+          tablet horizontal (1280px), con márgenes enormes a los lados; y
+          en una tablet vertical de 600px se encogía a 384px. Ahora ocupa el
+          ancho disponible y, desde `lg`, se reparte en columnas. */}
+      <div className="mx-auto w-full max-w-3xl lg:max-w-6xl">
+        {/* Issue #__ISSUE__: el botón de modo oscuro va en la misma fila que
+            "Volver", para poder cambiarlo sin salir del formulario. */}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <button onClick={() => navigate(-1)} className="text-sm font-medium text-slate-500">
+            ← Volver
+          </button>
+          <BotonTema compacto />
+        </div>
  
         <form onSubmit={manejarEnvio} className="rounded-xl bg-white p-6 shadow-sm">
           <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
@@ -669,447 +679,467 @@ export function ClinicoTrasladoPage(): JSX.Element {
             </p>
           )}
  
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="diagnostico">
-            Diagnóstico
-          </label>
-          <textarea
-            id="diagnostico"
-            value={campos.diagnostico}
-            onChange={(e) => setCampos((anterior) => ({ ...anterior, diagnostico: e.target.value }))}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-            rows={2}
-          />
- 
-          <h2 className="mb-3 text-sm font-semibold text-slate-900">Tratamiento</h2>
-          <div className="mb-2 grid grid-cols-2 gap-1">
-            {TRATAMIENTO_OPCIONES.map((opcion) => (
-              <label key={opcion.valor} className="flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={campos.tratamiento.includes(opcion.valor)}
-                  onChange={() =>
-                    setCampos((anterior) => ({
-                      ...anterior,
-                      tratamiento: alternarEnLista(anterior.tratamiento, opcion.valor),
-                    }))
-                  }
-                />
-                {opcion.etiqueta}
+          {/* Issue #98: en la tablet horizontal el formato se reparte en
+              dos columnas, como en la maqueta: a la izquierda el estado del
+              paciente (lo que se mide), a la derecha el diagrama de lesiones y
+              lo que se escribe/firma. En vertical o en celular sigue siendo una
+              sola columna, en el mismo orden. */}
+          <div className="lg:grid lg:grid-cols-2 lg:gap-x-8">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="diagnostico">
+                Diagnóstico
               </label>
-            ))}
-          </div>
-          <input
-            type="text"
-            placeholder='Detalle de "Otros"'
-            value={campos.tratamientoOtro}
-            onChange={(e) =>
-              setCampos((anterior) => ({ ...anterior, tratamientoOtro: e.target.value }))
-            }
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          />
+              <textarea
+                id="diagnostico"
+                value={campos.diagnostico}
+                onChange={(e) => setCampos((anterior) => ({ ...anterior, diagnostico: e.target.value }))}
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                rows={2}
+              />
  
-          <h2 className="mb-3 text-sm font-semibold text-slate-900">Reflejo pupilar</h2>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pupila-derecha">
-            Derecha
-          </label>
-          <select
-            id="pupila-derecha"
-            value={campos.pupilaDerecha}
-            onChange={(e) =>
-              setCampos((anterior) => ({
-                ...anterior,
-                pupilaDerecha: e.target.value as ReflejoPupilar | '',
-              }))
-            }
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          >
-            {/* QA: sin opción "Sin registrar" -- el PDF no tiene fila
-                para eso (ver ESTADO_VACIO arriba), así que no sirve
-                como valor seleccionable. */}
-            {REFLEJO_OPCIONES.map((opcion) => (
-              <option key={opcion.valor} value={opcion.valor}>
-                {opcion.etiqueta}
-              </option>
-            ))}
-          </select>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pupila-izquierda">
-            Izquierda
-          </label>
-          <select
-            id="pupila-izquierda"
-            value={campos.pupilaIzquierda}
-            onChange={(e) =>
-              setCampos((anterior) => ({
-                ...anterior,
-                pupilaIzquierda: e.target.value as ReflejoPupilar | '',
-              }))
-            }
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          >
-            {/* QA: ver comentario del select "Derecha" arriba. */}
-            {REFLEJO_OPCIONES.map((opcion) => (
-              <option key={opcion.valor} value={opcion.valor}>
-                {opcion.etiqueta}
-              </option>
-            ))}
-          </select>
- 
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">Signos vitales</h2>
-            <button
-              type="button"
-              onClick={agregarSignoVital}
-              className="text-sm font-medium text-brand-blue"
-            >
-              + Agregar medición
-            </button>
-          </div>
-          {campos.signosVitales.map((signo, indice) => (
-            <div key={indice} className="mb-3 rounded-lg border border-slate-200 p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-500">Medición {indice + 1}</span>
-                <button
-                  type="button"
-                  onClick={() => quitarSignoVital(indice)}
-                  className="text-xs font-medium text-brand-orange-dark"
-                >
-                  Quitar
-                </button>
+              <h2 className="mb-3 text-sm font-semibold text-slate-900">Tratamiento</h2>
+              <div className="mb-2 grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
+                {TRATAMIENTO_OPCIONES.map((opcion) => (
+                  <label key={opcion.valor} className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={campos.tratamiento.includes(opcion.valor)}
+                      onChange={() =>
+                        setCampos((anterior) => ({
+                          ...anterior,
+                          tratamiento: alternarEnLista(anterior.tratamiento, opcion.valor),
+                        }))
+                      }
+                    />
+                    {opcion.etiqueta}
+                  </label>
+                ))}
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="time"
-                  aria-label={`Hora medición ${indice + 1}`}
-                  value={signo.hora}
-                  onChange={(e) => actualizarSignoVital(indice, 'hora', e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="TA (ej. 120/80)"
-                  aria-label={`TA medición ${indice + 1}`}
-                  value={signo.ta}
-                  onChange={(e) => actualizarSignoVital(indice, 'ta', e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-                />
-                <input
-                  type="number"
-                  placeholder="FC"
-                  aria-label={`FC medición ${indice + 1}`}
-                  min={0}
-                  max={300}
-                  value={signo.fc}
-                  onChange={(e) => actualizarSignoVital(indice, 'fc', e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-                />
-                <input
-                  type="number"
-                  placeholder="FR"
-                  aria-label={`FR medición ${indice + 1}`}
-                  min={0}
-                  max={120}
-                  value={signo.fr}
-                  onChange={(e) => actualizarSignoVital(indice, 'fr', e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-                />
-                <input
-                  type="number"
-                  placeholder="SPO2"
-                  aria-label={`SPO2 medición ${indice + 1}`}
-                  min={0}
-                  max={100}
-                  value={signo.spo2}
-                  onChange={(e) => actualizarSignoVital(indice, 'spo2', e.target.value)}
-                  className="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-                />
-              </div>
-            </div>
-          ))}
- 
-          <h2 className="mb-3 mt-2 text-sm font-semibold text-slate-900">Localización de lesiones</h2>
-          <div className="mb-4">
-            <DiagramaCorporal
-              valor={campos.lesionesLocalizadas}
-              onChange={(nuevoValor) =>
-                setCampos((anterior) => ({ ...anterior, lesionesLocalizadas: nuevoValor }))
-              }
-            />
-          </div>
- 
-          <h2 className="mb-3 text-sm font-semibold text-slate-900">Escala de Glasgow</h2>
-          <div className="mb-1 grid grid-cols-3 gap-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-ocular">
-                Ocular (1-4)
-              </label>
-              <select
-                id="glasgow-ocular"
-                value={campos.glasgowOcular}
-                onChange={(e) =>
-                  setCampos((anterior) => ({ ...anterior, glasgowOcular: e.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-              >
-                <option value="">Sin registrar</option>
-                {GLASGOW_OCULAR_OPCIONES.map((opcion) => (
-                  <option key={opcion.valor} value={opcion.valor}>
-                    {opcion.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-verbal">
-                Verbal (1-5)
-              </label>
-              <select
-                id="glasgow-verbal"
-                value={campos.glasgowVerbal}
-                onChange={(e) =>
-                  setCampos((anterior) => ({ ...anterior, glasgowVerbal: e.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-              >
-                <option value="">Sin registrar</option>
-                {GLASGOW_VERBAL_OPCIONES.map((opcion) => (
-                  <option key={opcion.valor} value={opcion.valor}>
-                    {opcion.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-motora">
-                Motora (1-6)
-              </label>
-              <select
-                id="glasgow-motora"
-                value={campos.glasgowMotora}
-                onChange={(e) =>
-                  setCampos((anterior) => ({ ...anterior, glasgowMotora: e.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-              >
-                <option value="">Sin registrar</option>
-                {GLASGOW_MOTORA_OPCIONES.map((opcion) => (
-                  <option key={opcion.valor} value={opcion.valor}>
-                    {opcion.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <p className="mb-4 text-sm text-slate-500">
-            Total: {glasgowTotal === null ? '— ' : glasgowTotal}/15
-          </p>
- 
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">Insumos entregados</h2>
-            <button
-              type="button"
-              onClick={agregarInsumo}
-              disabled={campos.insumos.length >= MAX_INSUMOS}
-              className="text-sm font-medium text-brand-blue disabled:text-slate-400"
-            >
-              + Agregar insumo
-            </button>
-          </div>
-          {campos.insumos.map((insumo, indice) => (
-            <div key={indice} className="mb-2 flex gap-2">
               <input
                 type="text"
-                aria-label={`Insumo ${indice + 1}`}
-                value={insumo}
-                onChange={(e) => actualizarInsumo(indice, e.target.value)}
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                placeholder='Detalle de "Otros"'
+                value={campos.tratamientoOtro}
+                onChange={(e) =>
+                  setCampos((anterior) => ({ ...anterior, tratamientoOtro: e.target.value }))
+                }
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
               />
-              <button
-                type="button"
-                onClick={() => quitarInsumo(indice)}
-                className="text-xs font-medium text-brand-orange-dark"
-              >
-                Quitar
-              </button>
-            </div>
-          ))}
  
-          <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">
-            Notas de enfermería durante el traslado
-          </h2>
-          <textarea
-            value={campos.notaAuxiliar}
-            onChange={(e) => setCampos((anterior) => ({ ...anterior, notaAuxiliar: e.target.value }))}
-            maxLength={2000}
-            rows={4}
-            className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          />
-          {campoTexto('Atendido por', 'atendido-por', campos.atendidoPor, (valor) =>
-            setCampos((anterior) => ({ ...anterior, atendidoPor: valor })),
-          )}
-          {tieneRolAuxiliar && (
-            <FirmaField
-              etiqueta="Firma de quien atendió"
-              firmaGuardada={perfil?.firma_guardada ?? null}
-              imagenInicial={campos.firmaAtendidoExistente}
-              canvasRef={firmaAtendidoRef}
-            />
-          )}
- 
-          <label
-            htmlFor="nota-medica"
-            className="mb-3 mt-4 block text-sm font-semibold text-slate-900"
-          >
-            Evolución médica
-          </label>
-          {/* Issue #55, QA -- igual que la firma de más abajo: sin
-              médico elegido (ni del selector ni escrito a mano), no
-              tiene sentido dejar escribir una evolución médica sin
-              nadie a quien atribuírsela -- en básico el médico puede no
-              haber participado; en medicalizado siempre hay uno, así
-              que ahí este bloqueo nunca llega a notarse en la
-              práctica. */}
-          <textarea
-            id="nota-medica"
-            value={campos.notaMedica}
-            onChange={(e) => setCampos((anterior) => ({ ...anterior, notaMedica: e.target.value }))}
-            maxLength={2000}
-            rows={4}
-            disabled={campos.evolucionadoPor.trim() === ''}
-            className="mb-1 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-          />
-          {campos.evolucionadoPor.trim() === '' && (
-            <p className="mb-2 text-xs text-slate-500">
-              Elige un médico o escribe su nombre para habilitar la nota médica.
-            </p>
-          )}
-          {mostrarSelectorMedico ? (
-            <>
-              <div className="mb-4">
-                <label
-                  className="mb-1 block text-sm font-medium text-slate-700"
-                  htmlFor="medico-evoluciono"
-                >
-                  Médico que evolucionó
-                </label>
-                <select
-                  id="medico-evoluciono"
-                  value={medicoId}
-                  onChange={(e) => {
-                    const valor = e.target.value
-                    setMedicoId(valor)
-                    if (valor === '' || valor === 'otro') return
-                    const medico = medicos?.find((m) => String(m.id) === valor)
-                    if (medico) {
+              <h2 className="mb-3 text-sm font-semibold text-slate-900">Reflejo pupilar</h2>
+              <div className="grid gap-x-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pupila-derecha">
+                    Derecha
+                  </label>
+                  <select
+                    id="pupila-derecha"
+                    value={campos.pupilaDerecha}
+                    onChange={(e) =>
                       setCampos((anterior) => ({
                         ...anterior,
-                        evolucionadoPor: `${medico.nombres} ${medico.apellidos}`,
+                        pupilaDerecha: e.target.value as ReflejoPupilar | '',
                       }))
                     }
-                  }}
-                  className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-                >
-                  <option value="">
-                    {medicos === null
-                      ? 'Cargando médicos…'
-                      : medicos.length === 0
-                        ? 'No hay médicos de planta registrados'
-                        : 'Elige un médico de planta'}
-                  </option>
-                  {medicos?.map((medico) => (
-                    <option key={medico.id} value={medico.id}>
-                      {medico.nombres} {medico.apellidos}
-                    </option>
-                  ))}
-                  <option value="otro">Otro (escribir el nombre)</option>
-                </select>
+                    className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                  >
+                    {/* QA: sin opción "Sin registrar" -- el PDF no tiene fila
+                        para eso (ver ESTADO_VACIO arriba), así que no sirve
+                        como valor seleccionable. */}
+                    {REFLEJO_OPCIONES.map((opcion) => (
+                      <option key={opcion.valor} value={opcion.valor}>
+                        {opcion.etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pupila-izquierda">
+                    Izquierda
+                  </label>
+                  <select
+                    id="pupila-izquierda"
+                    value={campos.pupilaIzquierda}
+                    onChange={(e) =>
+                      setCampos((anterior) => ({
+                        ...anterior,
+                        pupilaIzquierda: e.target.value as ReflejoPupilar | '',
+                      }))
+                    }
+                    className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                  >
+                    {/* QA: ver comentario del select "Derecha" arriba. */}
+                    {REFLEJO_OPCIONES.map((opcion) => (
+                      <option key={opcion.valor} value={opcion.valor}>
+                        {opcion.etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              {modoOtroMedico &&
-                campoTexto('Nombre del médico', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
+ 
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-900">Signos vitales</h2>
+                <button
+                  type="button"
+                  onClick={agregarSignoVital}
+                  className="text-sm font-medium text-brand-blue"
+                >
+                  + Agregar medición
+                </button>
+              </div>
+              {campos.signosVitales.map((signo, indice) => (
+                <div key={indice} className="mb-3 rounded-lg border border-slate-200 p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-500">Medición {indice + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => quitarSignoVital(indice)}
+                      className="text-xs font-medium text-brand-orange-dark"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <input
+                      type="time"
+                      aria-label={`Hora medición ${indice + 1}`}
+                      value={signo.hora}
+                      onChange={(e) => actualizarSignoVital(indice, 'hora', e.target.value)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                    />
+                    <input
+                      type="text"
+                      placeholder="TA (ej. 120/80)"
+                      aria-label={`TA medición ${indice + 1}`}
+                      value={signo.ta}
+                      onChange={(e) => actualizarSignoVital(indice, 'ta', e.target.value)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                    />
+                    <input
+                      type="number"
+                      placeholder="FC"
+                      aria-label={`FC medición ${indice + 1}`}
+                      min={0}
+                      max={300}
+                      value={signo.fc}
+                      onChange={(e) => actualizarSignoVital(indice, 'fc', e.target.value)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                    />
+                    <input
+                      type="number"
+                      placeholder="FR"
+                      aria-label={`FR medición ${indice + 1}`}
+                      min={0}
+                      max={120}
+                      value={signo.fr}
+                      onChange={(e) => actualizarSignoVital(indice, 'fr', e.target.value)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                    />
+                    <input
+                      type="number"
+                      placeholder="SPO2"
+                      aria-label={`SPO2 medición ${indice + 1}`}
+                      min={0}
+                      max={100}
+                      value={signo.spo2}
+                      onChange={(e) => actualizarSignoVital(indice, 'spo2', e.target.value)}
+                      className="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none sm:col-span-1"
+                    />
+                  </div>
+                </div>
+              ))}
+ 
+ 
+              <h2 className="mb-3 text-sm font-semibold text-slate-900">Escala de Glasgow</h2>
+              <div className="mb-1 grid grid-cols-3 gap-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-ocular">
+                    Ocular (1-4)
+                  </label>
+                  <select
+                    id="glasgow-ocular"
+                    value={campos.glasgowOcular}
+                    onChange={(e) =>
+                      setCampos((anterior) => ({ ...anterior, glasgowOcular: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                  >
+                    <option value="">Sin registrar</option>
+                    {GLASGOW_OCULAR_OPCIONES.map((opcion) => (
+                      <option key={opcion.valor} value={opcion.valor}>
+                        {opcion.etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-verbal">
+                    Verbal (1-5)
+                  </label>
+                  <select
+                    id="glasgow-verbal"
+                    value={campos.glasgowVerbal}
+                    onChange={(e) =>
+                      setCampos((anterior) => ({ ...anterior, glasgowVerbal: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                  >
+                    <option value="">Sin registrar</option>
+                    {GLASGOW_VERBAL_OPCIONES.map((opcion) => (
+                      <option key={opcion.valor} value={opcion.valor}>
+                        {opcion.etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="glasgow-motora">
+                    Motora (1-6)
+                  </label>
+                  <select
+                    id="glasgow-motora"
+                    value={campos.glasgowMotora}
+                    onChange={(e) =>
+                      setCampos((anterior) => ({ ...anterior, glasgowMotora: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                  >
+                    <option value="">Sin registrar</option>
+                    {GLASGOW_MOTORA_OPCIONES.map((opcion) => (
+                      <option key={opcion.valor} value={opcion.valor}>
+                        {opcion.etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <p className="mb-4 text-sm text-slate-500">
+                Total: {glasgowTotal === null ? '— ' : glasgowTotal}/15
+              </p>
+            </div>
+ 
+            <div>
+              <h2 className="mb-3 mt-2 text-sm font-semibold text-slate-900 lg:mt-0">
+                Localización de lesiones
+              </h2>
+              <div className="mb-4">
+                <DiagramaCorporal
+                  valor={campos.lesionesLocalizadas}
+                  onChange={(nuevoValor) =>
+                    setCampos((anterior) => ({ ...anterior, lesionesLocalizadas: nuevoValor }))
+                  }
+                />
+              </div>
+
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-900">Insumos entregados</h2>
+                <button
+                  type="button"
+                  onClick={agregarInsumo}
+                  disabled={campos.insumos.length >= MAX_INSUMOS}
+                  className="text-sm font-medium text-brand-blue disabled:text-slate-400"
+                >
+                  + Agregar insumo
+                </button>
+              </div>
+              {campos.insumos.map((insumo, indice) => (
+                <div key={indice} className="mb-2 flex gap-2">
+                  <input
+                    type="text"
+                    aria-label={`Insumo ${indice + 1}`}
+                    value={insumo}
+                    onChange={(e) => actualizarInsumo(indice, e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => quitarInsumo(indice)}
+                    className="text-xs font-medium text-brand-orange-dark"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ))}
+ 
+              <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">
+                Notas de enfermería durante el traslado
+              </h2>
+              <textarea
+                value={campos.notaAuxiliar}
+                onChange={(e) => setCampos((anterior) => ({ ...anterior, notaAuxiliar: e.target.value }))}
+                maxLength={2000}
+                rows={4}
+                className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+              />
+              {campoTexto('Atendido por', 'atendido-por', campos.atendidoPor, (valor) =>
+                setCampos((anterior) => ({ ...anterior, atendidoPor: valor })),
+              )}
+              {tieneRolAuxiliar && (
+                <FirmaField
+                  etiqueta="Firma de quien atendió"
+                  firmaGuardada={perfil?.firma_guardada ?? null}
+                  imagenInicial={campos.firmaAtendidoExistente}
+                  canvasRef={firmaAtendidoRef}
+                />
+              )}
+ 
+              <label
+                htmlFor="nota-medica"
+                className="mb-3 mt-4 block text-sm font-semibold text-slate-900"
+              >
+                Evolución médica
+              </label>
+              {/* Issue #55, QA -- igual que la firma de más abajo: sin
+                  médico elegido (ni del selector ni escrito a mano), no
+                  tiene sentido dejar escribir una evolución médica sin
+                  nadie a quien atribuírsela -- en básico el médico puede no
+                  haber participado; en medicalizado siempre hay uno, así
+                  que ahí este bloqueo nunca llega a notarse en la
+                  práctica. */}
+              <textarea
+                id="nota-medica"
+                value={campos.notaMedica}
+                onChange={(e) => setCampos((anterior) => ({ ...anterior, notaMedica: e.target.value }))}
+                maxLength={2000}
+                rows={4}
+                disabled={campos.evolucionadoPor.trim() === ''}
+                className="mb-1 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+              />
+              {campos.evolucionadoPor.trim() === '' && (
+                <p className="mb-2 text-xs text-slate-500">
+                  Elige un médico o escribe su nombre para habilitar la nota médica.
+                </p>
+              )}
+              {mostrarSelectorMedico ? (
+                <>
+                  <div className="mb-4">
+                    <label
+                      className="mb-1 block text-sm font-medium text-slate-700"
+                      htmlFor="medico-evoluciono"
+                    >
+                      Médico que evolucionó
+                    </label>
+                    <select
+                      id="medico-evoluciono"
+                      value={medicoId}
+                      onChange={(e) => {
+                        const valor = e.target.value
+                        setMedicoId(valor)
+                        if (valor === '' || valor === 'otro') return
+                        const medico = medicos?.find((m) => String(m.id) === valor)
+                        if (medico) {
+                          setCampos((anterior) => ({
+                            ...anterior,
+                            evolucionadoPor: `${medico.nombres} ${medico.apellidos}`,
+                          }))
+                        }
+                      }}
+                      className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                    >
+                      <option value="">
+                        {medicos === null
+                          ? 'Cargando médicos…'
+                          : medicos.length === 0
+                            ? 'No hay médicos de planta registrados'
+                            : 'Elige un médico de planta'}
+                      </option>
+                      {medicos?.map((medico) => (
+                        <option key={medico.id} value={medico.id}>
+                          {medico.nombres} {medico.apellidos}
+                        </option>
+                      ))}
+                      <option value="otro">Otro (escribir el nombre)</option>
+                    </select>
+                  </div>
+                  {modoOtroMedico &&
+                    campoTexto('Nombre del médico', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
+                      setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
+                    )}
+                </>
+              ) : (
+                campoTexto('Evolucionado por', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
                   setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
-                )}
-            </>
-          ) : (
-            campoTexto('Evolucionado por', 'evolucionado-por', campos.evolucionadoPor, (valor) =>
-              setCampos((anterior) => ({ ...anterior, evolucionadoPor: valor })),
-            )
-          )}
-          {tieneRolMedico ? (
-            <FirmaField
-              etiqueta="Firma de quien evolucionó"
-              // Issue #57 -- si la misma persona tiene también el rol
-              // de auxiliar, ya usó su firma guardada arriba como
-              // "quien atendió"; aquí se exige dibujarla a mano para
-              // que no quede la misma imagen duplicada en los dos
-              // campos como si hubieran firmado dos personas.
-              firmaGuardada={tieneAmbosRoles ? null : perfil?.firma_guardada ?? null}
-              pista={
-                tieneAmbosRoles
-                  ? 'Ya se usó tu firma guardada como auxiliar — firma aquí a mano como médico.'
-                  : undefined
-              }
-              imagenInicial={campos.firmaEvolucionadoExistente}
-              canvasRef={firmaEvolucionadoRef}
-              disabled={campos.evolucionadoPor.trim() === ''}
-            />
-          ) : (
-            <FirmaField
-              etiqueta="Firma de quien evolucionó"
-              // Issue #63 -- quien está logueado es el auxiliar, no el
-              // médico: su firma nunca se autocompleta con la que
-              // tenga guardada en su propia cuenta (si la tiene),
-              // aunque esté de planta -- la dibuja aquí mismo, en el
-              // dispositivo, él mismo. Se ofrece en básico igual que
-              // en medicalizado: el médico puede ir en los dos, y si
-              // nadie dibuja nada aquí (no fue en este traslado),
-              // `exportar()` da `null` y no pasa nada -- el campo es
-              // tan opcional como el nombre de arriba.
-              firmaGuardada={null}
-              pista={
-                campos.evolucionadoPor.trim() === ''
-                  ? 'Elige un médico o escribe su nombre para habilitar la firma.'
-                  : 'El médico firma aquí, en el dispositivo, si participó en este traslado — no se completa sola aunque esté de planta.'
-              }
-              imagenInicial={campos.firmaEvolucionadoExistente}
-              canvasRef={firmaEvolucionadoRef}
-              disabled={campos.evolucionadoPor.trim() === ''}
-            />
-          )}
+                )
+              )}
+              {tieneRolMedico ? (
+                <FirmaField
+                  etiqueta="Firma de quien evolucionó"
+                  // Issue #57 -- si la misma persona tiene también el rol
+                  // de auxiliar, ya usó su firma guardada arriba como
+                  // "quien atendió"; aquí se exige dibujarla a mano para
+                  // que no quede la misma imagen duplicada en los dos
+                  // campos como si hubieran firmado dos personas.
+                  firmaGuardada={tieneAmbosRoles ? null : perfil?.firma_guardada ?? null}
+                  pista={
+                    tieneAmbosRoles
+                      ? 'Ya se usó tu firma guardada como auxiliar — firma aquí a mano como médico.'
+                      : undefined
+                  }
+                  imagenInicial={campos.firmaEvolucionadoExistente}
+                  canvasRef={firmaEvolucionadoRef}
+                  disabled={campos.evolucionadoPor.trim() === ''}
+                />
+              ) : (
+                <FirmaField
+                  etiqueta="Firma de quien evolucionó"
+                  // Issue #63 -- quien está logueado es el auxiliar, no el
+                  // médico: su firma nunca se autocompleta con la que
+                  // tenga guardada en su propia cuenta (si la tiene),
+                  // aunque esté de planta -- la dibuja aquí mismo, en el
+                  // dispositivo, él mismo. Se ofrece en básico igual que
+                  // en medicalizado: el médico puede ir en los dos, y si
+                  // nadie dibuja nada aquí (no fue en este traslado),
+                  // `exportar()` da `null` y no pasa nada -- el campo es
+                  // tan opcional como el nombre de arriba.
+                  firmaGuardada={null}
+                  pista={
+                    campos.evolucionadoPor.trim() === ''
+                      ? 'Elige un médico o escribe su nombre para habilitar la firma.'
+                      : 'El médico firma aquí, en el dispositivo, si participó en este traslado — no se completa sola aunque esté de planta.'
+                  }
+                  imagenInicial={campos.firmaEvolucionadoExistente}
+                  canvasRef={firmaEvolucionadoRef}
+                  disabled={campos.evolucionadoPor.trim() === ''}
+                />
+              )}
  
-          <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
-            Profesional que recibe en la IPS/ESE
-          </h2>
-          {campoTexto(
-            'Nombre de quien recibe',
-            'profesional-recibe-nombre',
-            campos.profesionalRecibeNombre,
-            (valor) => setCampos((anterior) => ({ ...anterior, profesionalRecibeNombre: valor })),
-          )}
-          {campoTexto(
-            'Cédula de quien recibe',
-            'profesional-recibe-cedula',
-            campos.profesionalRecibeCedula,
-            (valor) => setCampos((anterior) => ({ ...anterior, profesionalRecibeCedula: valor })),
-          )}
-          <FirmaField
-            etiqueta="Firma de quien recibe"
-            // Es personal de la IPS/ESE, no de LAFS -- nunca tiene una
-            // firma guardada en esta app, así que siempre se dibuja a
-            // mano (el sello físico que la acompaña en el papel no se
-            // captura acá).
-            firmaGuardada={null}
-            pista="Lo firma la persona que recibe al paciente en la institución, no el personal de LAFS."
-            imagenInicial={campos.firmaProfesionalRecibeExistente}
-            canvasRef={firmaProfesionalRecibeRef}
-          />
+              <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
+                Profesional que recibe en la IPS/ESE
+              </h2>
+              {campoTexto(
+                'Nombre de quien recibe',
+                'profesional-recibe-nombre',
+                campos.profesionalRecibeNombre,
+                (valor) => setCampos((anterior) => ({ ...anterior, profesionalRecibeNombre: valor })),
+              )}
+              {campoTexto(
+                'Cédula de quien recibe',
+                'profesional-recibe-cedula',
+                campos.profesionalRecibeCedula,
+                (valor) => setCampos((anterior) => ({ ...anterior, profesionalRecibeCedula: valor })),
+              )}
+              <FirmaField
+                etiqueta="Firma de quien recibe"
+                // Es personal de la IPS/ESE, no de LAFS -- nunca tiene una
+                // firma guardada en esta app, así que siempre se dibuja a
+                // mano (el sello físico que la acompaña en el papel no se
+                // captura acá).
+                firmaGuardada={null}
+                pista="Lo firma la persona que recibe al paciente en la institución, no el personal de LAFS."
+                imagenInicial={campos.firmaProfesionalRecibeExistente}
+                canvasRef={firmaProfesionalRecibeRef}
+              />
  
-          <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">Observaciones</h2>
-          <textarea
-            value={campos.observaciones}
-            onChange={(e) => setCampos((anterior) => ({ ...anterior, observaciones: e.target.value }))}
-            maxLength={2000}
-            rows={3}
-            className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          />
+              <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">Observaciones</h2>
+              <textarea
+                value={campos.observaciones}
+                onChange={(e) => setCampos((anterior) => ({ ...anterior, observaciones: e.target.value }))}
+                maxLength={2000}
+                rows={3}
+                className="mb-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+              />
+            </div>
+          </div>
  
           {error && (
             <p role="alert" className="mb-4 mt-4 text-sm text-brand-orange-dark">
@@ -1117,13 +1147,19 @@ export function ClinicoTrasladoPage(): JSX.Element {
             </p>
           )}
  
-          <button
-            type="submit"
-            disabled={guardando}
-            className="mt-2 w-full rounded-lg bg-brand-blue py-3 text-base font-medium text-white disabled:opacity-60"
-          >
-            {guardando ? 'Guardando…' : 'Guardar'}
-          </button>
+          {/* Issue #98: "Guardar" queda pegado abajo mientras se baja
+              por el formulario -- en la tablet ya no hay que bajar hasta el
+              final para guardar el avance. Sigue siendo el mismo botón de
+              envío del formulario. */}
+          <div className="sticky bottom-0 -mx-6 -mb-6 mt-4 rounded-b-xl border-t border-slate-200 bg-white px-6 py-4">
+            <button
+              type="submit"
+              disabled={guardando}
+              className="w-full rounded-lg bg-brand-blue py-3 text-base font-medium text-white disabled:opacity-60"
+            >
+              {guardando ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
         </form>
  
         {(tieneRolAuxiliar || tieneRolMedico) && (
@@ -1160,48 +1196,52 @@ export function ClinicoTrasladoPage(): JSX.Element {
                 </p>
  
                 <h3 className="mb-3 text-sm font-semibold text-slate-900">Entrega del paciente</h3>
-                <div className="mb-4">
-                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="entrega-fecha">
-                    Fecha
-                  </label>
-                  <input
-                    id="entrega-fecha"
-                    type="date"
-                    value={entregaFecha}
-                    onChange={(e) => setEntregaFecha(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-                  />
+                <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="mb-4">
+                    <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="entrega-fecha">
+                      Fecha
+                    </label>
+                    <input
+                      id="entrega-fecha"
+                      type="date"
+                      value={entregaFecha}
+                      onChange={(e) => setEntregaFecha(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="entrega-hora">
+                      Hora
+                    </label>
+                    <input
+                      id="entrega-hora"
+                      type="time"
+                      value={entregaHora}
+                      onChange={(e) => setEntregaHora(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+                    />
+                  </div>
+                  {campoTexto('Ciudad', 'entrega-ciudad', entregaCiudad, setEntregaCiudad)}
+                  {campoTexto('IPS', 'entrega-ips', entregaIps, setEntregaIps)}
+                  {campoTexto('Servicio', 'entrega-servicio', entregaServicio, setEntregaServicio)}
                 </div>
-                <div className="mb-4">
-                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="entrega-hora">
-                    Hora
-                  </label>
-                  <input
-                    id="entrega-hora"
-                    type="time"
-                    value={entregaHora}
-                    onChange={(e) => setEntregaHora(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-                  />
-                </div>
-                {campoTexto('Ciudad', 'entrega-ciudad', entregaCiudad, setEntregaCiudad)}
-                {campoTexto('IPS', 'entrega-ips', entregaIps, setEntregaIps)}
-                {campoTexto('Servicio', 'entrega-servicio', entregaServicio, setEntregaServicio)}
  
-                <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pin-cierre">
-                  PIN
-                </label>
-                <input
-                  id="pin-cierre"
-                  type="password"
-                  inputMode="numeric"
-                  pattern="\d{4}"
-                  maxLength={4}
-                  autoComplete="off"
-                  value={pinCierre}
-                  onChange={(e) => setPinCierre(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-orange-dark focus:outline-none"
-                />
+                <div className="max-w-xs">
+                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="pin-cierre">
+                    PIN
+                  </label>
+                  <input
+                    id="pin-cierre"
+                    type="password"
+                    inputMode="numeric"
+                    pattern="\d{4}"
+                    maxLength={4}
+                    autoComplete="off"
+                    value={pinCierre}
+                    onChange={(e) => setPinCierre(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-orange-dark focus:outline-none"
+                  />
+                </div>
  
                 {errorCierre && (
                   <p role="alert" className="mb-4 text-sm text-brand-orange-dark">

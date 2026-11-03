@@ -1,4 +1,3 @@
-
 /**
  * Pantalla principal: muestra solo las secciones que le corresponden
  * al rol (o roles) del usuario logueado. Las secciones todavía no
@@ -21,6 +20,7 @@ import {
 } from '../lib/api'
 import type { Atencion, NombreRol } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
+import { BotonTema } from '../components/BotonTema'
  
 interface Seccion {
   titulo: string
@@ -142,7 +142,7 @@ export function HomePage(): JSX.Element {
  
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="flex items-center justify-between bg-white px-6 py-4 shadow-sm">
+      <header className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-4 shadow-sm sm:px-6">
         <div className="flex items-center gap-3">
           <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="h-9 w-auto" />
           <div>
@@ -150,17 +150,22 @@ export function HomePage(): JSX.Element {
             <p className="text-sm text-slate-500">Documento: {perfil?.documento}</p>
           </div>
         </div>
-        <button
-          onClick={() => void cerrarSesion()}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
-        >
-          Cerrar sesión
-        </button>
+        <div className="flex items-center gap-2">
+          <BotonTema compacto />
+          <button
+            onClick={() => void cerrarSesion()}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+          >
+            Cerrar sesión
+          </button>
+        </div>
       </header>
  
-      <main className="mx-auto max-w-2xl px-4 py-6 lg:max-w-4xl">
+      {/* Issue #98: más ancho en la tablet horizontal (antes 896px
+          fijos con márgenes vacíos) y tarjetas en tres columnas cuando caben. */}
+      <main className="mx-auto w-full max-w-3xl px-4 py-6 lg:max-w-6xl">
         {atencionesEnCurso.length > 0 && (
-          <ul className="mb-6 flex flex-col gap-3">
+          <ul className="mb-6 grid gap-3 lg:grid-cols-2">
             {atencionesEnCurso.map((atencion) => {
               const ruta = rutasContinuar.get(atencion.id) ?? null
               return (
@@ -225,7 +230,7 @@ export function HomePage(): JSX.Element {
         {sinDuplicados.length === 0 ? (
           <p className="text-slate-500">Tu usuario no tiene secciones asignadas todavía.</p>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2">
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sinDuplicados.map((seccion) => (
               <li key={seccion.titulo} className="rounded-xl bg-white p-5 shadow-sm">
                 <h2 className="mb-1 font-medium text-slate-900">{seccion.titulo}</h2>

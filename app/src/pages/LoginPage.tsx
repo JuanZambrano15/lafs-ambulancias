@@ -6,6 +6,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { ApiError } from '../lib/api'
 import logoLafs from '../assets/logo-lafs.png'
+import { BotonTema } from '../components/BotonTema'
 
 export function LoginPage(): JSX.Element {
   const { perfil, iniciarSesion } = useAuth()
@@ -39,7 +40,12 @@ export function LoginPage(): JSX.Element {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-slate-100 px-4">
+      {/* Issue #98: también antes de iniciar sesión, para no
+          encandilar a nadie de noche con la pantalla de ingreso. */}
+      <div className="absolute right-4 top-4">
+        <BotonTema compacto />
+      </div>
       <form
         onSubmit={manejarEnvio}
         className="w-full max-w-sm sm:max-w-md rounded-xl bg-white p-8 shadow-md"

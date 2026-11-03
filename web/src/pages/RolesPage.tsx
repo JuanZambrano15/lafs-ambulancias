@@ -91,101 +91,109 @@ export function RolesPage(): JSX.Element {
     <div>
       <h2 className="mb-6 text-2xl font-semibold text-slate-900">Roles</h2>
 
-      <form
-        onSubmit={manejarEnvio}
-        className="mb-8 max-w-md rounded-xl border border-slate-200 bg-white p-6"
-      >
-        <h3 className="mb-4 text-sm font-semibold text-slate-700">
-          {edicion ? `Editar rol: ${edicion.nombre}` : 'Nuevo rol'}
-        </h3>
+      {/* Issue #98: en escritorio el formulario de alta queda a la
+          izquierda (fijo al hacer scroll) y la tabla ocupa el resto del
+          ancho, en vez de apilar un formulario angosto sobre una tabla con
+          media pantalla vacía al lado. */}
+      <div className="grid gap-8 xl:grid-cols-[22rem_minmax(0,1fr)] xl:items-start">
+        <form
+          onSubmit={manejarEnvio}
+          className="rounded-xl border border-slate-200 bg-white p-6 xl:sticky xl:top-8"
+        >
+          <h3 className="mb-4 text-sm font-semibold text-slate-700">
+            {edicion ? `Editar rol: ${edicion.nombre}` : 'Nuevo rol'}
+          </h3>
 
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="rol-nombre">
-          Nombre
-        </label>
-        <input
-          id="rol-nombre"
-          type="text"
-          required
-          minLength={2}
-          value={nombre}
-          onChange={(evento) => setNombre(evento.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-        />
+          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="rol-nombre">
+            Nombre
+          </label>
+          <input
+            id="rol-nombre"
+            type="text"
+            required
+            minLength={2}
+            value={nombre}
+            onChange={(evento) => setNombre(evento.target.value)}
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+          />
 
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="rol-descripcion">
-          Descripción (opcional)
-        </label>
-        <input
-          id="rol-descripcion"
-          type="text"
-          value={descripcion}
-          onChange={(evento) => setDescripcion(evento.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
-        />
+          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="rol-descripcion">
+            Descripción (opcional)
+          </label>
+          <input
+            id="rol-descripcion"
+            type="text"
+            value={descripcion}
+            onChange={(evento) => setDescripcion(evento.target.value)}
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-blue focus:outline-none"
+          />
 
-        {error && (
-          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
-            {error}
-          </p>
-        )}
-
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={enviando}
-            className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          >
-            {edicion ? 'Guardar cambios' : 'Crear rol'}
-          </button>
-          {edicion && (
-            <button
-              type="button"
-              onClick={cancelarEdicion}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-            >
-              Cancelar
-            </button>
+          {error && (
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
+              {error}
+            </p>
           )}
-        </div>
-      </form>
 
-      {roles === null ? (
-        <p className="text-slate-500">Cargando…</p>
-      ) : (
-        <table className="w-full max-w-2xl border-separate border-spacing-y-1 text-sm">
-          <thead>
-            <tr className="text-left text-slate-500">
-              <th className="px-3">Nombre</th>
-              <th className="px-3">Descripción</th>
-              <th className="px-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {roles.map((rol) => (
-              <tr key={rol.id} className="rounded-lg bg-white shadow-sm">
-                <td className="px-3 py-2 font-medium text-slate-900">{rol.nombre}</td>
-                <td className="px-3 py-2 text-slate-600">{rol.descripcion ?? '—'}</td>
-                <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => comenzarEdicion(rol)}
-                    className="mr-3 text-brand-blue hover:underline"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void manejarEliminar(rol)}
-                    className="text-brand-orange-dark hover:underline"
-                  >
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={enviando}
+              className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {edicion ? 'Guardar cambios' : 'Crear rol'}
+            </button>
+            {edicion && (
+              <button
+                type="button"
+                onClick={cancelarEdicion}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
+        </form>
+
+        {roles === null ? (
+          <p className="text-slate-500">Cargando…</p>
+        ) : (
+          <div className="min-w-0 overflow-x-auto">
+            <table className="w-full border-separate border-spacing-y-1 text-sm">
+              <thead>
+                <tr className="text-left text-slate-500">
+                  <th className="px-3">Nombre</th>
+                  <th className="px-3">Descripción</th>
+                  <th className="px-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {roles.map((rol) => (
+                  <tr key={rol.id} className="rounded-lg bg-white shadow-sm">
+                    <td className="px-3 py-2 font-medium text-slate-900">{rol.nombre}</td>
+                    <td className="px-3 py-2 text-slate-600">{rol.descripcion ?? '—'}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => comenzarEdicion(rol)}
+                        className="mr-3 text-brand-blue hover:underline"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void manejarEliminar(rol)}
+                        className="text-brand-orange-dark hover:underline"
+                      >
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

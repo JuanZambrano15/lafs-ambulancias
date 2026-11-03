@@ -103,8 +103,11 @@ export function DashboardPage(): JSX.Element {
   }, [])
  
   return (
-    <div className="space-y-10">
-      <section>
+    // Issue #98: en escritorio, pendientes a la izquierda (la tabla
+    // necesita el ancho) y ambulancias + alertas en una columna a la
+    // derecha, como en la maqueta; en pantallas angostas se apilan.
+    <div className="grid gap-10 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start xl:gap-8">
+      <section className="min-w-0">
         <h2 className="mb-6 text-2xl font-semibold text-slate-900">Pendientes</h2>
  
         {errorPendientes && (
@@ -118,102 +121,106 @@ export function DashboardPage(): JSX.Element {
         ) : pendientes.length === 0 ? (
           <p className="text-slate-500">No hay atenciones abiertas en este momento.</p>
         ) : (
-          <table className="w-full max-w-4xl border-separate border-spacing-y-1 text-sm">
-            <thead>
-              <tr className="text-left text-slate-500">
-                <th className="px-3">Móvil</th>
-                <th className="px-3">Tipo</th>
-                <th className="px-3">Responsable</th>
-                <th className="px-3">Conductor</th>
-                <th className="px-3">Abierta desde</th>
-                <th className="px-3">Lleva abierta</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendientes.map((atencion) => {
-                const horas = horasTranscurridas(atencion.abierta_en)
-                const enAlerta = horas > HORAS_ALERTA
-                return (
-                  <tr
-                    key={atencion.id}
-                    className={`rounded-lg shadow-sm ${enAlerta ? 'bg-brand-orange-soft' : 'bg-white'}`}
-                  >
-                    <td className="px-3 py-2 font-medium text-slate-900">
-                      {atencion.ambulancia.movil}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {atencion.tipo === 'atencion_soat' ? 'SOAT' : 'Traslado'}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {atencion.responsable.nombres} {atencion.responsable.apellidos}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {atencion.conductor.nombres} {atencion.conductor.apellidos}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {formatearFecha(atencion.abierta_en)}
-                    </td>
-                    <td className={`px-3 py-2 ${enAlerta ? 'font-semibold text-brand-orange-dark' : 'text-slate-600'}`}>
-                      {formatearDuracion(horas)}
-                      {enAlerta && ' — lleva mucho tiempo abierta'}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[40rem] border-separate border-spacing-y-1 text-sm">
+              <thead>
+                <tr className="text-left text-slate-500">
+                  <th className="px-3">Móvil</th>
+                  <th className="px-3">Tipo</th>
+                  <th className="px-3">Responsable</th>
+                  <th className="px-3">Conductor</th>
+                  <th className="px-3">Abierta desde</th>
+                  <th className="px-3">Lleva abierta</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendientes.map((atencion) => {
+                  const horas = horasTranscurridas(atencion.abierta_en)
+                  const enAlerta = horas > HORAS_ALERTA
+                  return (
+                    <tr
+                      key={atencion.id}
+                      className={`rounded-lg shadow-sm ${enAlerta ? 'bg-brand-orange-soft' : 'bg-white'}`}
+                    >
+                      <td className="px-3 py-2 font-medium text-slate-900">
+                        {atencion.ambulancia.movil}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600">
+                        {atencion.tipo === 'atencion_soat' ? 'SOAT' : 'Traslado'}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600">
+                        {atencion.responsable.nombres} {atencion.responsable.apellidos}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600">
+                        {atencion.conductor.nombres} {atencion.conductor.apellidos}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600">
+                        {formatearFecha(atencion.abierta_en)}
+                      </td>
+                      <td className={`px-3 py-2 ${enAlerta ? 'font-semibold text-brand-orange-dark' : 'text-slate-600'}`}>
+                        {formatearDuracion(horas)}
+                        {enAlerta && ' — lleva mucho tiempo abierta'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
  
-      <section>
-        <h2 className="mb-6 text-2xl font-semibold text-slate-900">Estado de las ambulancias</h2>
+      <div className="space-y-10">
+        <section>
+          <h2 className="mb-6 text-2xl font-semibold text-slate-900">Estado de las ambulancias</h2>
  
-        {errorAmbulancias && (
-          <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
-            {errorAmbulancias}
-          </p>
-        )}
+          {errorAmbulancias && (
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
+              {errorAmbulancias}
+            </p>
+          )}
  
-        {ambulancias === null ? (
-          <p className="text-slate-500">Cargando…</p>
-        ) : ambulancias.length === 0 ? (
-          <p className="text-slate-500">No hay ambulancias activas registradas.</p>
-        ) : (
-          <ul className="grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {ambulancias.map((ambulancia) => (
-              <li
-                key={ambulancia.movil}
-                className={`rounded-lg p-4 shadow-sm ${
-                  ambulancia.enUso ? 'bg-brand-amber-soft' : 'bg-brand-green-soft'
-                }`}
-              >
-                <p className="font-medium text-slate-900">{ambulancia.movil}</p>
-                <p className="text-xs text-slate-500">{ambulancia.placa}</p>
-                <p
-                  className={`mt-2 text-sm font-semibold ${
-                    ambulancia.enUso ? 'text-brand-amber-dark' : 'text-brand-green-dark'
+          {ambulancias === null ? (
+            <p className="text-slate-500">Cargando…</p>
+          ) : ambulancias.length === 0 ? (
+            <p className="text-slate-500">No hay ambulancias activas registradas.</p>
+          ) : (
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-2">
+              {ambulancias.map((ambulancia) => (
+                <li
+                  key={ambulancia.movil}
+                  className={`rounded-lg p-4 shadow-sm ${
+                    ambulancia.enUso ? 'bg-brand-amber-soft' : 'bg-brand-green-soft'
                   }`}
                 >
-                  {ambulancia.enUso ? 'En uso' : 'Disponible'}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                  <p className="font-medium text-slate-900">{ambulancia.movil}</p>
+                  <p className="text-xs text-slate-500">{ambulancia.placa}</p>
+                  <p
+                    className={`mt-2 text-sm font-semibold ${
+                      ambulancia.enUso ? 'text-brand-amber-dark' : 'text-brand-green-dark'
+                    }`}
+                  >
+                    {ambulancia.enUso ? 'En uso' : 'Disponible'}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
  
-      <section>
-        <h2 className="mb-6 text-2xl font-semibold text-slate-900">Alertas</h2>
+        <section>
+          <h2 className="mb-6 text-2xl font-semibold text-slate-900">Alertas</h2>
  
-        {/* Issue #79: todavía no hay chequeos de vehículo (#19/#21) ni
-            inventario (#23) implementados -- este bloque es un
-            mensaje fijo, no datos reales, hasta que esos issues
-            lleguen. */}
-        <p className="max-w-4xl rounded-lg bg-slate-100 p-4 text-sm text-slate-500">
-          Las alertas de vencimiento (SOAT, tecnomecánica) y de stock estarán disponibles en la
-          fase 2.
-        </p>
-      </section>
+          {/* Issue #79: todavía no hay chequeos de vehículo (#19/#21) ni
+              inventario (#23) implementados -- este bloque es un
+              mensaje fijo, no datos reales, hasta que esos issues
+              lleguen. */}
+          <p className="rounded-lg bg-slate-100 p-4 text-sm text-slate-500">
+            Las alertas de vencimiento (SOAT, tecnomecánica) y de stock estarán disponibles en la
+            fase 2.
+          </p>
+        </section>
+      </div>
     </div>
   )
 }

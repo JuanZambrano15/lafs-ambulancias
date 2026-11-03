@@ -35,6 +35,7 @@ import type {
   TipoDocumentoPaciente,
 } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
+import { BotonTema } from '../components/BotonTema'
 
 /** Mismos campos que `FormatoTrasladoEncabezado`, pero los que son
  * número o texto opcional se manejan como string de formulario (los
@@ -231,10 +232,19 @@ export function EncabezadoTrasladoPage(): JSX.Element {
  
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6">
-      <div className="mx-auto max-w-sm sm:max-w-2xl lg:max-w-3xl">
-        <button onClick={() => navigate(-1)} className="mb-4 text-sm font-medium text-slate-500">
-          ← Volver
-        </button>
+      {/* Issue #98: antes el contenedor se quedaba en 768px aun en la
+          tablet horizontal (1280px), con márgenes enormes a los lados; y
+          en una tablet vertical de 600px se encogía a 384px. Ahora ocupa el
+          ancho disponible y, desde `lg`, se reparte en columnas. */}
+      <div className="mx-auto w-full max-w-3xl lg:max-w-6xl">
+        {/* Issue #98: el botón de modo oscuro va en la misma fila que
+            "Volver", para poder cambiarlo sin salir del formulario. */}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <button onClick={() => navigate(-1)} className="text-sm font-medium text-slate-500">
+            ← Volver
+          </button>
+          <BotonTema compacto />
+        </div>
  
         <form onSubmit={manejarEnvio} className="rounded-xl bg-white p-6 shadow-sm">
           <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
@@ -250,174 +260,194 @@ export function EncabezadoTrasladoPage(): JSX.Element {
           )}
  
           <h2 className="mb-3 text-sm font-semibold text-slate-900">Datos del paciente</h2>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="tipo-documento">
-            Tipo de documento
-          </label>
-          <select
-            id="tipo-documento"
-            value={campos.paciente_tipo_documento}
-            onChange={(e) =>
-              actualizar('paciente_tipo_documento', e.target.value as TipoDocumentoPaciente)
-            }
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          >
-            {TIPOS_DOCUMENTO.map((opcion) => (
-              <option key={opcion.valor} value={opcion.valor}>
-                {opcion.etiqueta}
-              </option>
-            ))}
-          </select>
-          {campoRequerido('Número de documento', 'numero-documento', {
-            required: true,
-            value: campos.paciente_numero_documento,
-            onChange: (e) => actualizar('paciente_numero_documento', e.target.value),
-          })}
-          {campoRequerido('EPS', 'eps', {
-            required: true,
-            value: campos.paciente_eps,
-            onChange: (e) => actualizar('paciente_eps', e.target.value),
-          })}
-          {campoRequerido('Nombres', 'nombres', {
-            required: true,
-            value: campos.paciente_nombres,
-            onChange: (e) => actualizar('paciente_nombres', e.target.value),
-          })}
-          {campoRequerido('Apellidos', 'apellidos', {
-            required: true,
-            value: campos.paciente_apellidos,
-            onChange: (e) => actualizar('paciente_apellidos', e.target.value),
-          })}
-          {campoRequerido('Edad', 'edad', {
-            required: true,
-            type: 'number',
-            min: 0,
-            value: campos.paciente_edad,
-            onChange: (e) => actualizar('paciente_edad', e.target.value),
-          })}
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="sexo">
-            Sexo
-          </label>
-          <select
-            id="sexo"
-            value={campos.paciente_sexo}
-            onChange={(e) => actualizar('paciente_sexo', e.target.value as SexoPaciente)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          >
-            <option value="m">Masculino</option>
-            <option value="f">Femenino</option>
-          </select>
-          {campoRequerido('Dirección residencial', 'direccion', {
-            required: true,
-            value: campos.paciente_direccion_residencial,
-            onChange: (e) => actualizar('paciente_direccion_residencial', e.target.value),
-          })}
-          {campoRequerido('Ciudad', 'ciudad-paciente', {
-            required: true,
-            value: campos.paciente_ciudad,
-            onChange: (e) => actualizar('paciente_ciudad', e.target.value),
-          })}
-          {campoRequerido('Teléfono (opcional)', 'telefono-paciente', {
-            value: campos.paciente_telefono,
-            onChange: (e) => actualizar('paciente_telefono', e.target.value),
-          })}
+          <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="tipo-documento">
+                Tipo de documento
+              </label>
+              <select
+                id="tipo-documento"
+                value={campos.paciente_tipo_documento}
+                onChange={(e) =>
+                  actualizar('paciente_tipo_documento', e.target.value as TipoDocumentoPaciente)
+                }
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+              >
+                {TIPOS_DOCUMENTO.map((opcion) => (
+                  <option key={opcion.valor} value={opcion.valor}>
+                    {opcion.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {campoRequerido('Número de documento', 'numero-documento', {
+              required: true,
+              value: campos.paciente_numero_documento,
+              onChange: (e) => actualizar('paciente_numero_documento', e.target.value),
+            })}
+            {campoRequerido('EPS', 'eps', {
+              required: true,
+              value: campos.paciente_eps,
+              onChange: (e) => actualizar('paciente_eps', e.target.value),
+            })}
+            {campoRequerido('Nombres', 'nombres', {
+              required: true,
+              value: campos.paciente_nombres,
+              onChange: (e) => actualizar('paciente_nombres', e.target.value),
+            })}
+            {campoRequerido('Apellidos', 'apellidos', {
+              required: true,
+              value: campos.paciente_apellidos,
+              onChange: (e) => actualizar('paciente_apellidos', e.target.value),
+            })}
+            {campoRequerido('Edad', 'edad', {
+              required: true,
+              type: 'number',
+              min: 0,
+              value: campos.paciente_edad,
+              onChange: (e) => actualizar('paciente_edad', e.target.value),
+            })}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="sexo">
+                Sexo
+              </label>
+              <select
+                id="sexo"
+                value={campos.paciente_sexo}
+                onChange={(e) => actualizar('paciente_sexo', e.target.value as SexoPaciente)}
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+              >
+                <option value="m">Masculino</option>
+                <option value="f">Femenino</option>
+              </select>
+            </div>
+            {campoRequerido('Dirección residencial', 'direccion', {
+              required: true,
+              value: campos.paciente_direccion_residencial,
+              onChange: (e) => actualizar('paciente_direccion_residencial', e.target.value),
+            })}
+            {campoRequerido('Ciudad', 'ciudad-paciente', {
+              required: true,
+              value: campos.paciente_ciudad,
+              onChange: (e) => actualizar('paciente_ciudad', e.target.value),
+            })}
+            {campoRequerido('Teléfono (opcional)', 'telefono-paciente', {
+              value: campos.paciente_telefono,
+              onChange: (e) => actualizar('paciente_telefono', e.target.value),
+            })}
+          </div>
  
           <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">
             Datos del acompañante (opcional)
           </h2>
-          {campoRequerido('Nombres y apellidos', 'acompanante-nombre', {
-            value: campos.acompanante_nombres_apellidos,
-            onChange: (e) => actualizar('acompanante_nombres_apellidos', e.target.value),
-          })}
-          {campoRequerido('Parentesco', 'acompanante-parentesco', {
-            value: campos.acompanante_parentesco,
-            onChange: (e) => actualizar('acompanante_parentesco', e.target.value),
-          })}
-          {campoRequerido('Teléfono', 'acompanante-telefono', {
-            value: campos.acompanante_telefono,
-            onChange: (e) => actualizar('acompanante_telefono', e.target.value),
-          })}
+          <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+            {campoRequerido('Nombres y apellidos', 'acompanante-nombre', {
+              value: campos.acompanante_nombres_apellidos,
+              onChange: (e) => actualizar('acompanante_nombres_apellidos', e.target.value),
+            })}
+            {campoRequerido('Parentesco', 'acompanante-parentesco', {
+              value: campos.acompanante_parentesco,
+              onChange: (e) => actualizar('acompanante_parentesco', e.target.value),
+            })}
+            {campoRequerido('Teléfono', 'acompanante-telefono', {
+              value: campos.acompanante_telefono,
+              onChange: (e) => actualizar('acompanante_telefono', e.target.value),
+            })}
+          </div>
  
           <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Recepción del paciente</h2>
-          {campoRequerido('Fecha', 'recepcion-fecha', {
-            required: true,
-            type: 'date',
-            value: campos.recepcion_fecha,
-            onChange: (e) => actualizar('recepcion_fecha', e.target.value),
-          })}
-          {campoRequerido('Hora', 'recepcion-hora', {
-            required: true,
-            type: 'time',
-            value: campos.recepcion_hora,
-            onChange: (e) => actualizar('recepcion_hora', e.target.value),
-          })}
-          {campoRequerido('Ciudad', 'recepcion-ciudad', {
-            required: true,
-            value: campos.recepcion_ciudad,
-            onChange: (e) => actualizar('recepcion_ciudad', e.target.value),
-          })}
-          {campoRequerido('IPS', 'recepcion-ips', {
-            required: true,
-            value: campos.recepcion_ips,
-            onChange: (e) => actualizar('recepcion_ips', e.target.value),
-          })}
-          {campoRequerido('Servicio', 'recepcion-servicio', {
-            required: true,
-            value: campos.recepcion_servicio,
-            onChange: (e) => actualizar('recepcion_servicio', e.target.value),
-          })}
+          <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+            {campoRequerido('Fecha', 'recepcion-fecha', {
+              required: true,
+              type: 'date',
+              value: campos.recepcion_fecha,
+              onChange: (e) => actualizar('recepcion_fecha', e.target.value),
+            })}
+            {campoRequerido('Hora', 'recepcion-hora', {
+              required: true,
+              type: 'time',
+              value: campos.recepcion_hora,
+              onChange: (e) => actualizar('recepcion_hora', e.target.value),
+            })}
+            {campoRequerido('Ciudad', 'recepcion-ciudad', {
+              required: true,
+              value: campos.recepcion_ciudad,
+              onChange: (e) => actualizar('recepcion_ciudad', e.target.value),
+            })}
+            {campoRequerido('IPS', 'recepcion-ips', {
+              required: true,
+              value: campos.recepcion_ips,
+              onChange: (e) => actualizar('recepcion_ips', e.target.value),
+            })}
+            {campoRequerido('Servicio', 'recepcion-servicio', {
+              required: true,
+              value: campos.recepcion_servicio,
+              onChange: (e) => actualizar('recepcion_servicio', e.target.value),
+            })}
+          </div>
  
           <h2 className="mb-3 mt-6 text-sm font-semibold text-slate-900">
             Clasificación del traslado
           </h2>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="complejidad">
-            Complejidad
-          </label>
-          <select
-            id="complejidad"
-            value={campos.complejidad}
-            onChange={(e) => actualizar('complejidad', e.target.value as ComplejidadTraslado)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          >
-            <option value="alta">Alta</option>
-            <option value="baja">Baja</option>
-          </select>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="categoria">
-            Categoría del paciente
-          </label>
-          <select
-            id="categoria"
-            value={campos.categoria_paciente}
-            onChange={(e) => actualizar('categoria_paciente', e.target.value as CategoriaPaciente)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          >
-            <option value="neonato">Neonato</option>
-            <option value="pediatrico">Pediátrico</option>
-            <option value="adulto">Adulto</option>
-          </select>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="nivel-servicio">
-            Nivel de servicio
-          </label>
-          <select
-            id="nivel-servicio"
-            value={campos.nivel_servicio}
-            onChange={(e) => actualizar('nivel_servicio', e.target.value as NivelServicioTraslado)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          >
-            <option value="basico">Básico</option>
-            <option value="medicalizado">Medicalizado</option>
-          </select>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="modalidad">
-            Modalidad
-          </label>
-          <select
-            id="modalidad"
-            value={campos.modalidad}
-            onChange={(e) => actualizar('modalidad', e.target.value as ModalidadTraslado)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
-          >
-            <option value="sencillo">Sencillo</option>
-            <option value="redondo">Redondo</option>
-          </select>
+          <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="complejidad">
+                Complejidad
+              </label>
+              <select
+                id="complejidad"
+                value={campos.complejidad}
+                onChange={(e) => actualizar('complejidad', e.target.value as ComplejidadTraslado)}
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+              >
+                <option value="alta">Alta</option>
+                <option value="baja">Baja</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="categoria">
+                Categoría del paciente
+              </label>
+              <select
+                id="categoria"
+                value={campos.categoria_paciente}
+                onChange={(e) => actualizar('categoria_paciente', e.target.value as CategoriaPaciente)}
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+              >
+                <option value="neonato">Neonato</option>
+                <option value="pediatrico">Pediátrico</option>
+                <option value="adulto">Adulto</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="nivel-servicio">
+                Nivel de servicio
+              </label>
+              <select
+                id="nivel-servicio"
+                value={campos.nivel_servicio}
+                onChange={(e) => actualizar('nivel_servicio', e.target.value as NivelServicioTraslado)}
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+              >
+                <option value="basico">Básico</option>
+                <option value="medicalizado">Medicalizado</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="modalidad">
+                Modalidad
+              </label>
+              <select
+                id="modalidad"
+                value={campos.modalidad}
+                onChange={(e) => actualizar('modalidad', e.target.value as ModalidadTraslado)}
+                className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-brand-blue focus:outline-none"
+              >
+                <option value="sencillo">Sencillo</option>
+                <option value="redondo">Redondo</option>
+              </select>
+            </div>
+          </div>
  
           {error && (
             <p role="alert" className="mb-4 text-sm text-brand-orange-dark">

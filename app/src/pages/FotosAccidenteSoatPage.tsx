@@ -1,4 +1,3 @@
-
 /**
  * Fotos del accidente SOAT, adjuntadas después del cierre (issue
  * #18) -- a diferencia del resto del formato, esto solo se puede
@@ -38,6 +37,7 @@ import {
 } from '../lib/api'
 import type { FormatoAccidenteSoatFoto } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
+import { BotonTema } from '../components/BotonTema'
  
 interface FotoConVistaPrevia {
   foto: FormatoAccidenteSoatFoto
@@ -154,10 +154,19 @@ export function FotosAccidenteSoatPage(): JSX.Element {
  
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6">
-      <div className="mx-auto max-w-sm sm:max-w-2xl lg:max-w-3xl">
-        <button onClick={() => navigate(-1)} className="mb-4 text-sm font-medium text-slate-500">
-          ← Volver
-        </button>
+      {/* Issue #98: antes el contenedor se quedaba en 768px aun en la
+          tablet horizontal (1280px), con márgenes enormes a los lados; y
+          en una tablet vertical de 600px se encogía a 384px. Ahora ocupa el
+          ancho disponible y, desde `lg`, se reparte en columnas. */}
+      <div className="mx-auto w-full max-w-3xl lg:max-w-5xl">
+        {/* Issue #98: el botón de modo oscuro va en la misma fila que
+            "Volver", para poder cambiarlo sin salir del formulario. */}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <button onClick={() => navigate(-1)} className="text-sm font-medium text-slate-500">
+            ← Volver
+          </button>
+          <BotonTema compacto />
+        </div>
  
         <div className="rounded-xl bg-white p-6 shadow-sm">
           <img src={logoLafs} alt="L.A.F.S. Ambulancias" className="mb-3 h-10 w-auto" />
@@ -179,7 +188,7 @@ export function FotosAccidenteSoatPage(): JSX.Element {
                 <p className="mb-4 text-sm text-slate-500">Todavía no hay fotos adjuntas.</p>
               )}
  
-              <ul className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <ul className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {fotos.map(({ foto, urlVistaPrevia }) => (
                   <li key={foto.id} className="relative overflow-hidden rounded-lg border border-slate-200">
                     {urlVistaPrevia ? (

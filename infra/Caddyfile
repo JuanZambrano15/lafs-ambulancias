@@ -10,13 +10,42 @@
     # coinciden con este `root`.
     handle /admin* {
         root * /srv
-        # Cualquier ruta que no sea un archivo real (las rutas de
+ 
+        # Los archivos de /admin/assets (JS, CSS, imágenes) llevan un hash
+        # en el nombre, así que nunca cambian: se pueden guardar en caché
+        # para siempre. Y si alguno no existe se responde 404, NUNCA el
+        # index.html -- antes, un .css que no estaba (p. ej. de un build
+        # anterior, justo después de reconstruir el panel) recibía el
+        # index.html con código 200, el navegador lo guardaba en caché
+        # como si fuera la hoja de estilos y la descartaba por no ser CSS:
+        # al recargar, el panel aparecía sin ningún estilo.
+        @asset_existente {
+            path /admin/assets/*
+            file
+        }
+        handle @asset_existente {
+            header Cache-Control "public, max-age=31536000, immutable"
+            file_server
+        }
+        handle /admin/assets/* {
+            # `no-store` para que el navegador tampoco guarde el 404.
+            header Cache-Control "no-store"
+            respond 404
+        }
+ 
+        # Cualquier otra ruta que no sea un archivo real (las rutas de
         # react-router, como /admin/usuarios) cae al index del panel,
-        # que decide la pantalla en el navegador.
-        try_files {path} /admin/index.html
-        file_server
+        # que decide la pantalla en el navegador. `no-cache`: el
+        # navegador siempre pregunta si hay un index.html nuevo, para que
+        # después de reconstruir el panel no se quede con uno viejo que
+        # apunta a assets que ya no existen.
+        handle {
+            header Cache-Control "no-cache"
+            try_files {path} /admin/index.html
+            file_server
+        }
     }
-
+ 
     handle {
         reverse_proxy api:8000
     }

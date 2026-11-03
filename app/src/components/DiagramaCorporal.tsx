@@ -293,9 +293,17 @@ export function DiagramaCorporal({ valor, onChange }: DiagramaCorporalProps) {
                 width={z.w}
                 height={z.h}
                 rx={z.rx}
-                stroke="#64748b"
+                // Issue #98: variables de color en vez de hex fijos, para
+                // que el dibujo siga el modo oscuro igual que el resto.
+                stroke="var(--color-slate-500)"
                 strokeWidth={1}
-                fill={z.tieneEntradas ? '#CC8B00' : tipoValido ? '#e2e8f0' : '#f1f5f9'}
+                fill={
+                  z.tieneEntradas
+                    ? 'var(--color-brand-amber)'
+                    : tipoValido
+                      ? 'var(--color-slate-200)'
+                      : 'var(--color-slate-100)'
+                }
                 opacity={tipoValido ? 1 : 0.6}
                 className={tipoValido ? 'cursor-pointer' : 'cursor-not-allowed'}
                 onClick={() => tocarZona(z.zona, z.lado)}
