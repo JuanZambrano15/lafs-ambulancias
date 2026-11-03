@@ -93,3 +93,19 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+/*
+ * La lista de un <select> la dibuja el navegador: en modo oscuro dejaba
+ * el fondo blanco con el texto heredado en color claro, y solo se leía la
+ * opción con el mouse encima. Aquí se le dan colores explícitos con las
+ * mismas variables del tema. Siguen siendo <select> normales.
+ */
+:root[data-tema='oscuro'] select,
+:root[data-tema='oscuro'] option,
+:root[data-tema='oscuro'] optgroup {
+  background-color: var(--color-white);
+  color: var(--color-slate-900);
+}
+
+:root[data-tema='oscuro'] option:checked {
+  background-color: var(--color-brand-blue-soft);
+}
