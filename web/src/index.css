@@ -1,3 +1,5 @@
+@import 'tailwindcss';
+
 /*
  * Issue #98: el modo oscuro se activa con `data-tema="oscuro"` en
  * <html> (lo pone `lib/tema.ts` y el script de index.html antes del
