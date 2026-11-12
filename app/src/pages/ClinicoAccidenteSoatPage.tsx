@@ -59,6 +59,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { DiagramaCorporal } from '../components/DiagramaCorporal'
 import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
+import { FirmaConFoto } from '../components/FirmaConFoto'
 import { ApiError, listarMedicosDisponibles } from '../lib/api'
 import { pinLocalValido } from '../lib/pinLocal'
 import {
@@ -1059,9 +1060,10 @@ export function ClinicoAccidenteSoatPage(): JSX.Element {
                 // mano (el sello físico que la acompaña en el papel no se
                 // captura acá).
                 firmaGuardada={null}
-                pista="Lo firma la persona que recibe al paciente en la institución, no el personal de LAFS."
+                pista="Lo firma la persona que recibe al paciente en la institución, no el personal de LAFS. Se puede firmar en la pantalla, tomar una foto de la firma o adjuntar una imagen."
                 imagenInicial={campos.firmaProfesionalRecibeExistente}
                 canvasRef={firmaProfesionalRecibeRef}
+                permitirFoto
               />
             </div>
           </div>
@@ -1203,6 +1205,7 @@ function FirmaField({
   canvasRef,
   pista,
   disabled,
+  permitirFoto = false,
 }: {
   etiqueta: string
   firmaGuardada: string | null
@@ -1215,6 +1218,9 @@ function FirmaField({
    * haya elegido o escrito ningún médico (no tiene sentido dejar
    * dibujar una firma sin nombre asociado). */
   disabled?: boolean
+  /** Firma de un tercero (personal de otra IPS/ESE): además de
+   * dibujarla se puede tomar una foto o adjuntar una imagen. */
+  permitirFoto?: boolean
 }): JSX.Element {
   return (
     <div className="mb-4">
@@ -1226,6 +1232,8 @@ function FirmaField({
           alt={etiqueta}
           className="h-20 w-full rounded-lg border border-slate-300 bg-white object-contain"
         />
+      ) : permitirFoto ? (
+        <FirmaConFoto ref={canvasRef} imagenInicial={imagenInicial} alto={120} disabled={disabled} />
       ) : (
         <FirmaCanvas ref={canvasRef} imagenInicial={imagenInicial} alto={120} disabled={disabled} />
       )}

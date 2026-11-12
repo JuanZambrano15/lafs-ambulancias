@@ -1,4 +1,3 @@
-
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -109,6 +108,9 @@ const ENCABEZADO_YA_GUARDADO: FormatoTraslado = {
   nota_medica: null,
   evolucionado_por: null,
   firma_evolucionado_por: null,
+  profesional_entrega_nombre: null,
+  profesional_entrega_cedula: null,
+  firma_profesional_entrega: null,
   profesional_recibe_nombre: null,
   profesional_recibe_cedula: null,
   observaciones: null,

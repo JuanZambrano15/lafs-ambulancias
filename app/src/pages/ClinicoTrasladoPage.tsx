@@ -47,6 +47,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { DiagramaCorporal } from '../components/DiagramaCorporal'
 import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
+import { FirmaConFoto } from '../components/FirmaConFoto'
 import { ApiError, listarMedicosDisponibles } from '../lib/api'
 import { pinLocalValido } from '../lib/pinLocal'
 import {
@@ -105,6 +106,11 @@ interface EstadoClinico {
   notaMedica: string
   evolucionadoPor: string
   firmaEvolucionadoExistente: string | null
+  /** Profesional que ENTREGA al paciente en la IPS/ESE de origen —
+   * personal de la institución que remite, no de LAFS. */
+  profesionalEntregaNombre: string
+  profesionalEntregaCedula: string
+  firmaProfesionalEntregaExistente: string | null
   /** Profesional que recibe al paciente en la IPS/ESE de destino
    * (issue #75) — personal de la institución, no de LAFS. */
   profesionalRecibeNombre: string
@@ -140,6 +146,9 @@ const ESTADO_VACIO: EstadoClinico = {
   notaMedica: '',
   evolucionadoPor: '',
   firmaEvolucionadoExistente: null,
+  profesionalEntregaNombre: '',
+  profesionalEntregaCedula: '',
+  firmaProfesionalEntregaExistente: null,
   profesionalRecibeNombre: '',
   profesionalRecibeCedula: '',
   firmaProfesionalRecibeExistente: null,
@@ -253,6 +262,7 @@ export function ClinicoTrasladoPage(): JSX.Element {
   const tieneAmbosRoles = tieneRolAuxiliar && tieneRolMedico
   const firmaAtendidoRef = useRef<FirmaCanvasHandle>(null)
   const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
+  const firmaProfesionalEntregaRef = useRef<FirmaCanvasHandle>(null)
   const firmaProfesionalRecibeRef = useRef<FirmaCanvasHandle>(null)
  
   const [campos, setCampos] = useState<EstadoClinico>(ESTADO_VACIO)
@@ -359,6 +369,9 @@ export function ClinicoTrasladoPage(): JSX.Element {
           evolucionadoPor:
             existente.evolucionado_por ?? (tieneRolMedico && nombrePerfil ? nombrePerfil : ''),
           firmaEvolucionadoExistente: existente.firma_evolucionado_por,
+          profesionalEntregaNombre: existente.profesional_entrega_nombre ?? '',
+          profesionalEntregaCedula: existente.profesional_entrega_cedula ?? '',
+          firmaProfesionalEntregaExistente: existente.firma_profesional_entrega,
           profesionalRecibeNombre: existente.profesional_recibe_nombre ?? '',
           profesionalRecibeCedula: existente.profesional_recibe_cedula ?? '',
           firmaProfesionalRecibeExistente: existente.firma_profesional_recibe,
@@ -548,6 +561,13 @@ export function ClinicoTrasladoPage(): JSX.Element {
           ? firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente
           : perfil?.firma_guardada ?? firmaEvolucionadoRef.current?.exportar() ?? null
         : firmaEvolucionadoRef.current?.exportar() ?? campos.firmaEvolucionadoExistente,
+      profesional_entrega_nombre: campos.profesionalEntregaNombre || null,
+      profesional_entrega_cedula: campos.profesionalEntregaCedula || null,
+      // Quien entrega es personal de la IPS/ESE de origen, no de LAFS:
+      // nunca tiene firma guardada en esta app -- se dibuja, se toma
+      // como foto con la tablet o se adjunta.
+      firma_profesional_entrega:
+        firmaProfesionalEntregaRef.current?.exportar() ?? campos.firmaProfesionalEntregaExistente,
       profesional_recibe_nombre: campos.profesionalRecibeNombre || null,
       profesional_recibe_cedula: campos.profesionalRecibeCedula || null,
       // Issue #75 -- es personal de la IPS/ESE, no de LAFS: nunca tiene
@@ -679,6 +699,45 @@ export function ClinicoTrasladoPage(): JSX.Element {
             </p>
           )}
  
+          {/* Quien entrega al paciente en la IPS/ESE de origen: es lo
+              primero que ocurre en el traslado, así que se pide al
+              inicio. Es personal de la institución que remite, no de
+              LAFS -- por eso la firma admite foto o archivo además
+              de dibujarla. */}
+          <section className="mb-6 rounded-lg border border-slate-200 p-4">
+            <h2 className="mb-1 text-sm font-semibold text-slate-900">
+              Profesional que entrega en la IPS/ESE de origen
+            </h2>
+            <p className="mb-3 text-xs text-slate-500">
+              Es quien remite al paciente desde el hospital o la clínica de origen, no el personal de
+              LAFS.
+            </p>
+            <div className="lg:grid lg:grid-cols-2 lg:gap-x-8">
+              <div>
+                {campoTexto(
+                  'Nombre de quien entrega',
+                  'profesional-entrega-nombre',
+                  campos.profesionalEntregaNombre,
+                  (valor) => setCampos((anterior) => ({ ...anterior, profesionalEntregaNombre: valor })),
+                )}
+                {campoTexto(
+                  'Cédula de quien entrega',
+                  'profesional-entrega-cedula',
+                  campos.profesionalEntregaCedula,
+                  (valor) => setCampos((anterior) => ({ ...anterior, profesionalEntregaCedula: valor })),
+                )}
+              </div>
+              <FirmaField
+                etiqueta="Firma de quien entrega"
+                firmaGuardada={null}
+                pista="Se puede firmar en la pantalla, tomar una foto de la firma o adjuntar una imagen."
+                imagenInicial={campos.firmaProfesionalEntregaExistente}
+                canvasRef={firmaProfesionalEntregaRef}
+                permitirFoto
+              />
+            </div>
+          </section>
+
           {/* Issue #98: en la tablet horizontal el formato se reparte en
               dos columnas, como en la maqueta: a la izquierda el estado del
               paciente (lo que se mide), a la derecha el diagrama de lesiones y
@@ -1125,9 +1184,10 @@ export function ClinicoTrasladoPage(): JSX.Element {
                 // mano (el sello físico que la acompaña en el papel no se
                 // captura acá).
                 firmaGuardada={null}
-                pista="Lo firma la persona que recibe al paciente en la institución, no el personal de LAFS."
+                pista="Lo firma la persona que recibe al paciente en la institución, no el personal de LAFS. Se puede firmar en la pantalla, tomar una foto de la firma o adjuntar una imagen."
                 imagenInicial={campos.firmaProfesionalRecibeExistente}
                 canvasRef={firmaProfesionalRecibeRef}
+                permitirFoto
               />
  
               <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">Observaciones</h2>
@@ -1293,6 +1353,7 @@ function FirmaField({
   canvasRef,
   pista,
   disabled,
+  permitirFoto = false,
 }: {
   etiqueta: string
   firmaGuardada: string | null
@@ -1306,6 +1367,9 @@ function FirmaField({
    * firma -- issue #75, QA). No aplica cuando se muestra la firma
    * guardada como vista previa (<img>), solo al canvas. */
   disabled?: boolean
+  /** Firma de un tercero (personal de otra IPS/ESE): además de
+   * dibujarla se puede tomar una foto o adjuntar una imagen. */
+  permitirFoto?: boolean
 }): JSX.Element {
   return (
     <div className="mb-4">
@@ -1317,6 +1381,8 @@ function FirmaField({
           alt={etiqueta}
           className="h-20 w-full rounded-lg border border-slate-300 bg-white object-contain"
         />
+      ) : permitirFoto ? (
+        <FirmaConFoto ref={canvasRef} imagenInicial={imagenInicial} alto={120} disabled={disabled} />
       ) : (
         <FirmaCanvas ref={canvasRef} imagenInicial={imagenInicial} alto={120} disabled={disabled} />
       )}
