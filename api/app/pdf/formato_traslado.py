@@ -547,6 +547,15 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   .firma-cuerpo { padding: 0 6pt; }
   .firma-linea { border-bottom: 1px solid #000; height: 4pt; margin: 2pt 10pt 1pt; }
   .firma-img { max-height: 13pt; max-width: 90%; margin-top: 1pt; }
+  /* QA de Fresc: la firma era muy pequeña. Entrega/recibe llevan la
+     firma al lado de nombre y cédula (no arriba), y en "Atendido por"/
+     "Evolucionado por" la firma llena todo el recuadro. */
+  table.firma-lado { width: 100%; border-collapse: collapse; }
+  table.firma-lado td { padding: 0; vertical-align: middle; }
+  table.firma-lado td.firma-lado-img { width: 60%; height: 36pt; text-align: center; }
+  table.firma-lado td.firma-lado-datos { width: 40%; }
+  .firma-img-lado { display: block; width: 100%; height: 36pt; object-fit: contain; }
+  .firma-img-caja { display: block; width: 100%; height: 38pt; object-fit: contain; }
   .firma-caption { background: #FFD966; font-weight: bold; font-size: 6.5pt; text-align: center; padding: 1pt; }
   .firma-dato { text-align: left; font-size: 6.6pt; padding: 0.2pt 4pt; }
   .sin-firma { display: block; color: #999; font-style: italic; font-size: 7.5pt; margin-top: 4pt; }
@@ -850,25 +859,37 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   <td>
     <div class="firma-caption">FIRMA Y SELLO PROFESIONAL QUE ENTREGA</div>
     <div class="firma-cuerpo">
-      {% if firma_profesional_entrega %}
-        <img class="firma-img" src="{{ firma_profesional_entrega }}" alt="Firma de quien entrega">
-      {% else %}
-        <div class="firma-linea"></div>
-      {% endif %}
-      <div class="firma-dato"><b>NOMBRE:</b> {{ profesional_entrega_nombre or '' }}</div>
-      <div class="firma-dato"><b>CEDULA:</b> {{ profesional_entrega_cedula or '' }}</div>
+      <table class="firma-lado"><tr>
+        <td class="firma-lado-img">
+          {% if firma_profesional_entrega %}
+            <img class="firma-img-lado" src="{{ firma_profesional_entrega }}" alt="Firma de quien entrega">
+          {% else %}
+            <div class="firma-linea"></div>
+          {% endif %}
+        </td>
+        <td class="firma-lado-datos">
+          <div class="firma-dato"><b>NOMBRE:</b> {{ profesional_entrega_nombre or '' }}</div>
+          <div class="firma-dato"><b>CEDULA:</b> {{ profesional_entrega_cedula or '' }}</div>
+        </td>
+      </tr></table>
     </div>
   </td>
   <td>
     <div class="firma-caption">FIRMA Y SELLO PROFESIONAL QUE RECIBE</div>
     <div class="firma-cuerpo">
-      {% if firma_profesional_recibe %}
-        <img class="firma-img" src="{{ firma_profesional_recibe }}" alt="Firma de quien recibe">
-      {% else %}
-        <div class="firma-linea"></div>
-      {% endif %}
-      <div class="firma-dato"><b>NOMBRE:</b> {{ profesional_recibe_nombre or '' }}</div>
-      <div class="firma-dato"><b>CEDULA:</b> {{ profesional_recibe_cedula or '' }}</div>
+      <table class="firma-lado"><tr>
+        <td class="firma-lado-img">
+          {% if firma_profesional_recibe %}
+            <img class="firma-img-lado" src="{{ firma_profesional_recibe }}" alt="Firma de quien recibe">
+          {% else %}
+            <div class="firma-linea"></div>
+          {% endif %}
+        </td>
+        <td class="firma-lado-datos">
+          <div class="firma-dato"><b>NOMBRE:</b> {{ profesional_recibe_nombre or '' }}</div>
+          <div class="firma-dato"><b>CEDULA:</b> {{ profesional_recibe_cedula or '' }}</div>
+        </td>
+      </tr></table>
     </div>
   </td>
 </tr></table>
@@ -888,9 +909,9 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   <td style="width:38%; padding-left:2pt; vertical-align:top;">
     <table class="grid">
       <tr><td class="barra">Atendido por</td></tr>
-      <tr><td style="text-align:center; min-height:35pt;">
+      <tr><td style="text-align:center; min-height:38pt; padding:1pt;">
         {% if firma_atendido_por %}
-          <img class="firma-img" src="{{ firma_atendido_por }}" alt="Firma de quien atendió">
+          <img class="firma-img-caja" src="{{ firma_atendido_por }}" alt="Firma de quien atendió">
         {% else %}
           <span class="sin-firma">Sin firma registrada</span>
         {% endif %}
@@ -911,9 +932,9 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   <td style="width:38%; padding-left:2pt; vertical-align:top;">
     <table class="grid">
       <tr><td class="barra">Evolucionado por</td></tr>
-      <tr><td style="text-align:center; min-height:35pt;">
+      <tr><td style="text-align:center; min-height:38pt; padding:1pt;">
         {% if firma_evolucionado_por %}
-          <img class="firma-img" src="{{ firma_evolucionado_por }}" alt="Firma de quien evolucionó">
+          <img class="firma-img-caja" src="{{ firma_evolucionado_por }}" alt="Firma de quien evolucionó">
         {% else %}
           <span class="sin-firma">Sin firma registrada</span>
         {% endif %}
