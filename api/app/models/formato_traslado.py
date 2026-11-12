@@ -293,6 +293,19 @@ class FormatoTraslado(Base):
     firma_atendido_por: Mapped[str | None] = mapped_column(Text, default=None)
     firma_evolucionado_por: Mapped[str | None] = mapped_column(Text, default=None)
 
+    # Profesional que ENTREGA al paciente en la IPS/ESE de origen
+    # (issue de correcciones de la fase 1): el médico o enfermero del
+    # hospital o clínica que remite, NO la tripulación de LAFS. El
+    # PDF lo mostraba con la firma/nombre de quien atendió en la
+    # ambulancia, que es otra persona -- se confundió "entrega" con
+    # el papel que cumple LAFS (quien recibe y luego entrega al
+    # paciente). Mismo patrón que quien recibe: personal de una
+    # institución ajena, la firma se dibuja a mano o llega como foto
+    # (nunca se autocompleta de ningún perfil).
+    profesional_entrega_nombre: Mapped[str | None] = mapped_column(String(150), default=None)
+    profesional_entrega_cedula: Mapped[str | None] = mapped_column(String(20), default=None)
+    firma_profesional_entrega: Mapped[str | None] = mapped_column(Text, default=None)
+
     # Profesional que recibe al paciente en la IPS/ESE de destino
     # (issue #75): personal de la institución, no de LAFS -- quedó
     # fuera del issue #11 original (ver el comentario que había acá

@@ -62,6 +62,8 @@ CLINICO_VALIDO = {
     "nota_medica": "Se recomienda TAC de cráneo al ingreso.",
     "atendido_por": "Ana Ruiz",
     "evolucionado_por": "Dr. Luis Torres",
+    "profesional_entrega_nombre": "Dra. Marta Peña",
+    "profesional_entrega_cedula": "700000009",
     "profesional_recibe_nombre": "Carlos Gómez",
     "profesional_recibe_cedula": "900000002",
 }
@@ -634,6 +636,9 @@ class TestHistorial:
         # Issue #75: el profesional que recibe también se versiona.
         assert version["profesional_recibe_nombre"] == "Carlos Gómez"
         assert version["profesional_recibe_cedula"] == "900000002"
+        # Quien entrega (IPS de origen) también se versiona.
+        assert version["profesional_entrega_nombre"] == "Dra. Marta Peña"
+        assert version["profesional_entrega_cedula"] == "700000009"
 
     def test_conductor_no_puede_ver_el_historial(
         self,
