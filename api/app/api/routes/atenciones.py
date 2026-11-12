@@ -94,34 +94,17 @@ def _empleado_del_usuario(usuario: Usuario, db: DbSession) -> Empleado:
     return empleado
  
  
-def _ambulancias_con_atencion_abierta(db: DbSession) -> set[int]:
-    filas = db.execute(
-        select(Atencion.ambulancia_id).where(Atencion.estado == EstadoAtencion.abierto)
-    )
-    return {fila[0] for fila in filas}
- 
- 
-def _conductores_con_atencion_abierta(db: DbSession) -> set[int]:
-    filas = db.execute(
-        select(Atencion.conductor_id).where(Atencion.estado == EstadoAtencion.abierto)
-    )
-    return {fila[0] for fila in filas}
- 
- 
 @router.get(
     "/ambulancias-disponibles",
     response_model=list[AmbulanciaOut],
     dependencies=[Depends(require_personal_operativo)],
 )
 def listar_ambulancias_disponibles(db: DbSession) -> list[Ambulancia]:
-    """Activas y sin una atención abierta — la flota es rotativa, así
-    que un móvil que ya salió no se puede volver a elegir hasta que se
-    cierre su atención.
+    """Las ambulancias activas. Una ambulancia puede tener más de una
+    atención abierta a la vez (accidente múltiple, ver ADR-0015), así
+    que ya no se descartan las que están en servicio.
     """
-    ocupadas = _ambulancias_con_atencion_abierta(db)
     query = db.query(Ambulancia).filter(Ambulancia.activa.is_(True))
-    if ocupadas:
-        query = query.filter(Ambulancia.id.notin_(ocupadas))
     return list(query.order_by(Ambulancia.movil).all())
  
  
@@ -131,8 +114,10 @@ def listar_ambulancias_disponibles(db: DbSession) -> list[Ambulancia]:
     dependencies=[Depends(require_personal_operativo)],
 )
 def listar_conductores_disponibles(usuario: CurrentUser, db: DbSession) -> list[Empleado]:
-    """Empleados activos cuyo usuario tiene el rol "conductor", y que
-    no están ya manejando otra atención abierta.
+    """Empleados activos cuyo usuario tiene el rol "conductor". Un
+    conductor puede tener varias atenciones abiertas a la vez
+    (accidente múltiple, ADR-0015), así que no se filtra a quien ya
+    está en servicio.
  
     Issue #62: tampoco se ofrece a quien está logueado, aunque tenga
     el rol de conductor además del suyo (roles mixtos) — quien inicia
@@ -141,7 +126,6 @@ def listar_conductores_disponibles(usuario: CurrentUser, db: DbSession) -> list[
     equivalente en `crear_atencion`, que es la que de verdad lo
     impide; este filtro es solo para que la lista no lo ofrezca.
     """
-    ocupados = _conductores_con_atencion_abierta(db)
     query = (
         db.query(Empleado)
         .join(Usuario, Usuario.empleado_id == Empleado.id)
@@ -153,8 +137,6 @@ def listar_conductores_disponibles(usuario: CurrentUser, db: DbSession) -> list[
             Rol.nombre == "conductor",
         )
     )
-    if ocupados:
-        query = query.filter(Empleado.id.notin_(ocupados))
     if usuario.empleado_id is not None:
         query = query.filter(Empleado.id != usuario.empleado_id)
     return list(query.order_by(Empleado.apellidos, Empleado.nombres).all())
@@ -213,8 +195,8 @@ def listar_atenciones_en_curso(usuario: CurrentUser, db: DbSession) -> list[Aten
     Sin esto, salir de la pantalla del formato clínico sin cerrar la
     atención (se va la señal, se cierra el navegador, se le olvida)
     la deja sin ninguna forma de retomarla desde la navegación normal
-    — ni de liberar la ambulancia/conductor que quedaron "ocupados"
-    (ver `_ambulancias_con_atencion_abierta` arriba). Home usa este
+    — ni de cerrarla. Un responsable puede tener varias a la vez
+    (accidente múltiple, ADR-0015). Home usa este
     endpoint para ofrecer "continuar" en vez de obligar a escribir la
     URL de la atención a mano.
     """
@@ -506,8 +488,7 @@ def crear_atencion(
     # Idempotencia por `client_id` (issue #10, ADR-0008): si ya existe
     # una atención con este client_id, es un reintento de sincronización
     # — se devuelve la fila ya creada (200), sin repetir las
-    # validaciones de disponibilidad de ambulancia/conductor (que
-    # fallarían igual, porque esa misma atención ya las dejó ocupadas).
+    # validaciones de ambulancia/conductor.
     if datos.client_id is not None:
         existente = _atencion_por_client_id(datos.client_id, db)
         if existente is not None:
@@ -525,11 +506,6 @@ def crear_atencion(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Esa ambulancia no está activa"
         )
-    if ambulancia.id in _ambulancias_con_atencion_abierta(db):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Esa ambulancia ya tiene una atención abierta",
-        )
  
     conductor = db.get(Empleado, datos.conductor_id)
     if conductor is None:
@@ -539,11 +515,6 @@ def crear_atencion(
     if not conductor.activo:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Ese conductor no está activo"
-        )
-    if conductor.id in _conductores_con_atencion_abierta(db):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Ese conductor ya tiene una atención abierta",
         )
     # Issue #62: quien inicia la atención (el responsable) no puede
     # ser también su propio conductor, aunque tenga ambos roles — los
