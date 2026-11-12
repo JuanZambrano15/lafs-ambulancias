@@ -93,6 +93,9 @@ class FormatoVersionOut(BaseModel):
     firma_atendido_por: str | None
     evolucionado_por: str | None
     firma_evolucionado_por: str | None
+    profesional_entrega_nombre: str | None
+    profesional_entrega_cedula: str | None
+    firma_profesional_entrega: str | None
     profesional_recibe_nombre: str | None
     profesional_recibe_cedula: str | None
     firma_profesional_recibe: str | None

@@ -175,68 +175,50 @@ def test_no_se_puede_elegir_una_ambulancia_inactiva(
     assert response.status_code == 409
  
  
-def test_no_se_puede_elegir_una_ambulancia_con_atencion_abierta(
+def test_una_ambulancia_puede_tener_varias_atenciones_abiertas(
     client: TestClient, db: Session, auxiliar_headers: dict[str, str]
 ) -> None:
+    """Accidente múltiple (ADR-0015): la misma ambulancia puede llevar
+    más de un servicio abierto a la vez."""
     ambulancia = _crear_ambulancia(db)
     conductor_1 = _crear_conductor(db, cedula="800000001")
     conductor_2 = _crear_conductor(db, cedula="800000002")
- 
-    primera = client.post(
-        "/atenciones",
-        json={
-            "tipo": "traslado",
-            "ambulancia_id": ambulancia.id,
-            "conductor_id": conductor_1.id,
-        },
-        headers=auxiliar_headers,
-    )
-    assert primera.status_code == 201
- 
-    segunda = client.post(
-        "/atenciones",
-        json={
-            "tipo": "traslado",
-            "ambulancia_id": ambulancia.id,
-            "conductor_id": conductor_2.id,
-        },
-        headers=auxiliar_headers,
-    )
- 
-    assert segunda.status_code == 409
- 
- 
-def test_no_se_puede_elegir_un_conductor_ya_ocupado(
+
+    for conductor in (conductor_1, conductor_2):
+        response = client.post(
+            "/atenciones",
+            json={
+                "tipo": "traslado",
+                "ambulancia_id": ambulancia.id,
+                "conductor_id": conductor.id,
+            },
+            headers=auxiliar_headers,
+        )
+        assert response.status_code == 201
+
+
+def test_un_conductor_puede_tener_varias_atenciones_abiertas(
     client: TestClient, db: Session, auxiliar_headers: dict[str, str]
 ) -> None:
+    """Accidente múltiple (ADR-0015): el mismo conductor puede estar en
+    más de un servicio abierto a la vez."""
     ambulancia_1 = _crear_ambulancia(db, movil="M-01")
     ambulancia_2 = _crear_ambulancia(db, movil="M-02")
     conductor = _crear_conductor(db)
- 
-    primera = client.post(
-        "/atenciones",
-        json={
-            "tipo": "traslado",
-            "ambulancia_id": ambulancia_1.id,
-            "conductor_id": conductor.id,
-        },
-        headers=auxiliar_headers,
-    )
-    assert primera.status_code == 201
- 
-    segunda = client.post(
-        "/atenciones",
-        json={
-            "tipo": "traslado",
-            "ambulancia_id": ambulancia_2.id,
-            "conductor_id": conductor.id,
-        },
-        headers=auxiliar_headers,
-    )
- 
-    assert segunda.status_code == 409
- 
- 
+
+    for ambulancia in (ambulancia_1, ambulancia_2):
+        response = client.post(
+            "/atenciones",
+            json={
+                "tipo": "traslado",
+                "ambulancia_id": ambulancia.id,
+                "conductor_id": conductor.id,
+            },
+            headers=auxiliar_headers,
+        )
+        assert response.status_code == 201
+
+
 def test_no_se_puede_elegir_un_empleado_sin_rol_de_conductor(
     client: TestClient, db: Session, auxiliar_headers: dict[str, str]
 ) -> None:
@@ -259,33 +241,57 @@ def test_no_se_puede_elegir_un_empleado_sin_rol_de_conductor(
     assert response.status_code == 201
  
  
-def test_listar_ambulancias_disponibles_excluye_inactivas_y_ocupadas(
+def test_listar_ambulancias_disponibles_excluye_inactivas_pero_no_las_en_servicio(
     client: TestClient, db: Session, auxiliar_headers: dict[str, str]
 ) -> None:
-    disponible = _crear_ambulancia(db, movil="M-01")
+    libre = _crear_ambulancia(db, movil="M-01")
     _crear_ambulancia(db, movil="M-02", activa=False)
-    ocupada = _crear_ambulancia(db, movil="M-03")
+    en_servicio = _crear_ambulancia(db, movil="M-03")
     conductor = _crear_conductor(db)
- 
+
     client.post(
         "/atenciones",
         json={
             "tipo": "traslado",
-            "ambulancia_id": ocupada.id,
+            "ambulancia_id": en_servicio.id,
             "conductor_id": conductor.id,
         },
         headers=auxiliar_headers,
     )
- 
+
     response = client.get(
         "/atenciones/ambulancias-disponibles", headers=auxiliar_headers
     )
- 
+
     assert response.status_code == 200
     moviles = [a["movil"] for a in response.json()]
-    assert moviles == [disponible.movil]
- 
- 
+    assert moviles == [libre.movil, en_servicio.movil]
+
+
+def test_listar_conductores_disponibles_incluye_a_quien_ya_esta_en_servicio(
+    client: TestClient, db: Session, auxiliar_headers: dict[str, str]
+) -> None:
+    ambulancia = _crear_ambulancia(db)
+    en_servicio = _crear_conductor(db, cedula="800000001")
+
+    client.post(
+        "/atenciones",
+        json={
+            "tipo": "traslado",
+            "ambulancia_id": ambulancia.id,
+            "conductor_id": en_servicio.id,
+        },
+        headers=auxiliar_headers,
+    )
+
+    response = client.get(
+        "/atenciones/conductores-disponibles", headers=auxiliar_headers
+    )
+
+    assert response.status_code == 200
+    assert [c["cedula"] for c in response.json()] == [en_servicio.cedula]
+
+
 def test_crear_atencion_con_ambulancia_inexistente_da_404(
     client: TestClient, db: Session, auxiliar_headers: dict[str, str]
 ) -> None:
@@ -375,7 +381,7 @@ def test_crear_atencion_con_client_id_es_idempotente(
 ) -> None:
     """Simula un reintento de sincronización (issue #10): la segunda
     llamada con el mismo client_id no debe crear una segunda fila ni
-    fallar por "ambulancia/conductor ya ocupado" — debe devolver la
+    fallar al validar la ambulancia/conductor — debe devolver la
     misma atención que ya se había creado."""
     ambulancia = _crear_ambulancia(db)
     conductor = _crear_conductor(db)
@@ -617,7 +623,7 @@ def _crear_atencion_abierta(
 class TestAtencionesEnCurso:
     """Issue #51: sin este endpoint, salir de la pantalla del clínico
     sin cerrar la atención la deja sin ninguna forma de retomarla
-    desde la navegación normal, ni de liberar la ambulancia ocupada.
+    desde la navegación normal, ni de cerrarla.
     """
  
     def test_sin_token_da_401(self, client: TestClient) -> None:

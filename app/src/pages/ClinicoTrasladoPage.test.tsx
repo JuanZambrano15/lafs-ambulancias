@@ -4,12 +4,14 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
  
 import * as api from '../lib/api'
+import { archivoADataUrlFirma } from '../lib/imagenFirma'
 import * as pinLocal from '../lib/pinLocal'
 import { AuthProvider } from '../auth/AuthContext'
 import type { Ambulancia, Atencion, Empleado, FormatoTraslado, MeResponse } from '../lib/types'
 import { ClinicoTrasladoPage } from './ClinicoTrasladoPage'
  
 vi.mock('../lib/api', () => import('../test/mockApi').then((m) => m.construirMockApi()))
+vi.mock('../lib/imagenFirma', () => ({ archivoADataUrlFirma: vi.fn() }))
 vi.mock('../lib/storage')
 vi.mock('../lib/pinLocal')
  
@@ -79,6 +81,9 @@ const FORMATO: FormatoTraslado = {
   nota_medica: 'Evolución favorable',
   evolucionado_por: 'Laura Gómez',
   firma_evolucionado_por: null,
+  profesional_entrega_nombre: null,
+  profesional_entrega_cedula: null,
+  firma_profesional_entrega: null,
   profesional_recibe_nombre: 'Carlos Gómez',
   profesional_recibe_cedula: '900000002',
   firma_profesional_recibe: null,
@@ -223,6 +228,85 @@ describe('ClinicoTrasladoPage', () => {
     expect(await screen.findByText('pantalla principal')).toBeInTheDocument()
   })
  
+  describe('profesional que entrega en la IPS/ESE de origen', () => {
+    it('se pide al inicio del formulario, antes del diagnóstico', async () => {
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+
+      renderPagina()
+
+      const titulo = await screen.findByRole('heading', {
+        name: 'Profesional que entrega en la IPS/ESE de origen',
+      })
+      const diagnostico = screen.getByLabelText('Diagnóstico')
+      expect(
+        titulo.compareDocumentPosition(diagnostico) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+      expect(screen.getByLabelText('Nombre de quien entrega')).toHaveValue('')
+      expect(screen.getByLabelText('Cédula de quien entrega')).toHaveValue('')
+    })
+
+    it('precarga el nombre y la cédula ya guardados', async () => {
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue({
+        ...FORMATO,
+        profesional_entrega_nombre: 'Dra. Marta Peña',
+        profesional_entrega_cedula: '700000009',
+      })
+
+      renderPagina()
+
+      expect(await screen.findByLabelText('Nombre de quien entrega')).toHaveValue('Dra. Marta Peña')
+      expect(screen.getByLabelText('Cédula de quien entrega')).toHaveValue('700000009')
+    })
+
+    it('manda nombre y cédula al guardar; sin firma no inventa ninguna', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+      renderPagina()
+
+      await usuario.type(await screen.findByLabelText('Nombre de quien entrega'), 'Dra. Marta Peña')
+      await usuario.type(screen.getByLabelText('Cédula de quien entrega'), '700000009')
+      await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+
+      await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
+      const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+      expect(datos.profesional_entrega_nombre).toBe('Dra. Marta Peña')
+      expect(datos.profesional_entrega_cedula).toBe('700000009')
+      expect(datos.firma_profesional_entrega).toBeNull()
+    })
+
+    it('la firma ofrece tomar foto y adjuntar una imagen, además de dibujarla', async () => {
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+
+      renderPagina()
+
+      await screen.findByLabelText('Nombre de quien entrega')
+      // Dos firmas de terceros en el traslado: quien entrega y quien recibe.
+      expect(screen.getAllByRole('button', { name: 'Tomar foto' })).toHaveLength(2)
+      expect(screen.getAllByRole('button', { name: 'Adjuntar imagen' })).toHaveLength(2)
+    })
+
+    it('la foto de la firma de quien entrega se manda en el guardado', async () => {
+      const usuario = userEvent.setup()
+      vi.mocked(archivoADataUrlFirma).mockResolvedValue('data:image/jpeg;base64,FOTO')
+      vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(FORMATO_SIN_CLINICO)
+      vi.mocked(api.guardarClinicoTraslado).mockResolvedValue(FORMATO)
+      renderPagina()
+      await screen.findByLabelText('Nombre de quien entrega')
+
+      // La primera firma de la pantalla es la de quien entrega.
+      const [camaraEntrega] = screen.getAllByLabelText('Foto de la firma con la cámara')
+      await usuario.upload(camaraEntrega, new File(['x'], 'firma.jpg', { type: 'image/jpeg' }))
+      await screen.findByRole('img', { name: 'Foto de la firma' })
+      await usuario.click(screen.getByRole('button', { name: 'Guardar' }))
+
+      await waitFor(() => expect(api.guardarClinicoTraslado).toHaveBeenCalledTimes(1))
+      const [, datos] = vi.mocked(api.guardarClinicoTraslado).mock.calls[0]
+      expect(datos.firma_profesional_entrega).toBe('data:image/jpeg;base64,FOTO')
+      expect(datos.firma_profesional_recibe).toBeNull()
+    })
+  })
+
   it('QA: el reflejo pupilar arranca en "No reactiva", no en blanco', async () => {
     // El PDF no tiene fila para "sin registrar" en el checklist de
     // reflejo pupilar (ver `_checklist_reflejo`) -- dejarlo sin elegir
@@ -484,7 +568,7 @@ describe('ClinicoTrasladoPage', () => {
       // que recibe") -- el de "quien evolucionó" sigue siendo el
       // primero en el DOM, de ahí `findAllBy` en vez de `findBy`.
       await screen.findByDisplayValue('Dra. Ejemplo')
-      const [canvas] = await screen.findAllByLabelText('Recuadro para firmar')
+      const [, canvas] = await screen.findAllByLabelText('Recuadro para firmar')
       canvas.dispatchEvent(
         new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),
       )
@@ -559,7 +643,7 @@ describe('ClinicoTrasladoPage', () => {
       // Issue #75 agregó otro recuadro siempre presente ("profesional
       // que recibe") -- el de "quien evolucionó" sigue siendo el
       // primero en el DOM, de ahí `findAllBy` en vez de `findBy`.
-      const [canvas] = await screen.findAllByLabelText('Recuadro para firmar')
+      const [, canvas] = await screen.findAllByLabelText('Recuadro para firmar')
       canvas.dispatchEvent(
         new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),
       )
@@ -735,7 +819,7 @@ describe('ClinicoTrasladoPage', () => {
       // Issue #75 agregó otro recuadro siempre presente ("profesional
       // que recibe") -- el de "quien evolucionó" sigue siendo el
       // primero en el DOM, de ahí `findAllBy` en vez de `findBy`.
-      const [canvas] = await screen.findAllByLabelText('Recuadro para firmar')
+      const [, canvas] = await screen.findAllByLabelText('Recuadro para firmar')
       canvas.dispatchEvent(
         new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),
       )
@@ -800,11 +884,12 @@ describe('ClinicoTrasladoPage', () => {
       // opcional, pero si va, igual hay que poder capturar su firma --
       // antes el canvas solo aparecía si quien estaba logueado era el
       // médico, así que un auxiliar llenando un básico no tenía dónde
-      // ponerla aunque el médico sí hubiera ido ese día. (Tres
-      // recuadros en total: el propio, de "quien atendió"; el de
-      // "quien evolucionó"; y el de "profesional que recibe" -- issue
-      // #75, siempre presente -- de ahí `findAllBy` en vez de `findBy`.)
-      expect(await screen.findAllByLabelText('Recuadro para firmar')).toHaveLength(3)
+      // ponerla aunque el médico sí hubiera ido ese día. (Cuatro
+      // recuadros en total: el de "profesional que entrega", siempre
+      // el primero; el propio, de "quien atendió"; el de "quien
+      // evolucionó"; y el de "profesional que recibe" -- issue #75,
+      // siempre presente -- de ahí `findAllBy` en vez de `findBy`.)
+      expect(await screen.findAllByLabelText('Recuadro para firmar')).toHaveLength(4)
     })
  
     it('traslado básico: si el médico fue y firma, la firma se manda; si no, se manda null', async () => {
@@ -864,7 +949,7 @@ describe('ClinicoTrasladoPage', () => {
       // Issue #75 agregó otro recuadro siempre presente ("profesional
       // que recibe") -- el de "quien evolucionó" sigue siendo el
       // primero en el DOM, de ahí `findAllBy` en vez de `findBy`.
-      const [canvas] = await screen.findAllByLabelText('Recuadro para firmar')
+      const [, canvas] = await screen.findAllByLabelText('Recuadro para firmar')
       canvas.dispatchEvent(
         new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),
       )
@@ -940,7 +1025,7 @@ describe('ClinicoTrasladoPage', () => {
       // dibuja a mano (issue #11) y aparece primero en el DOM; el de
       // "quien evolucionó" (el que bloquea este fix) es el segundo, y
       // "profesional que recibe" (issue #75) el tercero.
-      const [, canvas] = await screen.findAllByLabelText('Recuadro para firmar')
+      const [, , canvas] = await screen.findAllByLabelText('Recuadro para firmar')
       expect(canvas).toHaveAttribute('aria-disabled', 'true')
       canvas.dispatchEvent(
         new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),
@@ -970,12 +1055,12 @@ describe('ClinicoTrasladoPage', () => {
       const selector = await screen.findByLabelText('Médico que evolucionó')
       await screen.findByText('Laura Páez')
  
-      const [, canvasAntes] = await screen.findAllByLabelText('Recuadro para firmar')
+      const [, , canvasAntes] = await screen.findAllByLabelText('Recuadro para firmar')
       expect(canvasAntes).toHaveAttribute('aria-disabled', 'true')
  
       await usuario.selectOptions(selector, '2')
  
-      const [, canvasDespues] = await screen.findAllByLabelText('Recuadro para firmar')
+      const [, , canvasDespues] = await screen.findAllByLabelText('Recuadro para firmar')
       await waitFor(() => expect(canvasDespues).toHaveAttribute('aria-disabled', 'false'))
     })
  
@@ -1084,9 +1169,9 @@ describe('ClinicoTrasladoPage', () => {
       HTMLCanvasElement.prototype.releasePointerCapture = vi.fn()
  
       // Firma guardada propia para el médico -- "evolucionado por" se
-      // muestra como <img>, así que el único "Recuadro para firmar" en
-      // pantalla es el de "profesional que recibe" (sin ambigüedad de
-      // cuál es).
+      // muestra como <img>, así que quedan solo dos "Recuadro para firmar":
+      // el de "profesional que entrega" (el primero de la pantalla) y el
+      // de "profesional que recibe" (el último) -- se usa el último.
       vi.mocked(api.obtenerPerfil).mockResolvedValue(
         perfilCon(
           [{ id: 1, nombre: 'medico', descripcion: null }],
@@ -1103,7 +1188,7 @@ describe('ClinicoTrasladoPage', () => {
         'Ana Ruiz',
       )
       await usuario.type(screen.getByLabelText('Cédula de quien recibe'), '800000001')
-      const canvas = await screen.findByLabelText('Recuadro para firmar')
+      const canvas = (await screen.findAllByLabelText('Recuadro para firmar')).at(-1) as HTMLElement
       canvas.dispatchEvent(
         new PointerEvent('pointerdown', { clientX: 10, clientY: 10, bubbles: true }),
       )

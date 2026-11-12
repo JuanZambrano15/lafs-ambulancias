@@ -161,6 +161,14 @@ class FormatoTrasladoClinico(BaseModel):
     evolucionado_por: str | None = None
     firma_evolucionado_por: str | None = Field(default=None, max_length=300_000)
 
+    # Profesional que ENTREGA al paciente en la IPS/ESE de origen:
+    # personal de la institución que remite, no de LAFS (ver el
+    # modelo). Misma regla que quien recibe: la firma se dibuja o se
+    # adjunta como foto (data URL), nunca se autocompleta.
+    profesional_entrega_nombre: str | None = None
+    profesional_entrega_cedula: str | None = None
+    firma_profesional_entrega: str | None = Field(default=None, max_length=300_000)
+
     # Profesional que recibe al paciente en la IPS/ESE de destino
     # (issue #75): personal de la institución, no de LAFS. La firma
     # siempre se dibuja a mano en pantalla, nunca se autocompleta de

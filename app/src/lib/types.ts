@@ -1,4 +1,3 @@
-
 /**
  * Tipos que reflejan los esquemas de la API (ver `api/app/schemas/`).
  * Se mantienen a mano porque el backend es pequeño todavía — si crece
@@ -248,6 +247,12 @@ export interface FormatoTrasladoClinico {
   nota_medica: string | null
   evolucionado_por: string | null
   firma_evolucionado_por: string | null
+  /** Profesional que ENTREGA al paciente en la IPS/ESE de origen —
+   * personal de la institución que remite, no de LAFS. La firma puede
+   * dibujarse, tomarse como foto o adjuntarse. */
+  profesional_entrega_nombre: string | null
+  profesional_entrega_cedula: string | null
+  firma_profesional_entrega: string | null
   /** Profesional que recibe al paciente en la IPS/ESE de destino
    * (issue #75) — personal de la institución, no de LAFS. */
   profesional_recibe_nombre: string | null
