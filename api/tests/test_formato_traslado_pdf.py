@@ -2,6 +2,7 @@
 
 from datetime import date
 
+import pytest
 from app.core.security import hash_secret
 from app.models.ambulancia import Ambulancia, TipoAmbulancia
 from app.models.empleado import Empleado
@@ -69,6 +70,12 @@ CLINICO_VALIDO = {
     "nota_medica": "Se recomienda TAC de cráneo al ingreso.",
     "evolucionado_por": "Laura Gómez",
     "firma_evolucionado_por": (
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
+        "CAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    ),
+    "profesional_entrega_nombre": "Dra. Marta Peña",
+    "profesional_entrega_cedula": "700000009",
+    "firma_profesional_entrega": (
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
         "CAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
     ),
@@ -364,6 +371,48 @@ class TestContenidoDelPdf:
         )
         assert respuesta.status_code == 200
         assert respuesta.content.startswith(b"%PDF")
+
+    def test_profesional_que_entrega_es_el_de_la_ips_no_la_tripulacion(
+        self,
+        client: TestClient,
+        db: Session,
+        auxiliar_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Corrección de la fase 1: el bloque "FIRMA Y SELLO PROFESIONAL
+        QUE ENTREGA" (página 1, abajo a la izquierda) muestra al
+        profesional de la IPS de origen, NO a quien atendió dentro de
+        la ambulancia. Se captura el HTML antes de pasarlo a WeasyPrint
+        porque el PDF resultante no se parsea en estas pruebas."""
+        capturado: dict[str, str] = {}
+
+        class _HTMLFalso:
+            def __init__(self, string: str) -> None:
+                capturado["html"] = string
+
+            def write_pdf(self) -> bytes:
+                return b"%PDF-falso"
+
+        monkeypatch.setattr("app.pdf.formato_traslado.HTML", _HTMLFalso)
+        atencion_id = _crear_atencion_con_encabezado(client, db, auxiliar_headers)
+        client.put(
+            f"/atenciones/{atencion_id}/formato-traslado/clinico",
+            json=CLINICO_VALIDO,
+            headers=auxiliar_headers,
+        )
+
+        html = capturado["html"]
+        inicio = html.index("FIRMA Y SELLO PROFESIONAL QUE ENTREGA")
+        fin = html.index("FIRMA Y SELLO PROFESIONAL QUE RECIBE")
+        bloque_entrega = html[inicio:fin]
+        assert "Dra. Marta Peña" in bloque_entrega
+        assert "700000009" in bloque_entrega
+        assert "data:image/png;base64" in bloque_entrega
+        # Quienes atienden en la ambulancia ya no aparecen como "quien entrega".
+        assert "Ana Ruiz" not in bloque_entrega
+        assert "Laura Gómez" not in bloque_entrega
+        # Y siguen apareciendo en la tripulación (página 2).
+        assert "Laura Gómez" in html[fin:]
 
     def test_pdf_con_traslado_basico_no_falla(
         self, client: TestClient, db: Session, auxiliar_headers: dict[str, str]

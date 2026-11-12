@@ -23,9 +23,11 @@ copia física del formato. Correcciones de esta revisión:
 - "Profesional que entrega / que recibe" (fin de la página 1 del
   papel): el PDF nunca mostraba estas firmas, ni siquiera
   `profesional_recibe_*`, que ya existían en el modelo desde el issue
-  #75 pero no estaban en la plantilla. "Quien entrega" no es un campo
-  propio -- es la firma de quien atendió (traslado básico) o de quien
-  evolucionó (medicalizado), según confirmó el cliente.
+  #75 pero no estaban en la plantilla. Corrección posterior (fase 1,
+  revisión con el cliente): "quien entrega" NO es la tripulación de
+  LAFS -- es el profesional de la IPS/ESE de origen que remite al
+  paciente, así que ahora tiene sus propios campos
+  (`profesional_entrega_*`), igual que quien recibe en el destino.
 - "Tripulación a cargo del traslado" (página 2): el papel pide
   Conductor / Auxiliar de enfermería / Médico / Placas como cuatro
   líneas separadas -- el PDF mostraba Móvil + Conductor + un
@@ -848,13 +850,13 @@ _PLANTILLA = Environment(autoescape=True).from_string(
   <td>
     <div class="firma-caption">FIRMA Y SELLO PROFESIONAL QUE ENTREGA</div>
     <div class="firma-cuerpo">
-      {% if firma_entrega %}
-        <img class="firma-img" src="{{ firma_entrega }}" alt="Firma de quien entrega">
+      {% if firma_profesional_entrega %}
+        <img class="firma-img" src="{{ firma_profesional_entrega }}" alt="Firma de quien entrega">
       {% else %}
         <div class="firma-linea"></div>
       {% endif %}
-      <div class="firma-dato"><b>NOMBRE:</b> {{ entrega_nombre or '' }}</div>
-      <div class="firma-dato"><b>CEDULA:</b> {{ entrega_cedula or '' }}</div>
+      <div class="firma-dato"><b>NOMBRE:</b> {{ profesional_entrega_nombre or '' }}</div>
+      <div class="firma-dato"><b>CEDULA:</b> {{ profesional_entrega_cedula or '' }}</div>
     </div>
   </td>
   <td>
@@ -930,8 +932,8 @@ _PLANTILLA = Environment(autoescape=True).from_string(
 <div class="tripulacion-titulo">Tripulación a cargo del traslado</div>
 <table class="tripulacion">
   <tr><td class="tripulacion-etq">Conductor</td><td class="tripulacion-val">{{ conductor_nombre }} &middot; C.C. {{ conductor_cedula }}</td></tr>
-  <tr><td class="tripulacion-etq">Auxiliar de enfermería</td><td class="tripulacion-val">{{ atendido_por or '' }}{% if entrega_rol == 'auxiliar de enfermería' and entrega_cedula %} &middot; C.C. {{ entrega_cedula }}{% endif %}</td></tr>
-  <tr><td class="tripulacion-etq">Médico</td><td class="tripulacion-val">{{ evolucionado_por or '' }}{% if entrega_rol == 'médico' and entrega_cedula %} &middot; C.C. {{ entrega_cedula }}{% endif %}</td></tr>
+  <tr><td class="tripulacion-etq">Auxiliar de enfermería</td><td class="tripulacion-val">{{ atendido_por or '' }}{% if responsable_rol == 'auxiliar de enfermería' and responsable_cedula %} &middot; C.C. {{ responsable_cedula }}{% endif %}</td></tr>
+  <tr><td class="tripulacion-etq">Médico</td><td class="tripulacion-val">{{ evolucionado_por or '' }}{% if responsable_rol == 'médico' and responsable_cedula %} &middot; C.C. {{ responsable_cedula }}{% endif %}</td></tr>
   <tr><td class="tripulacion-etq">Placas del vehículo</td><td class="tripulacion-val">{{ placa }} (móvil {{ movil }})</td></tr>
 </table>
  
@@ -957,24 +959,19 @@ def generar_pdf_formato_traslado(atencion: Atencion, formato: FormatoTraslado) -
     `<img src="data:image/png;base64,...">` las incrusta sin tocar
     disco ni red.
     """
-    # Issue #66: "profesional que entrega" (fin de la página 1 del
-    # papel) no es un campo propio en el modelo -- el cliente confirmó
-    # que es la firma de quien atendió en un traslado básico, o la de
-    # quien evolucionó en uno medicalizado.
+    # Tripulación (página 2): "atendido_por"/"evolucionado_por" son
+    # texto libre (se autocompletan con el nombre de quien está
+    # logueado, pero se pueden editar a mano) -- no hay cédula propia
+    # guardada ahí. La única cédula que el sistema sí tiene a mano es
+    # la del empleado responsable de la atención (`atencion.responsable`,
+    # el mismo criterio que ya se usa para la cédula del conductor),
+    # que en el caso normal es la misma persona. Si alguien más terminó
+    # llenando el campo a mano, esta cédula puede no corresponder con
+    # el nombre -- limitación conocida. Se escribe junto al auxiliar en
+    # un traslado básico y junto al médico en uno medicalizado.
     es_medicalizado = formato.nivel_servicio == NivelServicioTraslado.medicalizado
-    entrega_rol = "médico" if es_medicalizado else "auxiliar de enfermería"
-    entrega_nombre = formato.evolucionado_por if es_medicalizado else formato.atendido_por
-    firma_entrega = formato.firma_evolucionado_por if es_medicalizado else formato.firma_atendido_por
-    # "atendido_por"/"evolucionado_por" son texto libre (se autocompletan
-    # con el nombre de quien está logueado, pero se pueden editar a
-    # mano) -- no hay cédula propia guardada ahí. La única cédula que el
-    # sistema sí tiene a mano es la del empleado responsable de la
-    # atención (`atencion.responsable`, el mismo criterio que ya se usa
-    # para la cédula del conductor), que en el caso normal es la misma
-    # persona. Si alguien más terminó llenando el campo a mano, esta
-    # cédula puede no corresponder con el nombre -- limitación conocida,
-    # no hay forma de saberlo sin agregar un campo nuevo al modelo.
-    entrega_cedula = atencion.responsable.cedula
+    responsable_rol = "médico" if es_medicalizado else "auxiliar de enfermería"
+    responsable_cedula = atencion.responsable.cedula
  
     contexto = {
         "atencion_id": atencion.id,
@@ -1089,10 +1086,13 @@ def generar_pdf_formato_traslado(atencion: Atencion, formato: FormatoTraslado) -
             for i in range(8)
         ],
         # "Profesional que entrega" (issue #66, fin de página 1 del papel)
-        "entrega_rol": entrega_rol,
-        "entrega_nombre": entrega_nombre,
-        "entrega_cedula": entrega_cedula,
-        "firma_entrega": firma_entrega,
+        "responsable_rol": responsable_rol,
+        "responsable_cedula": responsable_cedula,
+        # Profesional de la IPS/ESE de origen que entrega al paciente
+        # (ver el comentario del módulo) -- no la tripulación.
+        "profesional_entrega_nombre": formato.profesional_entrega_nombre,
+        "profesional_entrega_cedula": formato.profesional_entrega_cedula,
+        "firma_profesional_entrega": formato.firma_profesional_entrega,
         "nota_auxiliar": formato.nota_auxiliar,
         "atendido_por": formato.atendido_por,
         "firma_atendido_por": formato.firma_atendido_por,
