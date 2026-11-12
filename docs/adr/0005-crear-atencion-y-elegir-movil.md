@@ -1,7 +1,7 @@
 # ADR-0005: Crear atención y elegir móvil
  
 - **Fecha:** 2026-10-03
-- **Estado:** Aceptada
+- **Estado:** Aceptada (la regla de disponibilidad fue reemplazada por el ADR-0015)
  
 ## Contexto
  
@@ -42,7 +42,8 @@ distinta — un formato que alguien más llena en el momento, no un
 registro que el admin abre de antemano — y se deja para un issue aparte
 si el cliente lo pide.
  
-**Disponibilidad (el porqué de "rotativa"):** una ambulancia o un
+**Disponibilidad (el porqué de "rotativa"; reemplazada por el ADR-0015,
+que permite varios servicios activos a la vez):** una ambulancia o un
 conductor con una atención ya `abierta` no puede volver a elegirse
 hasta que esa atención se cierre (issue #12). Esto se aplica en dos
 capas:
