@@ -21,6 +21,7 @@ import {
 import type { Atencion, NombreRol } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
 import { BotonTema } from '../components/BotonTema'
+import { sincronizarRecordatorioServicio } from '../lib/recordatorioServicio'
  
 interface Seccion {
   titulo: string
@@ -114,6 +115,9 @@ export function HomePage(): JSX.Element {
         // con "Sin pantalla todavía" y cambia de golpe a "Continuar".
         setAtencionesEnCurso(atenciones)
         setRutasContinuar(new Map(rutas))
+        // Recordatorio en la barra de notificaciones mientras haya
+        // servicios abiertos; se quita cuando ya no queda ninguno.
+        void sincronizarRecordatorioServicio(atenciones.length)
       })
       .catch(() => {
         // Si falla, Home sigue funcionando igual -- no es más grave

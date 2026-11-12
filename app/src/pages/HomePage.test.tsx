@@ -3,12 +3,14 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
  
 import * as api from '../lib/api'
+import { sincronizarRecordatorioServicio } from '../lib/recordatorioServicio'
 import { AuthProvider } from '../auth/AuthContext'
 import type { Atencion, FormatoAccidenteSoat, FormatoTraslado, MeResponse } from '../lib/types'
 import { HomePage } from './HomePage'
  
 vi.mock('../lib/api', () => import('../test/mockApi').then((m) => m.construirMockApi()))
 vi.mock('../lib/storage')
+vi.mock('../lib/recordatorioServicio', () => ({ sincronizarRecordatorioServicio: vi.fn() }))
  
 function perfilCon(
   roles: MeResponse['roles'],
@@ -305,6 +307,32 @@ describe('HomePage', () => {
     expect(screen.getByText(/Servicio en curso — móvil M-04/)).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Continuar' })).toHaveLength(2)
     expect(screen.getByRole('link', { name: 'Empezar' })).toBeInTheDocument()
+  })
+
+  it('sincroniza el recordatorio con la cantidad de servicios en curso', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+    )
+    vi.mocked(api.listarAtencionesEnCurso).mockResolvedValue([
+      ATENCION_EN_CURSO,
+      { ...ATENCION_EN_CURSO, id: 8 },
+    ])
+    vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(null)
+
+    renderHome()
+
+    await waitFor(() => expect(sincronizarRecordatorioServicio).toHaveBeenCalledWith(2))
+  })
+
+  it('sin servicios en curso le pide al recordatorio que se quite', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+    )
+    vi.mocked(api.listarAtencionesEnCurso).mockResolvedValue([])
+
+    renderHome()
+
+    await waitFor(() => expect(sincronizarRecordatorioServicio).toHaveBeenCalledWith(0))
   })
 
   it('enlaza directo al clínico si el encabezado ya se guardó (issue #51)', async () => {
