@@ -125,6 +125,9 @@ interface CamposClinico {
   notaMedica: string
   evolucionadoPor: string
   firmaEvolucionadoExistente: string | null
+  profesionalEntregaNombre: string
+  profesionalEntregaCedula: string
+  firmaProfesionalEntregaExistente: string | null
   profesionalRecibeNombre: string
   profesionalRecibeCedula: string
   firmaProfesionalRecibeExistente: string | null
@@ -149,6 +152,9 @@ const CLINICO_VACIO: CamposClinico = {
   notaMedica: '',
   evolucionadoPor: '',
   firmaEvolucionadoExistente: null,
+  profesionalEntregaNombre: '',
+  profesionalEntregaCedula: '',
+  firmaProfesionalEntregaExistente: null,
   profesionalRecibeNombre: '',
   profesionalRecibeCedula: '',
   firmaProfesionalRecibeExistente: null,
@@ -293,6 +299,7 @@ export function CorregirFormatoTrasladoPage(): JSX.Element {
   const id = Number(atencionId)
   const firmaAtendidoRef = useRef<FirmaCanvasHandle>(null)
   const firmaEvolucionadoRef = useRef<FirmaCanvasHandle>(null)
+  const firmaProfesionalEntregaRef = useRef<FirmaCanvasHandle>(null)
   const firmaProfesionalRecibeRef = useRef<FirmaCanvasHandle>(null)
 
   const [encabezado, setEncabezado] = useState<CamposEncabezado>(ENCABEZADO_VACIO)
@@ -368,6 +375,9 @@ export function CorregirFormatoTrasladoPage(): JSX.Element {
           notaMedica: existente.nota_medica ?? '',
           evolucionadoPor: existente.evolucionado_por ?? '',
           firmaEvolucionadoExistente: existente.firma_evolucionado_por,
+          profesionalEntregaNombre: existente.profesional_entrega_nombre ?? '',
+          profesionalEntregaCedula: existente.profesional_entrega_cedula ?? '',
+          firmaProfesionalEntregaExistente: existente.firma_profesional_entrega,
           profesionalRecibeNombre: existente.profesional_recibe_nombre ?? '',
           profesionalRecibeCedula: existente.profesional_recibe_cedula ?? '',
           firmaProfesionalRecibeExistente: existente.firma_profesional_recibe,
@@ -504,6 +514,10 @@ export function CorregirFormatoTrasladoPage(): JSX.Element {
         evolucionado_por: clinico.evolucionadoPor || null,
         firma_evolucionado_por:
           firmaEvolucionadoRef.current?.exportar() ?? clinico.firmaEvolucionadoExistente,
+        profesional_entrega_nombre: clinico.profesionalEntregaNombre || null,
+        profesional_entrega_cedula: clinico.profesionalEntregaCedula || null,
+        firma_profesional_entrega:
+          firmaProfesionalEntregaRef.current?.exportar() ?? clinico.firmaProfesionalEntregaExistente,
         profesional_recibe_nombre: clinico.profesionalRecibeNombre || null,
         profesional_recibe_cedula: clinico.profesionalRecibeCedula || null,
         firma_profesional_recibe:
@@ -1069,6 +1083,27 @@ export function CorregirFormatoTrasladoPage(): JSX.Element {
               imagenInicial={clinico.firmaEvolucionadoExistente}
               canvasRef={firmaEvolucionadoRef}
               disabled={clinico.evolucionadoPor.trim() === ''}
+            />
+
+            <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">
+              Profesional que entrega en la IPS/ESE de origen
+            </h2>
+            {campoTexto(
+              'Nombre de quien entrega',
+              'profesional-entrega-nombre',
+              clinico.profesionalEntregaNombre,
+              (valor) => setClinico((anterior) => ({ ...anterior, profesionalEntregaNombre: valor })),
+            )}
+            {campoTexto(
+              'Cédula de quien entrega',
+              'profesional-entrega-cedula',
+              clinico.profesionalEntregaCedula,
+              (valor) => setClinico((anterior) => ({ ...anterior, profesionalEntregaCedula: valor })),
+            )}
+            <FirmaField
+              etiqueta="Firma de quien entrega"
+              imagenInicial={clinico.firmaProfesionalEntregaExistente}
+              canvasRef={firmaProfesionalEntregaRef}
             />
 
             <h2 className="mb-3 mt-4 text-sm font-semibold text-slate-900">

@@ -323,6 +323,10 @@ export interface FormatoTrasladoClinico {
   nota_medica: string | null
   evolucionado_por: string | null
   firma_evolucionado_por: string | null
+  /** Profesional de la IPS/ESE de ORIGEN que entrega el paciente a LAFS (no la tripulación). */
+  profesional_entrega_nombre: string | null
+  profesional_entrega_cedula: string | null
+  firma_profesional_entrega: string | null
   profesional_recibe_nombre: string | null
   profesional_recibe_cedula: string | null
   firma_profesional_recibe: string | null
