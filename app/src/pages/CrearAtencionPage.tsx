@@ -3,9 +3,10 @@
  * conductor. El responsable es quien está logueado — no se pide en el
  * formulario, lo pone el backend a partir del token (ver ADR-0005).
  *
- * Las listas de ambulancias y conductores ya vienen filtradas por
- * disponibilidad (activos y sin otra atención abierta) — la flota es
- * rotativa, así que lo que no aparece aquí no se puede elegir.
+ * Las listas traen las ambulancias y conductores activos. Una
+ * ambulancia o un conductor puede tener varias atenciones abiertas a la
+ * vez (accidente múltiple, ADR-0015), así que quien ya está en servicio
+ * también aparece y se puede elegir de nuevo.
  */
  
 import { useEffect, useState } from 'react'
