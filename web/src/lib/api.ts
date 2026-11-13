@@ -17,7 +17,10 @@ import type {
   AsignarRolesRequest,
   Atencion,
   AtencionCerrada,
+  ChequeoVehiculo,
+  ChequeoVehiculoResumen,
   Empleado,
+  EstadoFlota,
   EmpleadoCreate,
   EmpleadoUpdate,
   FormatoAccidenteSoat,
@@ -296,6 +299,15 @@ export async function eliminarRol(id: number): Promise<void> {
  
 // --- Ambulancias (issue #79: estado "en uso" en el dashboard) ---
  
+/** Issue #19 -- cambiar el vencimiento del SOAT o de la tecnomecánica
+ * cuando se renuevan. */
+export async function actualizarVigenciasAmbulancia(
+  id: number,
+  datos: { vencimiento_soat?: string; vencimiento_tecnomecanica?: string },
+): Promise<Ambulancia> {
+  return apiFetch<Ambulancia>(`/ambulancias/${id}`, { method: 'PATCH', body: datos })
+}
+
 export async function listarAmbulancias(soloActivas = false): Promise<Ambulancia[]> {
   const query = soloActivas ? '?solo_activas=true' : ''
   return apiFetch<Ambulancia[]>(`/ambulancias${query}`)
@@ -525,4 +537,22 @@ export async function obtenerDetalleServiciosPorPersona(
     hasta,
   })
   return apiFetch<ViajeDetalle[]>(`/reportes/servicios-por-persona/detalle?${parametros}`)
+}
+
+// --- Chequeo semanal del vehículo (issue #19) ---
+
+/** Ambulancias activas con semáforo de SOAT/tecnomecánica y estado del
+ * chequeo semanal. */
+export async function listarEstadoFlota(): Promise<EstadoFlota[]> {
+  return apiFetch<EstadoFlota[]>('/chequeos-vehiculo/flota')
+}
+
+export async function listarChequeosVehiculo(
+  ambulanciaId: number,
+): Promise<ChequeoVehiculoResumen[]> {
+  return apiFetch<ChequeoVehiculoResumen[]>(`/chequeos-vehiculo?ambulancia_id=${ambulanciaId}`)
+}
+
+export async function obtenerChequeoVehiculo(id: number): Promise<ChequeoVehiculo> {
+  return apiFetch<ChequeoVehiculo>(`/chequeos-vehiculo/${id}`)
 }

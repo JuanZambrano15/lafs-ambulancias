@@ -1,4 +1,3 @@
-
 /**
  * Factory para `vi.mock('../lib/api', ...)` que mockea las funciones
  * de red pero conserva la clase real `ApiError` — el automock de
@@ -21,6 +20,9 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     guardarFirma: vi.fn(),
     establecerPin: vi.fn(),
     listarAmbulanciasDisponibles: vi.fn(),
+    obtenerCatalogoChequeoVehiculo: vi.fn(),
+    listarEstadoFlota: vi.fn(),
+    crearChequeoVehiculo: vi.fn(),
     listarConductoresDisponibles: vi.fn(),
     // Default a [] -- igual que `listarAtencionesEnCurso` más abajo:
     // la mayoría de las pruebas de ClinicoTrasladoPage no les importa
@@ -59,4 +61,3 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     eliminarFotoAccidenteSoat: vi.fn(),
   }
 }
- 

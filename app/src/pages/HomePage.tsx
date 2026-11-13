@@ -55,7 +55,11 @@ const SECCIONES_POR_ROL: Record<NombreRol, Seccion[]> = {
   ],
   conductor: [
     INICIAR_ATENCION,
-    { titulo: 'Chequeo de ambulancia', descripcion: 'Insumos y estado del vehículo' },
+    {
+      titulo: 'Chequeo de vehículo',
+      descripcion: 'Revisión semanal del móvil y vigencia de SOAT y tecnomecánica',
+      ruta: '/chequeo-vehiculo',
+    },
   ],
 }
  

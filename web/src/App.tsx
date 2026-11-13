@@ -8,6 +8,7 @@ import { CorregirFormatoAccidenteSoatPage } from './pages/CorregirFormatoAcciden
 import { CorregirFormatoTrasladoPage } from './pages/CorregirFormatoTrasladoPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { EmpleadosPage } from './pages/EmpleadosPage'
+import { FlotaPage } from './pages/FlotaPage'
 import { FotosAccidenteSoatPage } from './pages/FotosAccidenteSoatPage'
 import { LoginPage } from './pages/LoginPage'
 import { ReporteServiciosPage } from './pages/ReporteServiciosPage'
@@ -61,6 +62,14 @@ export function App(): JSX.Element {
             element={
               <Layout>
                 <CorregirFormatoAccidenteSoatPage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/flota"
+            element={
+              <Layout>
+                <FlotaPage />
               </Layout>
             }
           />

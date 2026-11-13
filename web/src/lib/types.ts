@@ -461,3 +461,53 @@ export interface ViajeDetalle {
   paciente: string
   cedula: string
 }
+
+// --- Chequeo semanal del vehículo (issue #19) ---
+
+export type Semaforo = 'verde' | 'amarillo' | 'rojo'
+
+export interface ItemChequeo {
+  item: string
+  estado: 'bien' | 'falla'
+  observacion: string | null
+}
+
+export interface UltimoChequeo {
+  id: number
+  realizado_en: string
+  conductor_nombre: string
+  tiene_fallas: boolean
+  total_fallas: number
+}
+
+export interface EstadoFlota {
+  ambulancia_id: number
+  movil: string
+  placa: string
+  tipo: 'basica' | 'medicalizada'
+  vencimiento_soat: string
+  dias_soat: number
+  semaforo_soat: Semaforo
+  vencimiento_tecnomecanica: string
+  dias_tecnomecanica: number
+  semaforo_tecnomecanica: Semaforo
+  ultimo_chequeo: UltimoChequeo | null
+  dias_desde_chequeo: number | null
+  chequeo_al_dia: boolean
+}
+
+export interface ChequeoVehiculoResumen {
+  id: number
+  ambulancia_id: number
+  movil: string
+  conductor_nombre: string
+  realizado_en: string
+  tiene_fallas: boolean
+  total_fallas: number
+}
+
+export interface ChequeoVehiculo extends ChequeoVehiculoResumen {
+  conductor_id: number
+  items: ItemChequeo[]
+  observaciones: string | null
+}

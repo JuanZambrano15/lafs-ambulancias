@@ -5,6 +5,7 @@ api/migrations/env.py, que importa `app.db.base.Base`).
 
 from app.models.ambulancia import Ambulancia
 from app.models.atencion import Atencion
+from app.models.chequeo_vehiculo import ChequeoVehiculo
 from app.models.empleado import Empleado
 from app.models.formato_accidente_soat import FormatoAccidenteSoat
 from app.models.formato_accidente_soat_version import FormatoAccidenteSoatVersion
@@ -17,6 +18,7 @@ from app.models.usuario_rol import UsuarioRol
 __all__ = [
     "Ambulancia",
     "Atencion",
+    "ChequeoVehiculo",
     "Empleado",
     "FormatoAccidenteSoat",
     "FormatoAccidenteSoatVersion",

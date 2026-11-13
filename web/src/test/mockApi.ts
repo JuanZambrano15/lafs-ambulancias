@@ -19,6 +19,12 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     obtenerPerfil: vi.fn(),
     cambiarPassword: vi.fn(),
     listarUsuarios: vi.fn(),
+    // Default a [] -- el dashboard lo pide para sus alertas (issue #19) y la
+    // mayoría de sus pruebas no necesita mockearlo.
+    listarEstadoFlota: vi.fn().mockResolvedValue([]),
+    listarChequeosVehiculo: vi.fn(),
+    actualizarVigenciasAmbulancia: vi.fn(),
+    obtenerChequeoVehiculo: vi.fn(),
     crearUsuario: vi.fn(),
     actualizarUsuario: vi.fn(),
     asignarRolesUsuario: vi.fn(),

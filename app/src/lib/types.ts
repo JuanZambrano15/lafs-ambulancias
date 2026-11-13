@@ -354,3 +354,65 @@ export interface FormatoAccidenteSoatFoto {
   subida_por: { id: number; documento: string }
   subida_en: string
 }
+
+// --- Chequeo semanal del vehículo (issue #19) ---
+
+export type Semaforo = 'verde' | 'amarillo' | 'rojo'
+
+export type EstadoItemChequeo = 'bien' | 'falla'
+
+export interface ItemChequeo {
+  item: string
+  estado: EstadoItemChequeo
+  observacion: string | null
+}
+
+export interface CatalogoChequeo {
+  frecuencia_dias: number
+  items: string[]
+}
+
+export interface UltimoChequeo {
+  id: number
+  realizado_en: string
+  conductor_nombre: string
+  tiene_fallas: boolean
+  total_fallas: number
+}
+
+/** Una ambulancia activa con el semáforo de sus vigencias y el estado
+ * de su chequeo semanal. */
+export interface EstadoFlota {
+  ambulancia_id: number
+  movil: string
+  placa: string
+  tipo: TipoAmbulancia
+  vencimiento_soat: string
+  dias_soat: number
+  semaforo_soat: Semaforo
+  vencimiento_tecnomecanica: string
+  dias_tecnomecanica: number
+  semaforo_tecnomecanica: Semaforo
+  ultimo_chequeo: UltimoChequeo | null
+  dias_desde_chequeo: number | null
+  chequeo_al_dia: boolean
+}
+
+export interface ChequeoVehiculoCreate {
+  ambulancia_id: number
+  items: ItemChequeo[]
+  observaciones: string | null
+}
+
+export interface ChequeoVehiculo {
+  id: number
+  ambulancia_id: number
+  movil: string
+  conductor_id: number
+  conductor_nombre: string
+  realizado_en: string
+  items: ItemChequeo[]
+  observaciones: string | null
+  tiene_fallas: boolean
+  total_fallas: number
+}
