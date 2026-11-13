@@ -23,6 +23,7 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     // mayoría de sus pruebas no necesita mockearlo.
     listarEstadoFlota: vi.fn().mockResolvedValue([]),
     listarChequeosVehiculo: vi.fn(),
+    actualizarVigenciasAmbulancia: vi.fn(),
     obtenerChequeoVehiculo: vi.fn(),
     crearUsuario: vi.fn(),
     actualizarUsuario: vi.fn(),

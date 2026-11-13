@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -151,5 +151,79 @@ describe('FlotaPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Ver chequeos' }))
 
     expect(await screen.findByText('Este móvil todavía no tiene chequeos.')).toBeInTheDocument()
+  })
+
+  it('registra la renovación del SOAT con la nueva fecha y recarga el semáforo', async () => {
+    vi.mocked(api.listarEstadoFlota)
+      .mockResolvedValueOnce([movil({ semaforo_soat: 'rojo', dias_soat: 5 })])
+      .mockResolvedValueOnce([movil({ vencimiento_soat: '2027-11-20', dias_soat: 372 })])
+    vi.mocked(api.actualizarVigenciasAmbulancia).mockResolvedValue({} as never)
+    render(<FlotaPage />)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Cambiar vencimiento del SOAT del móvil M-01' }),
+    )
+    const campo = screen.getByLabelText('Nuevo vencimiento del SOAT (M-01)')
+    fireEvent.change(campo, { target: { value: '2027-11-20' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() =>
+      expect(api.actualizarVigenciasAmbulancia).toHaveBeenCalledWith(1, {
+        vencimiento_soat: '2027-11-20',
+      }),
+    )
+    expect(await screen.findByText('20/11/2027')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Nuevo vencimiento del SOAT (M-01)')).not.toBeInTheDocument()
+  })
+
+  it('la tecnomecánica manda solo su fecha', async () => {
+    vi.mocked(api.listarEstadoFlota).mockResolvedValue([movil()])
+    vi.mocked(api.actualizarVigenciasAmbulancia).mockResolvedValue({} as never)
+    render(<FlotaPage />)
+
+    await userEvent.click(
+      await screen.findByRole('button', {
+        name: 'Cambiar vencimiento de la tecnomecánica del móvil M-01',
+      }),
+    )
+    fireEvent.change(screen.getByLabelText('Nuevo vencimiento de la tecnomecánica (M-01)'), {
+      target: { value: '2027-12-01' },
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() =>
+      expect(api.actualizarVigenciasAmbulancia).toHaveBeenCalledWith(1, {
+        vencimiento_tecnomecanica: '2027-12-01',
+      }),
+    )
+  })
+
+  it('muestra el error si no se pudo guardar y deja la fecha anterior', async () => {
+    vi.mocked(api.listarEstadoFlota).mockResolvedValue([movil()])
+    vi.mocked(api.actualizarVigenciasAmbulancia).mockRejectedValue(
+      new api.ApiError(422, 'Fecha inválida'),
+    )
+    render(<FlotaPage />)
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Cambiar vencimiento del SOAT del móvil M-01' }),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Fecha inválida')
+    expect(screen.getByText('05/03/2027')).toBeInTheDocument()
+  })
+
+  it('cancelar cierra el editor sin guardar nada', async () => {
+    vi.mocked(api.listarEstadoFlota).mockResolvedValue([movil()])
+    render(<FlotaPage />)
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Cambiar vencimiento del SOAT del móvil M-01' }),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByLabelText('Nuevo vencimiento del SOAT (M-01)')).not.toBeInTheDocument()
+    expect(api.actualizarVigenciasAmbulancia).not.toHaveBeenCalled()
   })
 })

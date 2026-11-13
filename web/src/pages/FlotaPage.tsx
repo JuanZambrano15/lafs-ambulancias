@@ -6,14 +6,19 @@
  *
  * Semáforo (lo calcula el backend): vencido o 15 días o menos, rojo;
  * hasta 30 días, amarillo; más de 30, verde.
+ *
+ * Aquí también se registra la renovación: al comprar el SOAT o la
+ * tecnomecánica (normalmente una semana antes de que venza) se escribe
+ * la nueva fecha de vencimiento y el semáforo se recalcula.
  */
 
 import { useEffect, useState } from 'react'
-import type { JSX } from 'react'
+import type { FormEvent, JSX } from 'react'
 
 import { SemaforoVigencia } from '../components/SemaforoVigencia'
 import {
   ApiError,
+  actualizarVigenciasAmbulancia,
   listarChequeosVehiculo,
   listarEstadoFlota,
   obtenerChequeoVehiculo,
@@ -23,6 +28,114 @@ import { textoChequeo } from '../lib/vigencia'
 
 function formatearFechaHora(iso: string): string {
   return new Date(iso).toLocaleString()
+}
+
+type Documento = 'soat' | 'tecnomecanica'
+
+const NOMBRE_DOCUMENTO: Record<Documento, string> = {
+  soat: 'del SOAT',
+  tecnomecanica: 'de la tecnomecánica',
+}
+
+/** Vencimiento de un documento con el botón para registrar su
+ * renovación (nueva fecha de vencimiento). */
+function CeldaVigencia({
+  movil,
+  documento,
+  onGuardado,
+}: {
+  movil: EstadoFlota
+  documento: Documento
+  onGuardado: () => void
+}): JSX.Element {
+  const actual = documento === 'soat' ? movil.vencimiento_soat : movil.vencimiento_tecnomecanica
+  const dias = documento === 'soat' ? movil.dias_soat : movil.dias_tecnomecanica
+  const semaforo = documento === 'soat' ? movil.semaforo_soat : movil.semaforo_tecnomecanica
+  const nombre = NOMBRE_DOCUMENTO[documento]
+
+  const [editando, setEditando] = useState(false)
+  const [fecha, setFecha] = useState(actual)
+  const [error, setError] = useState<string | null>(null)
+  const [guardando, setGuardando] = useState(false)
+
+  async function guardar(evento: FormEvent): Promise<void> {
+    evento.preventDefault()
+    if (!fecha) {
+      setError('Escribe la nueva fecha de vencimiento')
+      return
+    }
+    setGuardando(true)
+    setError(null)
+    try {
+      await actualizarVigenciasAmbulancia(
+        movil.ambulancia_id,
+        documento === 'soat' ? { vencimiento_soat: fecha } : { vencimiento_tecnomecanica: fecha },
+      )
+      setEditando(false)
+      onGuardado()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo guardar la fecha')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <div>
+      <SemaforoVigencia vencimiento={actual} dias={dias} semaforo={semaforo} />
+      {editando ? (
+        <form onSubmit={guardar} className="mt-2">
+          <label className="mb-1 block text-xs text-slate-600" htmlFor={`${documento}-${movil.ambulancia_id}`}>
+            Nuevo vencimiento {nombre} ({movil.movil})
+          </label>
+          <input
+            id={`${documento}-${movil.ambulancia_id}`}
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            className="mb-2 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-blue focus:outline-none"
+          />
+          {error && (
+            <p role="alert" className="mb-2 text-xs text-brand-orange-dark">
+              {error}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={guardando}
+              className="rounded-lg bg-brand-blue px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+            >
+              {guardando ? 'Guardando…' : 'Guardar'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditando(false)
+                setFecha(actual)
+                setError(null)
+              }}
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setFecha(actual)
+            setEditando(true)
+          }}
+          aria-label={`Cambiar vencimiento ${nombre} del móvil ${movil.movil}`}
+          className="mt-1 rounded-lg px-2 py-1 text-xs font-medium text-brand-blue hover:bg-slate-100"
+        >
+          Cambiar fecha
+        </button>
+      )}
+    </div>
+  )
 }
 
 function DetalleChequeo({ chequeo }: { chequeo: ChequeoVehiculo }): JSX.Element {
@@ -147,12 +260,23 @@ export function FlotaPage(): JSX.Element {
       })
   }, [])
 
+  // Tras registrar una renovación, el semáforo y los días los recalcula
+  // el backend: se vuelve a pedir la lista en vez de calcularlos aquí.
+  function recargar(): void {
+    listarEstadoFlota()
+      .then(setFlota)
+      .catch((err: unknown) => {
+        setError(err instanceof ApiError ? err.message : 'No se pudo actualizar la lista')
+      })
+  }
+
   return (
     <section>
       <h2 className="mb-2 text-2xl font-semibold text-slate-900">Estado de la flota</h2>
       <p className="mb-6 text-sm text-slate-500">
-        Vigencia del SOAT y la tecnomecánica de cada móvil, y su chequeo semanal. Rojo: vencido o
-        a 15 días o menos; amarillo: hasta 30 días; verde: más de 30.
+        Vigencia del SOAT y la tecnomecánica de cada móvil, y su chequeo semanal. Cuando compres
+        uno de los dos, usa "Cambiar fecha" para escribir el nuevo vencimiento. Rojo: vencido o a
+        15 días o menos; amarillo: hasta 30 días; verde: más de 30.
       </p>
 
       {error && (
@@ -186,18 +310,10 @@ export function FlotaPage(): JSX.Element {
                       <div className="text-xs font-normal text-slate-500">{m.placa}</div>
                     </td>
                     <td className="px-3 py-3">
-                      <SemaforoVigencia
-                        vencimiento={m.vencimiento_soat}
-                        dias={m.dias_soat}
-                        semaforo={m.semaforo_soat}
-                      />
+                      <CeldaVigencia movil={m} documento="soat" onGuardado={recargar} />
                     </td>
                     <td className="px-3 py-3">
-                      <SemaforoVigencia
-                        vencimiento={m.vencimiento_tecnomecanica}
-                        dias={m.dias_tecnomecanica}
-                        semaforo={m.semaforo_tecnomecanica}
-                      />
+                      <CeldaVigencia movil={m} documento="tecnomecanica" onGuardado={recargar} />
                     </td>
                     <td className="px-3 py-3">
                       <div className={m.chequeo_al_dia ? 'text-green-700' : 'text-red-700'}>

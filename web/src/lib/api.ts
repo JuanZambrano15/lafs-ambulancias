@@ -299,6 +299,15 @@ export async function eliminarRol(id: number): Promise<void> {
  
 // --- Ambulancias (issue #79: estado "en uso" en el dashboard) ---
  
+/** Issue #19 -- cambiar el vencimiento del SOAT o de la tecnomecánica
+ * cuando se renuevan. */
+export async function actualizarVigenciasAmbulancia(
+  id: number,
+  datos: { vencimiento_soat?: string; vencimiento_tecnomecanica?: string },
+): Promise<Ambulancia> {
+  return apiFetch<Ambulancia>(`/ambulancias/${id}`, { method: 'PATCH', body: datos })
+}
+
 export async function listarAmbulancias(soloActivas = false): Promise<Ambulancia[]> {
   const query = soloActivas ? '?solo_activas=true' : ''
   return apiFetch<Ambulancia[]>(`/ambulancias${query}`)
