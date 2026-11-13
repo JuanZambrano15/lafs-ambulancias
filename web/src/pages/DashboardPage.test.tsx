@@ -1,4 +1,3 @@
-
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -61,6 +60,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(api.listarAtencionesPendientes).mockResolvedValue([])
   vi.mocked(api.listarAmbulancias).mockResolvedValue([])
+  vi.mocked(api.listarEstadoFlota).mockResolvedValue([])
 })
  
 describe('DashboardPage', () => {
@@ -156,18 +156,89 @@ describe('DashboardPage', () => {
     expect(await screen.findByText('No hay atenciones abiertas en este momento.')).toBeInTheDocument()
   })
  
-  it('issue #79: muestra el placeholder de alertas de fase 2', async () => {
+  it('issue #19: sin problemas en la flota dice que no hay alertas', async () => {
     render(
       <MemoryRouter>
         <DashboardPage />
       </MemoryRouter>,
     )
- 
-    expect(
-      await screen.findByText('Las alertas de vencimiento (SOAT, tecnomecánica) y de stock estarán disponibles en la fase 2.'),
-    ).toBeInTheDocument()
+
+    expect(await screen.findByText('Sin alertas de vigencia ni de chequeo.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ver estado de la flota' })).toHaveAttribute(
+      'href',
+      '/flota',
+    )
   })
- 
+
+  it('issue #19: alerta por vigencias, chequeo pendiente y fallas, las rojas primero', async () => {
+    vi.mocked(api.listarEstadoFlota).mockResolvedValue([
+      {
+        ambulancia_id: 1,
+        movil: 'M-01',
+        placa: 'ABC123',
+        tipo: 'basica',
+        vencimiento_soat: '2026-11-20',
+        dias_soat: 8,
+        semaforo_soat: 'rojo',
+        vencimiento_tecnomecanica: '2026-12-20',
+        dias_tecnomecanica: 28,
+        semaforo_tecnomecanica: 'amarillo',
+        ultimo_chequeo: {
+          id: 5,
+          realizado_en: '2026-11-10T10:00:00Z',
+          conductor_nombre: 'Pedro Londoño',
+          tiene_fallas: true,
+          total_fallas: 2,
+        },
+        dias_desde_chequeo: 2,
+        chequeo_al_dia: true,
+      },
+      {
+        ambulancia_id: 2,
+        movil: 'M-02',
+        placa: 'XYZ987',
+        tipo: 'basica',
+        vencimiento_soat: '2027-06-01',
+        dias_soat: 200,
+        semaforo_soat: 'verde',
+        vencimiento_tecnomecanica: '2027-06-01',
+        dias_tecnomecanica: 200,
+        semaforo_tecnomecanica: 'verde',
+        ultimo_chequeo: null,
+        dias_desde_chequeo: null,
+        chequeo_al_dia: false,
+      },
+    ])
+
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Móvil M-01: SOAT. Vence en 8 días')).toBeInTheDocument()
+    expect(screen.getByText('Móvil M-01: tecnomecánica. Vence en 28 días')).toBeInTheDocument()
+    expect(screen.getByText('Móvil M-01: el último chequeo reportó 2 fallas')).toBeInTheDocument()
+    expect(screen.getByText('Móvil M-02: chequeo semanal pendiente')).toBeInTheDocument()
+    const niveles = Array.from(document.querySelectorAll('[data-nivel]')).map((e) =>
+      e.getAttribute('data-nivel'),
+    )
+    expect(niveles).toEqual(['rojo', 'rojo', 'amarillo', 'amarillo'])
+  })
+
+  it('issue #19: si fallan las alertas de la flota lo dice, sin tumbar lo demás', async () => {
+    vi.mocked(api.listarEstadoFlota).mockRejectedValue(new ApiError(500, 'Error de flota'))
+
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Error de flota')).toBeInTheDocument()
+    expect(await screen.findByText('No hay atenciones abiertas en este momento.')).toBeInTheDocument()
+  })
+
   it('no muestra ni un buscador ni "Formatos cerrados" -- eso se movió a su propia pantalla', async () => {
     render(
       <MemoryRouter>

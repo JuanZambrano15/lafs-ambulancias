@@ -17,17 +17,73 @@
  * completa, así que no tenía sentido dejarla en el dashboard para
  * tener que volver a tocarla.
  *
- * Alertas de vencimiento (SOAT, tecnomecánica) y de stock/inventario
- * son fase 2 (#19, #21, #23) -- todavía no hay chequeos de vehículo
- * ni inventario implementados, así que ese bloque es un mensaje fijo,
- * no datos reales.
+ * Alertas (issue #19): vencimientos de SOAT y tecnomecánica (semáforo),
+ * chequeo semanal pendiente y último chequeo con fallas. Las de stock
+ * e inventario siguen pendientes de la fase 2 (#23).
  */
  
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
+import { Link } from 'react-router-dom'
  
-import { ApiError, listarAmbulancias, listarAtencionesPendientes } from '../lib/api'
-import type { Atencion } from '../lib/types'
+import {
+  ApiError,
+  listarAmbulancias,
+  listarAtencionesPendientes,
+  listarEstadoFlota,
+} from '../lib/api'
+import type { Atencion, EstadoFlota, Semaforo } from '../lib/types'
+import { textoVencimiento } from '../lib/vigencia'
+
+interface AlertaFlota {
+  clave: string
+  nivel: Semaforo
+  texto: string
+}
+
+/** Lo que merece atención de una ambulancia: vigencias en amarillo o
+ * rojo, chequeo semanal pendiente y fallas en el último chequeo. */
+function alertasDeFlota(flota: EstadoFlota[]): AlertaFlota[] {
+  const alertas: AlertaFlota[] = []
+  for (const m of flota) {
+    if (m.semaforo_soat !== 'verde') {
+      alertas.push({
+        clave: `${m.ambulancia_id}-soat`,
+        nivel: m.semaforo_soat,
+        texto: `Móvil ${m.movil}: SOAT. ${textoVencimiento(m.dias_soat)}`,
+      })
+    }
+    if (m.semaforo_tecnomecanica !== 'verde') {
+      alertas.push({
+        clave: `${m.ambulancia_id}-tecno`,
+        nivel: m.semaforo_tecnomecanica,
+        texto: `Móvil ${m.movil}: tecnomecánica. ${textoVencimiento(m.dias_tecnomecanica)}`,
+      })
+    }
+    if (!m.chequeo_al_dia) {
+      alertas.push({
+        clave: `${m.ambulancia_id}-chequeo`,
+        nivel: 'amarillo',
+        texto: `Móvil ${m.movil}: chequeo semanal pendiente`,
+      })
+    }
+    if (m.ultimo_chequeo?.tiene_fallas) {
+      alertas.push({
+        clave: `${m.ambulancia_id}-fallas`,
+        nivel: 'rojo',
+        texto: `Móvil ${m.movil}: el último chequeo reportó ${m.ultimo_chequeo.total_fallas} ${m.ultimo_chequeo.total_fallas === 1 ? 'falla' : 'fallas'}`,
+      })
+    }
+  }
+  const orden: Record<Semaforo, number> = { rojo: 0, amarillo: 1, verde: 2 }
+  return alertas.sort((a, b) => orden[a.nivel] - orden[b.nivel])
+}
+
+const COLOR_ALERTA: Record<Semaforo, string> = {
+  verde: 'bg-green-100 text-green-800',
+  amarillo: 'bg-amber-100 text-amber-800',
+  rojo: 'bg-red-100 text-red-800',
+}
  
 // Issue #15: no había ninguna definición previa de qué cuenta como
 // "lleva mucho tiempo abierta" -- se decidió 12 horas como primer
@@ -58,6 +114,9 @@ export function DashboardPage(): JSX.Element {
     { movil: string; placa: string; enUso: boolean }[] | null
   >(null)
   const [errorAmbulancias, setErrorAmbulancias] = useState<string | null>(null)
+
+  const [flota, setFlota] = useState<EstadoFlota[] | null>(null)
+  const [errorFlota, setErrorFlota] = useState<string | null>(null)
  
   // Ver el comentario equivalente en EmpleadosPage.tsx/RolesPage.tsx
   // sobre por qué el efecto de montaje usa `.then/.catch` directo en
@@ -102,6 +161,16 @@ export function DashboardPage(): JSX.Element {
       })
   }, [])
  
+  useEffect(() => {
+    listarEstadoFlota()
+      .then(setFlota)
+      .catch((err: unknown) => {
+        setErrorFlota(
+          err instanceof ApiError ? err.message : 'No se pudieron cargar las alertas de la flota',
+        )
+      })
+  }, [])
+
   return (
     // Issue #98: en escritorio, pendientes a la izquierda (la tabla
     // necesita el ancho) y ambulancias + alertas en una columna a la
@@ -211,13 +280,39 @@ export function DashboardPage(): JSX.Element {
         <section>
           <h2 className="mb-6 text-2xl font-semibold text-slate-900">Alertas</h2>
  
-          {/* Issue #79: todavía no hay chequeos de vehículo (#19/#21) ni
-              inventario (#23) implementados -- este bloque es un
-              mensaje fijo, no datos reales, hasta que esos issues
-              lleguen. */}
-          <p className="rounded-lg bg-slate-100 p-4 text-sm text-slate-500">
-            Las alertas de vencimiento (SOAT, tecnomecánica) y de stock estarán disponibles en la
-            fase 2.
+          {errorFlota && (
+            <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
+              {errorFlota}
+            </p>
+          )}
+
+          {flota === null ? (
+            !errorFlota && <p className="text-slate-500">Cargando…</p>
+          ) : alertasDeFlota(flota).length === 0 ? (
+            <p className="rounded-lg bg-green-100 p-4 text-sm text-green-800">
+              Sin alertas de vigencia ni de chequeo.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {alertasDeFlota(flota).map((alerta) => (
+                <li
+                  key={alerta.clave}
+                  data-nivel={alerta.nivel}
+                  className={`rounded-lg px-4 py-2 text-sm ${COLOR_ALERTA[alerta.nivel]}`}
+                >
+                  {alerta.texto}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <p className="mt-3 text-sm">
+            <Link to="/flota" className="font-medium text-brand-blue">
+              Ver estado de la flota
+            </Link>
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            Las alertas de stock e inventario estarán disponibles en la fase 2.
           </p>
         </section>
       </div>
