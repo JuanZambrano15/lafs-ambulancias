@@ -32,6 +32,7 @@ import { BotonTema } from './BotonTema'
 const ENLACES_ADMINISTRADOR = [
   { to: '/', etiqueta: 'Inicio' },
   { to: '/servicios-cerrados', etiqueta: 'Servicios cerrados' },
+  { to: '/flota', etiqueta: 'Estado de la flota' },
   { to: '/reportes/servicios', etiqueta: 'Servicios por persona' },
   { to: '/usuarios', etiqueta: 'Usuarios' },
   { to: '/empleados', etiqueta: 'Empleados' },

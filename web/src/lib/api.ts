@@ -17,7 +17,10 @@ import type {
   AsignarRolesRequest,
   Atencion,
   AtencionCerrada,
+  ChequeoVehiculo,
+  ChequeoVehiculoResumen,
   Empleado,
+  EstadoFlota,
   EmpleadoCreate,
   EmpleadoUpdate,
   FormatoAccidenteSoat,
@@ -525,4 +528,22 @@ export async function obtenerDetalleServiciosPorPersona(
     hasta,
   })
   return apiFetch<ViajeDetalle[]>(`/reportes/servicios-por-persona/detalle?${parametros}`)
+}
+
+// --- Chequeo semanal del vehículo (issue #19) ---
+
+/** Ambulancias activas con semáforo de SOAT/tecnomecánica y estado del
+ * chequeo semanal. */
+export async function listarEstadoFlota(): Promise<EstadoFlota[]> {
+  return apiFetch<EstadoFlota[]>('/chequeos-vehiculo/flota')
+}
+
+export async function listarChequeosVehiculo(
+  ambulanciaId: number,
+): Promise<ChequeoVehiculoResumen[]> {
+  return apiFetch<ChequeoVehiculoResumen[]>(`/chequeos-vehiculo?ambulancia_id=${ambulanciaId}`)
+}
+
+export async function obtenerChequeoVehiculo(id: number): Promise<ChequeoVehiculo> {
+  return apiFetch<ChequeoVehiculo>(`/chequeos-vehiculo/${id}`)
 }
