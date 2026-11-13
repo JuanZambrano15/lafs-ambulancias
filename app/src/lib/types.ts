@@ -416,3 +416,75 @@ export interface ChequeoVehiculo {
   tiene_fallas: boolean
   total_fallas: number
 }
+
+// --- Chequeo semanal de insumos y medicamentos (issue #20) ---
+
+export interface InsumoCatalogo {
+  id: number
+  ambulancia_id: number
+  categoria: string
+  nombre: string
+  minimo: number
+  unidad: string | null
+  orden: number
+}
+
+export interface FormularioInsumos {
+  frecuencia_dias: number
+  items: InsumoCatalogo[]
+}
+
+export interface UltimoChequeoInsumos {
+  id: number
+  realizado_en: string
+  auxiliar_nombre: string
+  tiene_faltantes: boolean
+  total_faltantes: number
+}
+
+/** Una ambulancia activa con el tamaño de su catálogo de insumos y el
+ * estado de su chequeo semanal. */
+export interface EstadoInsumosMovil {
+  ambulancia_id: number
+  movil: string
+  placa: string
+  total_items: number
+  frecuencia_dias: number
+  ultimo_chequeo: UltimoChequeoInsumos | null
+  dias_desde_chequeo: number | null
+  chequeo_al_dia: boolean
+}
+
+export interface ItemChequeoInsumoCreate {
+  insumo_id: number
+  encontrado: number
+}
+
+export interface ChequeoInsumosCreate {
+  ambulancia_id: number
+  items: ItemChequeoInsumoCreate[]
+  observaciones: string | null
+}
+
+export interface ItemChequeoInsumo {
+  insumo_id: number
+  categoria: string
+  nombre: string
+  unidad: string | null
+  minimo: number
+  encontrado: number
+  faltante: boolean
+}
+
+export interface ChequeoInsumos {
+  id: number
+  ambulancia_id: number
+  movil: string
+  auxiliar_id: number
+  auxiliar_nombre: string
+  realizado_en: string
+  items: ItemChequeoInsumo[]
+  observaciones: string | null
+  tiene_faltantes: boolean
+  total_faltantes: number
+}

@@ -23,6 +23,9 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     obtenerCatalogoChequeoVehiculo: vi.fn(),
     listarEstadoFlota: vi.fn(),
     crearChequeoVehiculo: vi.fn(),
+    listarEstadoInsumos: vi.fn(),
+    obtenerFormularioInsumos: vi.fn(),
+    crearChequeoInsumos: vi.fn(),
     listarConductoresDisponibles: vi.fn(),
     // Default a [] -- igual que `listarAtencionesEnCurso` más abajo:
     // la mayoría de las pruebas de ClinicoTrasladoPage no les importa

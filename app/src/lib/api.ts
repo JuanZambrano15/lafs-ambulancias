@@ -14,10 +14,13 @@ import type {
   Atencion,
   AtencionCreate,
   CatalogoChequeo,
+  ChequeoInsumos,
+  ChequeoInsumosCreate,
   ChequeoVehiculo,
   ChequeoVehiculoCreate,
   Empleado,
   EstadoFlota,
+  EstadoInsumosMovil,
   FormatoAccidenteSoat,
   FormatoAccidenteSoatClinico,
   FormatoAccidenteSoatEncabezado,
@@ -25,6 +28,7 @@ import type {
   FormatoTraslado,
   FormatoTrasladoClinico,
   FormatoTrasladoEncabezado,
+  FormularioInsumos,
   MeResponse,
   TokenResponse,
 } from './types'
@@ -416,6 +420,26 @@ export async function listarEstadoFlota(): Promise<EstadoFlota[]> {
 
 export async function crearChequeoVehiculo(datos: ChequeoVehiculoCreate): Promise<ChequeoVehiculo> {
   return apiFetch<ChequeoVehiculo>('/chequeos-vehiculo', {
+    method: 'POST',
+    body: datos,
+  })
+}
+
+// --- Chequeo semanal de insumos y medicamentos (issue #20) ---
+
+/** Ambulancias activas con el tamaño de su catálogo y el estado de su
+ * chequeo semanal de insumos. */
+export async function listarEstadoInsumos(): Promise<EstadoInsumosMovil[]> {
+  return apiFetch<EstadoInsumosMovil[]>('/chequeos-insumos/moviles')
+}
+
+/** Lo que el auxiliar debe contar en ese móvil (su catálogo con mínimos). */
+export async function obtenerFormularioInsumos(ambulanciaId: number): Promise<FormularioInsumos> {
+  return apiFetch<FormularioInsumos>(`/chequeos-insumos/formulario?ambulancia_id=${ambulanciaId}`)
+}
+
+export async function crearChequeoInsumos(datos: ChequeoInsumosCreate): Promise<ChequeoInsumos> {
+  return apiFetch<ChequeoInsumos>('/chequeos-insumos', {
     method: 'POST',
     body: datos,
   })
