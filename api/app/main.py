@@ -7,6 +7,8 @@ from app.api.routes import (
     ambulancias,
     atenciones,
     auth,
+    catalogo_insumos,
+    chequeos_insumos,
     chequeos_vehiculo,
     empleados,
     health,
@@ -47,4 +49,6 @@ app.include_router(usuarios.router)
 app.include_router(ambulancias.router)
 app.include_router(atenciones.router)
 app.include_router(chequeos_vehiculo.router)
+app.include_router(catalogo_insumos.router)
+app.include_router(chequeos_insumos.router)
 app.include_router(reportes.router)

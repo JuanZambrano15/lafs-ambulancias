@@ -6,6 +6,7 @@ import { OfflineSyncBanner } from './components/OfflineSyncBanner'
 import { CambiarPasswordPage } from './pages/CambiarPasswordPage'
 import { ClinicoAccidenteSoatPage } from './pages/ClinicoAccidenteSoatPage'
 import { ClinicoTrasladoPage } from './pages/ClinicoTrasladoPage'
+import { ChequeoInsumosPage } from './pages/ChequeoInsumosPage'
 import { ChequeoVehiculoPage } from './pages/ChequeoVehiculoPage'
 import { ConfigurarFirmaPage } from './pages/ConfigurarFirmaPage'
 import { ConfigurarPinPage } from './pages/ConfigurarPinPage'
@@ -30,6 +31,7 @@ export function App(): JSX.Element {
           <Route path="/" element={<HomePage />} />
           <Route path="/atenciones/nueva" element={<CrearAtencionPage />} />
           <Route path="/chequeo-vehiculo" element={<ChequeoVehiculoPage />} />
+          <Route path="/chequeo-insumos" element={<ChequeoInsumosPage />} />
           <Route
             path="/atenciones/:atencionId/encabezado-traslado"
             element={<EncabezadoTrasladoPage />}

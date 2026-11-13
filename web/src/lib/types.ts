@@ -511,3 +511,83 @@ export interface ChequeoVehiculo extends ChequeoVehiculoResumen {
   items: ItemChequeo[]
   observaciones: string | null
 }
+
+// --- Insumos y medicamentos por móvil (issue #20) ---
+
+export interface InsumoCatalogo {
+  id: number
+  ambulancia_id: number
+  categoria: string
+  nombre: string
+  minimo: number
+  unidad: string | null
+  orden: number
+}
+
+export interface InsumoCreate {
+  ambulancia_id: number
+  categoria: string
+  nombre: string
+  minimo: number
+  unidad: string | null
+}
+
+export interface InsumoUpdate {
+  categoria?: string
+  nombre?: string
+  minimo?: number
+  unidad?: string | null
+}
+
+export interface PlantillaInsumos {
+  clave: string
+  nombre: string
+  total: number
+}
+
+export interface UltimoChequeoInsumos {
+  id: number
+  realizado_en: string
+  auxiliar_nombre: string
+  tiene_faltantes: boolean
+  total_faltantes: number
+}
+
+/** Una ambulancia activa con el tamaño de su catálogo de insumos y el
+ * estado de su chequeo semanal. */
+export interface EstadoInsumosMovil {
+  ambulancia_id: number
+  movil: string
+  placa: string
+  total_items: number
+  frecuencia_dias: number
+  ultimo_chequeo: UltimoChequeoInsumos | null
+  dias_desde_chequeo: number | null
+  chequeo_al_dia: boolean
+}
+
+export interface ChequeoInsumosResumen {
+  id: number
+  ambulancia_id: number
+  movil: string
+  auxiliar_nombre: string
+  realizado_en: string
+  tiene_faltantes: boolean
+  total_faltantes: number
+}
+
+export interface ItemChequeoInsumo {
+  insumo_id: number
+  categoria: string
+  nombre: string
+  unidad: string | null
+  minimo: number
+  encontrado: number
+  faltante: boolean
+}
+
+export interface ChequeoInsumos extends ChequeoInsumosResumen {
+  auxiliar_id: number
+  items: ItemChequeoInsumo[]
+  observaciones: string | null
+}

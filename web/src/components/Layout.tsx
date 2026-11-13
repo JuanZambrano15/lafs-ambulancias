@@ -33,6 +33,7 @@ const ENLACES_ADMINISTRADOR = [
   { to: '/', etiqueta: 'Inicio' },
   { to: '/servicios-cerrados', etiqueta: 'Servicios cerrados' },
   { to: '/flota', etiqueta: 'Estado de la flota' },
+  { to: '/insumos', etiqueta: 'Insumos por móvil' },
   { to: '/reportes/servicios', etiqueta: 'Servicios por persona' },
   { to: '/usuarios', etiqueta: 'Usuarios' },
   { to: '/empleados', etiqueta: 'Empleados' },

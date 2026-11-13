@@ -17,12 +17,15 @@ import type {
   AsignarRolesRequest,
   Atencion,
   AtencionCerrada,
+  ChequeoInsumos,
+  ChequeoInsumosResumen,
   ChequeoVehiculo,
   ChequeoVehiculoResumen,
   Empleado,
   EstadoFlota,
   EmpleadoCreate,
   EmpleadoUpdate,
+  EstadoInsumosMovil,
   FormatoAccidenteSoat,
   FormatoAccidenteSoatClinico,
   FormatoAccidenteSoatEncabezado,
@@ -33,7 +36,11 @@ import type {
   FormatoTrasladoEncabezado,
   FormatoVersionOut,
   FuncionServicio,
+  InsumoCatalogo,
+  InsumoCreate,
+  InsumoUpdate,
   MeResponse,
+  PlantillaInsumos,
   Rol,
   RolCreate,
   RolUpdate,
@@ -555,4 +562,53 @@ export async function listarChequeosVehiculo(
 
 export async function obtenerChequeoVehiculo(id: number): Promise<ChequeoVehiculo> {
   return apiFetch<ChequeoVehiculo>(`/chequeos-vehiculo/${id}`)
+}
+
+// --- Insumos y medicamentos por móvil (issue #20) ---
+
+/** Ambulancias activas con el tamaño de su catálogo y el estado de su
+ * chequeo semanal de insumos. */
+export async function listarEstadoInsumos(): Promise<EstadoInsumosMovil[]> {
+  return apiFetch<EstadoInsumosMovil[]>('/chequeos-insumos/moviles')
+}
+
+export async function listarCatalogoInsumos(ambulanciaId: number): Promise<InsumoCatalogo[]> {
+  return apiFetch<InsumoCatalogo[]>(`/insumos?ambulancia_id=${ambulanciaId}`)
+}
+
+export async function crearInsumo(datos: InsumoCreate): Promise<InsumoCatalogo> {
+  return apiFetch<InsumoCatalogo>('/insumos', { method: 'POST', body: datos })
+}
+
+export async function actualizarInsumo(id: number, datos: InsumoUpdate): Promise<InsumoCatalogo> {
+  return apiFetch<InsumoCatalogo>(`/insumos/${id}`, { method: 'PATCH', body: datos })
+}
+
+export async function eliminarInsumo(id: number): Promise<void> {
+  await apiFetch<void>(`/insumos/${id}`, { method: 'DELETE' })
+}
+
+export async function listarPlantillasInsumos(): Promise<PlantillaInsumos[]> {
+  return apiFetch<PlantillaInsumos[]>('/insumos/plantillas')
+}
+
+/** Llena el catálogo de un móvil que todavía no tiene ítems. */
+export async function cargarPlantillaInsumos(
+  ambulanciaId: number,
+  plantilla: string,
+): Promise<InsumoCatalogo[]> {
+  return apiFetch<InsumoCatalogo[]>('/insumos/plantilla', {
+    method: 'POST',
+    body: { ambulancia_id: ambulanciaId, plantilla },
+  })
+}
+
+export async function listarChequeosInsumos(
+  ambulanciaId: number,
+): Promise<ChequeoInsumosResumen[]> {
+  return apiFetch<ChequeoInsumosResumen[]>(`/chequeos-insumos?ambulancia_id=${ambulanciaId}`)
+}
+
+export async function obtenerChequeoInsumos(id: number): Promise<ChequeoInsumos> {
+  return apiFetch<ChequeoInsumos>(`/chequeos-insumos/${id}`)
 }

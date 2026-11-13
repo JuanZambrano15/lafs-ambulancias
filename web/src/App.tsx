@@ -10,6 +10,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { EmpleadosPage } from './pages/EmpleadosPage'
 import { FlotaPage } from './pages/FlotaPage'
 import { FotosAccidenteSoatPage } from './pages/FotosAccidenteSoatPage'
+import { InsumosPage } from './pages/InsumosPage'
 import { LoginPage } from './pages/LoginPage'
 import { ReporteServiciosPage } from './pages/ReporteServiciosPage'
 import { RolesPage } from './pages/RolesPage'
@@ -70,6 +71,14 @@ export function App(): JSX.Element {
             element={
               <Layout>
                 <FlotaPage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/insumos"
+            element={
+              <Layout>
+                <InsumosPage />
               </Layout>
             }
           />

@@ -254,8 +254,21 @@ describe('HomePage', () => {
  
     renderHome()
  
-    const enlace = await screen.findByRole('link', { name: 'Empezar' })
+    const titulo = await screen.findByText('Iniciar atención')
+    const enlace = titulo.closest('li')?.querySelector('a')
     expect(enlace).toHaveAttribute('href', '/atenciones/nueva')
+  })
+
+  it('el auxiliar entra al chequeo de insumos desde Home (issue #20)', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
+    )
+
+    renderHome()
+
+    const titulo = await screen.findByText('Chequeo de insumos')
+    const enlace = titulo.closest('li')?.querySelector('a')
+    expect(enlace).toHaveAttribute('href', '/chequeo-insumos')
   })
  
   it('avisa cuando el usuario no tiene secciones asignadas', async () => {
@@ -318,7 +331,7 @@ describe('HomePage', () => {
     expect(await screen.findByText(/Servicio en curso — móvil M-03/)).toBeInTheDocument()
     expect(screen.getByText(/Servicio en curso — móvil M-04/)).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Continuar' })).toHaveLength(2)
-    expect(screen.getByRole('link', { name: 'Empezar' })).toBeInTheDocument()
+    expect(screen.getByText('Iniciar atención')).toBeInTheDocument()
   })
 
   it('sincroniza el recordatorio con la cantidad de servicios en curso', async () => {

@@ -51,7 +51,11 @@ const SECCIONES_POR_ROL: Record<NombreRol, Seccion[]> = {
   auxiliar_enfermeria: [
     INICIAR_ATENCION,
     { titulo: 'Formato de traslado', descripcion: 'Diligenciar traslado de paciente' },
-    { titulo: 'Chequeo de ambulancia', descripcion: 'Insumos y estado del vehículo' },
+    {
+      titulo: 'Chequeo de insumos',
+      descripcion: 'Revisión semanal de insumos y medicamentos del móvil',
+      ruta: '/chequeo-insumos',
+    },
   ],
   conductor: [
     INICIAR_ATENCION,
