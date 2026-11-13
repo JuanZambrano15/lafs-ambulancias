@@ -211,7 +211,7 @@ describe('HomePage', () => {
  
     renderHome()
  
-    await waitFor(() => expect(screen.getByText('Chequeo de ambulancia')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Chequeo de vehículo')).toBeInTheDocument())
     expect(screen.getByText('Iniciar atención')).toBeInTheDocument()
     expect(screen.queryByText('Usuarios y roles')).not.toBeInTheDocument()
     expect(screen.queryByText('Atención SOAT')).not.toBeInTheDocument()
@@ -232,9 +232,21 @@ describe('HomePage', () => {
     expect(screen.getAllByText('Formato de traslado')).toHaveLength(1)
     // "Iniciar atención" la comparten medico y conductor — tampoco debe duplicarse.
     expect(screen.getAllByText('Iniciar atención')).toHaveLength(1)
-    expect(screen.getByText('Chequeo de ambulancia')).toBeInTheDocument()
+    expect(screen.getByText('Chequeo de vehículo')).toBeInTheDocument()
   })
  
+  it('el conductor entra al chequeo de vehículo desde Home (issue #19)', async () => {
+    vi.mocked(api.obtenerPerfil).mockResolvedValue(
+      perfilCon([{ id: 1, nombre: 'conductor', descripcion: null }]),
+    )
+
+    renderHome()
+
+    const titulo = await screen.findByText('Chequeo de vehículo')
+    const enlace = titulo.closest('li')?.querySelector('a')
+    expect(enlace).toHaveAttribute('href', '/chequeo-vehiculo')
+  })
+
   it('el enlace de "Iniciar atención" apunta a /atenciones/nueva', async () => {
     vi.mocked(api.obtenerPerfil).mockResolvedValue(
       perfilCon([{ id: 1, nombre: 'auxiliar_enfermeria', descripcion: null }]),
@@ -386,7 +398,7 @@ describe('HomePage', () => {
  
     renderHome()
  
-    await screen.findByText('Chequeo de ambulancia')
+    await screen.findByText('Chequeo de vehículo')
     expect(api.listarAtencionesEnCurso).not.toHaveBeenCalled()
   })
  

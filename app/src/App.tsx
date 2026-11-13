@@ -1,4 +1,3 @@
-
 import type { JSX } from 'react'
 import { Route, Routes } from 'react-router-dom'
  
@@ -7,6 +6,7 @@ import { OfflineSyncBanner } from './components/OfflineSyncBanner'
 import { CambiarPasswordPage } from './pages/CambiarPasswordPage'
 import { ClinicoAccidenteSoatPage } from './pages/ClinicoAccidenteSoatPage'
 import { ClinicoTrasladoPage } from './pages/ClinicoTrasladoPage'
+import { ChequeoVehiculoPage } from './pages/ChequeoVehiculoPage'
 import { ConfigurarFirmaPage } from './pages/ConfigurarFirmaPage'
 import { ConfigurarPinPage } from './pages/ConfigurarPinPage'
 import { CrearAtencionPage } from './pages/CrearAtencionPage'
@@ -29,6 +29,7 @@ export function App(): JSX.Element {
           <Route path="/configurar-firma" element={<ConfigurarFirmaPage />} />
           <Route path="/" element={<HomePage />} />
           <Route path="/atenciones/nueva" element={<CrearAtencionPage />} />
+          <Route path="/chequeo-vehiculo" element={<ChequeoVehiculoPage />} />
           <Route
             path="/atenciones/:atencionId/encabezado-traslado"
             element={<EncabezadoTrasladoPage />}
@@ -54,4 +55,3 @@ export function App(): JSX.Element {
     </AuthProvider>
   )
 }
- 

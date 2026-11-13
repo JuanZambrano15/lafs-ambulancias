@@ -1,4 +1,3 @@
-
 /**
  * Cliente HTTP para la API de LAFS Ambulancias.
  *
@@ -14,7 +13,11 @@ import type {
   Ambulancia,
   Atencion,
   AtencionCreate,
+  CatalogoChequeo,
+  ChequeoVehiculo,
+  ChequeoVehiculoCreate,
   Empleado,
+  EstadoFlota,
   FormatoAccidenteSoat,
   FormatoAccidenteSoatClinico,
   FormatoAccidenteSoatEncabezado,
@@ -396,5 +399,24 @@ export async function eliminarFotoAccidenteSoat(
 ): Promise<void> {
   await apiFetch<void>(`/atenciones/${atencionId}/formato-accidente-soat/fotos/${fotoId}`, {
     method: 'DELETE',
+  })
+}
+
+// --- Chequeo semanal del vehículo (issue #19) ---
+
+export async function obtenerCatalogoChequeoVehiculo(): Promise<CatalogoChequeo> {
+  return apiFetch<CatalogoChequeo>('/chequeos-vehiculo/catalogo')
+}
+
+/** Ambulancias activas con el semáforo de SOAT/tecnomecánica y el
+ * estado de su chequeo semanal. */
+export async function listarEstadoFlota(): Promise<EstadoFlota[]> {
+  return apiFetch<EstadoFlota[]>('/chequeos-vehiculo/flota')
+}
+
+export async function crearChequeoVehiculo(datos: ChequeoVehiculoCreate): Promise<ChequeoVehiculo> {
+  return apiFetch<ChequeoVehiculo>('/chequeos-vehiculo', {
+    method: 'POST',
+    body: datos,
   })
 }
