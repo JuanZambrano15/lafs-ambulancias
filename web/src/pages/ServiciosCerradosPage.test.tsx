@@ -47,6 +47,7 @@ function atencionCerrada(overrides: Partial<AtencionCerrada> = {}): AtencionCerr
     paciente_nombres: 'Juan',
     paciente_apellidos: 'Pérez',
     paciente_numero_documento: '123456',
+    paciente_eps: 'Sanitas',
     tiene_pdf: true,
     ...overrides,
   }
@@ -74,6 +75,16 @@ describe('ServiciosCerradosPage', () => {
       'href',
       '/atenciones/1/detalle',
     )
+  })
+
+  it('muestra la EPS del paciente en su propia columna', async () => {
+    vi.mocked(api.listarAtencionesCerradas).mockResolvedValue([
+      atencionCerrada({ paciente_eps: 'Confesalud' }),
+    ])
+    renderPagina()
+
+    expect(await screen.findByRole('columnheader', { name: 'EPS' })).toBeInTheDocument()
+    expect(screen.getByText('Confesalud')).toBeInTheDocument()
   })
 
   it('muestra NN cuando el paciente de un accidente SOAT sigue sin identificar', async () => {

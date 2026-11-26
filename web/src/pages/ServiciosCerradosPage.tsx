@@ -110,11 +110,12 @@ export function ServiciosCerradosPage(): JSX.Element {
         // Issue #98: la tabla hace scroll horizontal por su cuenta en
         // pantallas angostas, en vez de desbordar toda la página.
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[44rem] border-separate border-spacing-y-1 text-sm">
+          <table className="w-full min-w-[48rem] border-separate border-spacing-y-1 text-sm">
             <thead>
               <tr className="text-left text-slate-500">
                 <th className="px-3">Paciente</th>
                 <th className="px-3">Documento</th>
+                <th className="px-3">EPS</th>
                 <th className="px-3">Tipo</th>
                 <th className="px-3">Móvil</th>
                 <th className="px-3">Cerrada</th>
@@ -132,6 +133,7 @@ export function ServiciosCerradosPage(): JSX.Element {
                   <td className="px-3 py-2 text-slate-600">
                     {atencion.paciente_numero_documento ?? '—'}
                   </td>
+                  <td className="px-3 py-2 text-slate-600">{atencion.paciente_eps ?? '—'}</td>
                   <td className="px-3 py-2 text-slate-600">{etiquetaTipoServicio(atencion)}</td>
                   <td className="px-3 py-2 text-slate-600">{atencion.ambulancia.movil}</td>
                   <td className="px-3 py-2 text-slate-600">

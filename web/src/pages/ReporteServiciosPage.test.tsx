@@ -147,6 +147,7 @@ describe('ReporteServiciosPage', () => {
       destino: 'Hospital Central (Cúcuta)',
       paciente: 'Juan Pérez',
       cedula: '900000001',
+      eps: 'Sanitas',
       ...overrides,
     }
   }
@@ -175,6 +176,8 @@ describe('ReporteServiciosPage', () => {
       expect(await screen.findByText('Clínica Norte (Ocaña)')).toBeInTheDocument()
       expect(screen.getByText('Hospital Central (Cúcuta)')).toBeInTheDocument()
       expect(screen.getByText('Juan Pérez')).toBeInTheDocument()
+      expect(screen.getByRole('columnheader', { name: 'EPS' })).toBeInTheDocument()
+      expect(screen.getByText('Sanitas')).toBeInTheDocument()
       expect(api.obtenerDetalleServiciosPorPersona).toHaveBeenCalledWith(
         1,
         'conductor',

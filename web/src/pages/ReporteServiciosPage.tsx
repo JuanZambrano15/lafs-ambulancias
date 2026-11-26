@@ -310,6 +310,7 @@ export function ReporteServiciosPage(): JSX.Element {
                                       <th className="px-2 py-1">Destino</th>
                                       <th className="px-2 py-1">Paciente</th>
                                       <th className="px-2 py-1">Cédula</th>
+                                      <th className="px-2 py-1">EPS</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -320,6 +321,7 @@ export function ReporteServiciosPage(): JSX.Element {
                                         <td className="px-2 py-1">{viaje.destino}</td>
                                         <td className="px-2 py-1">{viaje.paciente}</td>
                                         <td className="px-2 py-1">{viaje.cedula}</td>
+                                        <td className="px-2 py-1">{viaje.eps || '—'}</td>
                                       </tr>
                                     ))}
                                   </tbody>

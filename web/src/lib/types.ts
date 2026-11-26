@@ -164,6 +164,9 @@ export interface AtencionCerrada {
   paciente_nombres: string | null
   paciente_apellidos: string | null
   paciente_numero_documento: string | null
+  /** EPS del paciente (traslado) o su aseguradora (accidente SOAT);
+   * `null` en un SOAT sin identificar. */
+  paciente_eps: string | null
   tiene_pdf: boolean
 }
  
@@ -460,6 +463,8 @@ export interface ViajeDetalle {
   destino: string
   paciente: string
   cedula: string
+  /** EPS (traslado) o aseguradora (SOAT); vacío si es un NN. */
+  eps: string
 }
 
 // --- Chequeo semanal del vehículo (issue #19) ---
