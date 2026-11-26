@@ -3,18 +3,28 @@
 Lectura: administrador y contador (el contador la necesita para sus
 reportes). Escritura (crear/editar/dar de baja): solo administrador.
  
-El borrado es "soft" (`activa=False`), igual que empleados y usuarios:
-una ambulancia dada de baja (choque total, venta) no se borra de la
-base — puede seguir referenciada desde atenciones pasadas.
+El borrado normal es "soft" (`activa=False`), igual que empleados y
+usuarios: una ambulancia dada de baja (choque total, venta) no se borra
+de la base — puede seguir referenciada desde atenciones pasadas — y se
+puede reactivar con `PATCH {"activa": true}`.
+
+Solo una ambulancia sin ninguna atención ni chequeo (por ejemplo, una
+creada por error) se puede eliminar de verdad, con
+`DELETE /{id}/definitivo`; su catálogo de insumos se borra con ella.
 """
  
 from __future__ import annotations
  
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
  
 from app.api.deps import DbSession, require_admin, require_admin_o_contador
 from app.models.ambulancia import Ambulancia
+from app.models.atencion import Atencion
+from app.models.chequeo_insumos import ChequeoInsumos
+from app.models.chequeo_vehiculo import ChequeoVehiculo
+from app.models.insumo_catalogo import InsumoCatalogo
 from app.schemas.ambulancia import AmbulanciaCreate, AmbulanciaOut, AmbulanciaUpdate
  
 router = APIRouter(prefix="/ambulancias", tags=["ambulancias"])
@@ -100,4 +110,27 @@ def actualizar_ambulancia(ambulancia_id: int, datos: AmbulanciaUpdate, db: DbSes
 def desactivar_ambulancia(ambulancia_id: int, db: DbSession) -> None:
     ambulancia = _obtener_ambulancia(ambulancia_id, db)
     ambulancia.activa = False
+    db.commit()
+
+
+@router.delete(
+    "/{ambulancia_id}/definitivo",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    dependencies=[Depends(require_admin)],
+)
+def eliminar_ambulancia(ambulancia_id: int, db: DbSession) -> None:
+    """Elimina de verdad una ambulancia que nunca se usó. Si tiene
+    atenciones o chequeos (de vehículo o de insumos), 409: ahí lo
+    correcto es darla de baja, para no perder el historial.
+    """
+    ambulancia = _obtener_ambulancia(ambulancia_id, db)
+    for modelo in (Atencion, ChequeoVehiculo, ChequeoInsumos):
+        if db.scalars(select(modelo.id).where(modelo.ambulancia_id == ambulancia_id)).first():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Esta ambulancia ya tiene historial (atenciones o chequeos): dala de baja",
+            )
+    db.execute(delete(InsumoCatalogo).where(InsumoCatalogo.ambulancia_id == ambulancia_id))
+    db.delete(ambulancia)
     db.commit()
