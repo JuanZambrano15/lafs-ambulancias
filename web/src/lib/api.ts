@@ -14,6 +14,7 @@ import { borrarTokens, guardarAccessToken, leerTokens } from './storage'
 import type {
   AccessTokenResponse,
   Ambulancia,
+  CambiosTripulacion,
   AsignarRolesRequest,
   Atencion,
   AtencionCerrada,
@@ -326,6 +327,19 @@ export async function listarAmbulancias(soloActivas = false): Promise<Ambulancia
 export async function listarMedicosDisponibles(): Promise<Empleado[]> {
   return apiFetch<Empleado[]>('/atenciones/medicos-disponibles')
 }
+
+/** Conductores que se pueden asignar al corregir un formato (el
+ * administrador no queda excluido de la lista, a diferencia de quien
+ * inicia una atención). */
+export async function listarConductoresDisponibles(): Promise<Empleado[]> {
+  return apiFetch<Empleado[]>('/atenciones/conductores-disponibles')
+}
+
+/** Auxiliares de enfermería y médicos que se pueden dejar como
+ * responsables de un servicio al corregir su formato. */
+export async function listarResponsablesDisponibles(): Promise<Empleado[]> {
+  return apiFetch<Empleado[]>('/atenciones/responsables-disponibles')
+}
  
 // --- Atenciones de traslado (issue #15: pendientes/cerradas del panel) ---
  
@@ -376,7 +390,7 @@ export async function obtenerFormatoTraslado(atencionId: number): Promise<Format
  * corrección lógica. */
 export async function corregirFormatoTraslado(
   atencionId: number,
-  datos: FormatoTrasladoEncabezado & FormatoTrasladoClinico,
+  datos: FormatoTrasladoEncabezado & FormatoTrasladoClinico & CambiosTripulacion,
   motivo: string,
 ): Promise<FormatoTraslado> {
   return apiFetch<FormatoTraslado>(
@@ -395,7 +409,7 @@ export async function obtenerFormatoAccidenteSoat(
  * SOAT (issue #80, ajuste). */
 export async function corregirFormatoAccidenteSoat(
   atencionId: number,
-  datos: FormatoAccidenteSoatEncabezado & FormatoAccidenteSoatClinico,
+  datos: FormatoAccidenteSoatEncabezado & FormatoAccidenteSoatClinico & CambiosTripulacion,
   motivo: string,
 ): Promise<FormatoAccidenteSoat> {
   return apiFetch<FormatoAccidenteSoat>(

@@ -119,6 +119,15 @@ export interface Ambulancia {
   vencimiento_tecnomecanica: string
   activa: boolean
 }
+
+/** Cambios de tripulación al corregir un formato cerrado. Todo opcional:
+ * lo que no se manda no cambia, y nada de esto queda en el historial de
+ * versiones (igual que las notas médicas y de enfermería). */
+export interface CambiosTripulacion {
+  ambulancia_id?: number
+  conductor_id?: number
+  responsable_id?: number
+}
  
 /** Lo que devuelve `GET /atenciones/pendientes` -- atenciones de
  * traslado todavía abiertas, de cualquier responsable. */
@@ -205,7 +214,12 @@ export interface FormatoTrasladoEncabezado {
   paciente_eps: string
   paciente_nombres: string
   paciente_apellidos: string
-  paciente_edad: number
+  /** Al enviar, `null` si en su lugar va `paciente_fecha_nacimiento`;
+   * el backend siempre devuelve la edad calculada. */
+  paciente_edad: number | null
+  /** Solo de entrada: el backend calcula la edad y no la guarda ni la
+   * devuelve. */
+  paciente_fecha_nacimiento?: string
   paciente_sexo: SexoPaciente
   paciente_direccion_residencial: string
   paciente_ciudad: string
@@ -355,6 +369,8 @@ export interface FormatoAccidenteSoatEncabezado {
   paciente_nombres: string | null
   paciente_apellidos: string | null
   paciente_edad: number | null
+  /** Solo de entrada (ver `FormatoTrasladoEncabezado`). */
+  paciente_fecha_nacimiento?: string
   paciente_sexo: SexoPaciente | null
   lugar_ocurrencia: string
   ciudad: string

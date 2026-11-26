@@ -50,6 +50,9 @@ export async function construirMockApi(): Promise<Record<string, unknown>> {
     eliminarRol: vi.fn(),
     // Issue #79 -- mismo criterio que las de abajo.
     listarAmbulancias: vi.fn().mockResolvedValue([]),
+    // Correcciones de formato: elegir conductor/responsable.
+    listarConductoresDisponibles: vi.fn().mockResolvedValue([]),
+    listarResponsablesDisponibles: vi.fn().mockResolvedValue([]),
     // Issue #80 -- selector de médico en los formularios de corrección.
     listarMedicosDisponibles: vi.fn().mockResolvedValue([]),
     // Issue #15 -- se mockean con `[]` por defecto (no `undefined`)

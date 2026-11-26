@@ -22,9 +22,22 @@ import type { FormEvent, JSX, RefObject } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { DiagramaCorporal } from '../components/DiagramaCorporal'
+import { EdadONacimiento } from '../components/EdadONacimiento'
 import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
-import { ApiError, corregirFormatoTraslado, listarMedicosDisponibles, obtenerFormatoTraslado } from '../lib/api'
+import { TripulacionCorreccion } from '../components/TripulacionCorreccion'
+import {
+  ApiError,
+  corregirFormatoTraslado,
+  listarMedicosDisponibles,
+  obtenerAtencionCerrada,
+  obtenerFormatoTraslado,
+} from '../lib/api'
+import { EDAD_VACIA, datosDeEdad, valorDesdeEdad } from '../lib/edad'
+import type { EdadONacimientoValor } from '../lib/edad'
+import { cambiosDeTripulacion, tripulacionInicial } from '../lib/tripulacion'
+import type { TripulacionElegida } from '../lib/tripulacion'
 import type {
+  AtencionCerrada,
   CategoriaPaciente,
   ComplejidadTraslado,
   Empleado,
@@ -45,7 +58,7 @@ interface CamposEncabezado {
   paciente_eps: string
   paciente_nombres: string
   paciente_apellidos: string
-  paciente_edad: string
+  paciente_edad: EdadONacimientoValor
   paciente_sexo: SexoPaciente
   paciente_direccion_residencial: string
   paciente_ciudad: string
@@ -75,7 +88,7 @@ const ENCABEZADO_VACIO: CamposEncabezado = {
   paciente_eps: '',
   paciente_nombres: '',
   paciente_apellidos: '',
-  paciente_edad: '',
+  paciente_edad: EDAD_VACIA,
   paciente_sexo: 'm',
   paciente_direccion_residencial: '',
   paciente_ciudad: '',
@@ -310,6 +323,11 @@ export function CorregirFormatoTrasladoPage(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
 
+  // Ambulancia, conductor y responsable actuales del servicio (viven en
+  // la atención, no en el formato) y lo elegido en los selectores.
+  const [atencion, setAtencion] = useState<AtencionCerrada | null>(null)
+  const [tripulacion, setTripulacion] = useState<TripulacionElegida | null>(null)
+
   const [medicos, setMedicos] = useState<Empleado[] | null>(null)
   const [medicoId, setMedicoId] = useState('')
 
@@ -320,6 +338,17 @@ export function CorregirFormatoTrasladoPage(): JSX.Element {
   }, [])
 
   useEffect(() => {
+    obtenerAtencionCerrada(id)
+      .then((datos) => {
+        setAtencion(datos)
+        setTripulacion(tripulacionInicial(datos))
+      })
+      .catch((err: unknown) => {
+        setErrorCarga(err instanceof ApiError ? err.message : 'No se pudo cargar la atención')
+      })
+  }, [id])
+
+  useEffect(() => {
     obtenerFormatoTraslado(id)
       .then((existente) => {
         setEncabezado({
@@ -328,7 +357,7 @@ export function CorregirFormatoTrasladoPage(): JSX.Element {
           paciente_eps: existente.paciente_eps,
           paciente_nombres: existente.paciente_nombres,
           paciente_apellidos: existente.paciente_apellidos,
-          paciente_edad: String(existente.paciente_edad),
+          paciente_edad: valorDesdeEdad(existente.paciente_edad),
           paciente_sexo: existente.paciente_sexo,
           paciente_direccion_residencial: existente.paciente_direccion_residencial,
           paciente_ciudad: existente.paciente_ciudad,
@@ -464,7 +493,7 @@ export function CorregirFormatoTrasladoPage(): JSX.Element {
         paciente_eps: encabezado.paciente_eps,
         paciente_nombres: encabezado.paciente_nombres,
         paciente_apellidos: encabezado.paciente_apellidos,
-        paciente_edad: Number(encabezado.paciente_edad),
+        ...datosDeEdad(encabezado.paciente_edad),
         paciente_sexo: encabezado.paciente_sexo,
         paciente_direccion_residencial: encabezado.paciente_direccion_residencial,
         paciente_ciudad: encabezado.paciente_ciudad,
@@ -524,7 +553,13 @@ export function CorregirFormatoTrasladoPage(): JSX.Element {
           firmaProfesionalRecibeRef.current?.exportar() ?? clinico.firmaProfesionalRecibeExistente,
         observaciones: clinico.observaciones || null,
       }
-      await corregirFormatoTraslado(id, { ...datosEncabezado, ...datosClinico }, motivo.trim())
+      const cambios =
+        atencion !== null && tripulacion !== null ? cambiosDeTripulacion(atencion, tripulacion) : {}
+      await corregirFormatoTraslado(
+        id,
+        { ...datosEncabezado, ...datosClinico, ...cambios },
+        motivo.trim(),
+      )
       navigate(`/atenciones/${id}/detalle`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar la corrección')
@@ -555,6 +590,10 @@ export function CorregirFormatoTrasladoPage(): JSX.Element {
           <p role="alert" className="mb-4 text-sm text-brand-orange-dark">
             {errorCarga}
           </p>
+        )}
+
+        {atencion !== null && tripulacion !== null && (
+          <TripulacionCorreccion actual={atencion} valor={tripulacion} onChange={setTripulacion} />
         )}
 
         {/* Issue #98: en escritorio, encabezado a la izquierda y parte
@@ -600,13 +639,11 @@ export function CorregirFormatoTrasladoPage(): JSX.Element {
               value: encabezado.paciente_apellidos,
               onChange: (e) => actualizarEncabezado('paciente_apellidos', e.target.value),
             })}
-            {campoRequerido('Edad', 'edad', {
-              required: true,
-              type: 'number',
-              min: 0,
-              value: encabezado.paciente_edad,
-              onChange: (e) => actualizarEncabezado('paciente_edad', e.target.value),
-            })}
+            <EdadONacimiento
+              valor={encabezado.paciente_edad}
+              onChange={(valor) => actualizarEncabezado('paciente_edad', valor)}
+              referencia={encabezado.recepcion_fecha}
+            />
             <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="sexo">
               Sexo
             </label>
