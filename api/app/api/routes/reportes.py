@@ -264,6 +264,7 @@ def _detalle_traslado(atencion: Atencion, formato: FormatoTraslado) -> ViajeDeta
         destino=f"{formato.entrega_ips} ({formato.entrega_ciudad})",
         paciente=f"{formato.paciente_nombres} {formato.paciente_apellidos}",
         cedula=formato.paciente_numero_documento,
+        eps=formato.paciente_eps,
     )
  
  
@@ -283,6 +284,7 @@ def _detalle_soat(atencion: Atencion, formato: FormatoAccidenteSoat) -> ViajeDet
             else "NN"
         ),
         cedula=(formato.paciente_numero_documento or "") if formato.identificado else "",
+        eps=(formato.paciente_aseguradora or "") if formato.identificado else "",
     )
  
  

@@ -56,3 +56,6 @@ class ViajeDetalle(BaseModel):
     destino: str
     paciente: str
     cedula: str
+    # EPS del paciente (traslado) o su aseguradora (accidente SOAT);
+    # vacío si es un NN sin identificar.
+    eps: str = ""

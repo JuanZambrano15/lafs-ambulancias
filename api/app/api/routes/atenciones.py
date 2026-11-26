@@ -450,6 +450,12 @@ def _construir_atencion_cerrada_out(
         paciente_nombres=formato.paciente_nombres,
         paciente_apellidos=formato.paciente_apellidos,
         paciente_numero_documento=formato.paciente_numero_documento,
+        # Traslado: EPS; accidente SOAT: la aseguradora (el SOAT no tiene EPS).
+        paciente_eps=(
+            formato.paciente_eps
+            if isinstance(formato, FormatoTraslado)
+            else formato.paciente_aseguradora
+        ),
         tiene_pdf=formato.pdf_generado is not None,
     )
 
