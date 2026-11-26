@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
  
 import { AuthProvider } from './auth/AuthContext'
 import { Layout } from './components/Layout'
+import { AmbulanciasPage } from './pages/AmbulanciasPage'
 import { CambiarPasswordPage } from './pages/CambiarPasswordPage'
 import { CorregirFormatoAccidenteSoatPage } from './pages/CorregirFormatoAccidenteSoatPage'
 import { CorregirFormatoTrasladoPage } from './pages/CorregirFormatoTrasladoPage'
@@ -79,6 +80,14 @@ export function App(): JSX.Element {
             element={
               <Layout>
                 <InsumosPage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/ambulancias"
+            element={
+              <Layout>
+                <AmbulanciasPage />
               </Layout>
             }
           />

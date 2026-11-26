@@ -120,6 +120,19 @@ export interface Ambulancia {
   activa: boolean
 }
 
+/** Lo que pide `POST /ambulancias` (panel de ambulancias). */
+export interface AmbulanciaCreate {
+  movil: string
+  placa: string
+  tipo: Ambulancia['tipo']
+  vencimiento_soat: string
+  vencimiento_tecnomecanica: string
+}
+
+/** Lo que acepta `PATCH /ambulancias/{id}`: solo lo que cambia. `activa`
+ * sirve para reactivar una ambulancia dada de baja. */
+export type AmbulanciaUpdate = Partial<AmbulanciaCreate> & { activa?: boolean }
+
 /** Cambios de tripulación al corregir un formato cerrado. Todo opcional:
  * lo que no se manda no cambia, y nada de esto queda en el historial de
  * versiones (igual que las notas médicas y de enfermería). */

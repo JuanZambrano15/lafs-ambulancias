@@ -14,6 +14,8 @@ import { borrarTokens, guardarAccessToken, leerTokens } from './storage'
 import type {
   AccessTokenResponse,
   Ambulancia,
+  AmbulanciaCreate,
+  AmbulanciaUpdate,
   CambiosTripulacion,
   AsignarRolesRequest,
   Atencion,
@@ -319,6 +321,29 @@ export async function actualizarVigenciasAmbulancia(
 export async function listarAmbulancias(soloActivas = false): Promise<Ambulancia[]> {
   const query = soloActivas ? '?solo_activas=true' : ''
   return apiFetch<Ambulancia[]>(`/ambulancias${query}`)
+}
+
+export async function crearAmbulancia(datos: AmbulanciaCreate): Promise<Ambulancia> {
+  return apiFetch<Ambulancia>('/ambulancias', { method: 'POST', body: datos })
+}
+
+export async function actualizarAmbulancia(
+  id: number,
+  datos: AmbulanciaUpdate,
+): Promise<Ambulancia> {
+  return apiFetch<Ambulancia>(`/ambulancias/${id}`, { method: 'PATCH', body: datos })
+}
+
+/** Dar de baja: la ambulancia queda inactiva pero conserva su historial
+ * (`DELETE /ambulancias/{id}`). Se reactiva con `actualizarAmbulancia`. */
+export async function desactivarAmbulancia(id: number): Promise<void> {
+  await apiFetch<void>(`/ambulancias/${id}`, { method: 'DELETE' })
+}
+
+/** Eliminar del todo: solo si nunca se usó (sin servicios ni chequeos);
+ * si no, el backend responde 409 y hay que dejarla dada de baja. */
+export async function eliminarAmbulanciaDefinitivo(id: number): Promise<void> {
+  await apiFetch<void>(`/ambulancias/${id}/definitivo`, { method: 'DELETE' })
 }
  
 /** Issue #80 -- selector de médico de planta en los formularios de
