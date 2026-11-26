@@ -197,6 +197,31 @@ describe('EncabezadoAccidenteSoatPage', () => {
     expect(await screen.findByText('clinico')).toBeInTheDocument()
   })
 
+  it('permite dar la fecha de nacimiento en vez de la edad y manda solo esa', async () => {
+    const usuario = userEvent.setup()
+    vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(null)
+    vi.mocked(api.guardarEncabezadoAccidenteSoat).mockResolvedValue(ENCABEZADO)
+
+    renderPagina()
+
+    await screen.findByLabelText('Nombres')
+    await usuario.type(screen.getByLabelText('Fecha'), '2027-01-01')
+    await usuario.type(screen.getByLabelText('Hora de atención'), '08:00')
+    await usuario.type(screen.getByLabelText('Nombres'), 'Pepito')
+    await usuario.click(screen.getByRole('radio', { name: 'Ingresar fecha de nacimiento' }))
+    await usuario.type(screen.getByLabelText('Fecha de nacimiento'), '2000-06-15')
+    expect(screen.getByTestId('edad-calculada')).toHaveTextContent('Edad: 26 años')
+    await usuario.type(screen.getByLabelText('Lugar de ocurrencia'), 'Vía Ocaña - Cúcuta km 5')
+    await usuario.type(screen.getByLabelText('Ciudad'), 'Cúcuta')
+
+    await usuario.click(screen.getByRole('button', { name: 'Guardar encabezado' }))
+
+    await waitFor(() => expect(api.guardarEncabezadoAccidenteSoat).toHaveBeenCalledTimes(1))
+    const [, datos] = vi.mocked(api.guardarEncabezadoAccidenteSoat).mock.calls[0]
+    expect(datos.paciente_edad).toBeNull()
+    expect(datos.paciente_fecha_nacimiento).toBe('2000-06-15')
+  })
+
   it('guarda los datos del vehículo cuando se escriben (issue #89)', async () => {
     const usuario = userEvent.setup()
     vi.mocked(api.obtenerEncabezadoAccidenteSoat).mockResolvedValue(null)
