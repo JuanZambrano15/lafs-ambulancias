@@ -34,6 +34,7 @@ from app.api.deps import (
     require_personal_clinico,
     require_personal_clinico_o_admin,
     require_personal_operativo,
+    require_personal_operativo_o_admin,
 )
 from app.core.security import verify_secret
 from app.models.ambulancia import Ambulancia
@@ -111,7 +112,7 @@ def listar_ambulancias_disponibles(db: DbSession) -> list[Ambulancia]:
 @router.get(
     "/conductores-disponibles",
     response_model=list[EmpleadoOut],
-    dependencies=[Depends(require_personal_operativo)],
+    dependencies=[Depends(require_personal_operativo_o_admin)],
 )
 def listar_conductores_disponibles(usuario: CurrentUser, db: DbSession) -> list[Empleado]:
     """Empleados activos cuyo usuario tiene el rol "conductor". Un
@@ -137,7 +138,9 @@ def listar_conductores_disponibles(usuario: CurrentUser, db: DbSession) -> list[
             Rol.nombre == "conductor",
         )
     )
-    if usuario.empleado_id is not None:
+    # El administrador la usa al corregir un formato cerrado: ahí no es
+    # el responsable de la atención, así que no se le oculta nadie.
+    if usuario.empleado_id is not None and not _es_admin(usuario):
         query = query.filter(Empleado.id != usuario.empleado_id)
     return list(query.order_by(Empleado.apellidos, Empleado.nombres).all())
  
@@ -183,6 +186,32 @@ def listar_medicos_disponibles(db: DbSession) -> list[Empleado]:
     return list(query.order_by(Empleado.apellidos, Empleado.nombres).all())
  
  
+@router.get(
+    "/responsables-disponibles",
+    response_model=list[EmpleadoOut],
+    dependencies=[Depends(require_personal_clinico_o_admin)],
+)
+def listar_responsables_disponibles(db: DbSession) -> list[Empleado]:
+    """Empleados activos cuyo usuario tiene el rol "auxiliar_enfermeria"
+    o "medico" -- quienes pueden ser el responsable de una atención.
+    Para que el administrador, al corregir un formato cerrado, pueda
+    cambiar quién figura como auxiliar o médico responsable.
+    """
+    query = (
+        db.query(Empleado)
+        .join(Usuario, Usuario.empleado_id == Empleado.id)
+        .join(UsuarioRol, UsuarioRol.usuario_id == Usuario.id)
+        .join(Rol, Rol.id == UsuarioRol.rol_id)
+        .filter(
+            Empleado.activo.is_(True),
+            Usuario.activo.is_(True),
+            Rol.nombre.in_(("auxiliar_enfermeria", "medico")),
+        )
+        .distinct()
+    )
+    return list(query.order_by(Empleado.apellidos, Empleado.nombres).all())
+
+
 @router.get(
     "/en-curso",
     response_model=list[AtencionOut],
@@ -751,6 +780,96 @@ def _guardar_version(
     db.add(version)
  
  
+def _tiene_rol(db: DbSession, empleado_id: int, roles: tuple[str, ...]) -> bool:
+    """¿El empleado tiene un usuario activo con alguno de estos roles?"""
+    return (
+        db.query(Rol.id)
+        .join(UsuarioRol, UsuarioRol.rol_id == Rol.id)
+        .join(Usuario, Usuario.id == UsuarioRol.usuario_id)
+        .filter(
+            Usuario.empleado_id == empleado_id,
+            Usuario.activo.is_(True),
+            Rol.nombre.in_(roles),
+        )
+        .first()
+        is not None
+    )
+
+
+def _aplicar_cambios_de_tripulacion(
+    atencion: Atencion,
+    ambulancia_id: int | None,
+    conductor_id: int | None,
+    responsable_id: int | None,
+    db: DbSession,
+) -> None:
+    """Cambia la ambulancia, el conductor y/o el responsable de una
+    atención al corregir un formato cerrado (el administrador la
+    corrige cuando se eligió mal al iniciar el servicio).
+
+    Estos datos viven en `Atencion`, no en el formato: no pasan por
+    `_guardar_version` ni cuentan para `_hubo_cambio_rastreable`, así
+    que no dejan nada en el historial -- igual que las notas. `None`
+    significa "no cambia". Solo valida lo que cambia, para no rechazar
+    una corrección por un dato viejo que no se está tocando (por
+    ejemplo, una ambulancia que después se dio de baja).
+    """
+    if ambulancia_id is not None and ambulancia_id != atencion.ambulancia_id:
+        ambulancia = db.get(Ambulancia, ambulancia_id)
+        if ambulancia is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Ambulancia no encontrada"
+            )
+        if not ambulancia.activa:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Esa ambulancia no está activa"
+            )
+        atencion.ambulancia = ambulancia
+
+    if conductor_id is not None and conductor_id != atencion.conductor_id:
+        conductor = db.get(Empleado, conductor_id)
+        if conductor is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Conductor no encontrado"
+            )
+        if not conductor.activo:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Ese conductor no está activo"
+            )
+        if not _tiene_rol(db, conductor.id, ("conductor",)):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Esa persona no es conductor"
+            )
+        atencion.conductor = conductor
+
+    if responsable_id is not None and responsable_id != atencion.responsable_id:
+        responsable = db.get(Empleado, responsable_id)
+        if responsable is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Responsable no encontrado"
+            )
+        if not responsable.activo:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Ese responsable no está activo"
+            )
+        if not _tiene_rol(db, responsable.id, ("auxiliar_enfermeria", "medico")):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Esa persona no es auxiliar de enfermería ni médico",
+            )
+        atencion.responsable = responsable
+
+    # Misma regla de siempre (issue #62): nadie es conductor y
+    # responsable de la misma atención.
+    if (
+        conductor_id is not None or responsable_id is not None
+    ) and atencion.conductor is atencion.responsable:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="El conductor y el responsable no pueden ser la misma persona",
+        )
+
+
 def _es_admin(usuario: Usuario) -> bool:
     return any(asignacion.rol.nombre == "administrador" for asignacion in usuario.roles)
 
@@ -1038,6 +1157,10 @@ def corregir_formato_traslado(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Esta atención no tiene formato de traslado, no hay nada que corregir",
         )
+
+    _aplicar_cambios_de_tripulacion(
+        atencion, datos.ambulancia_id, datos.conductor_id, datos.responsable_id, db
+    )
 
     nuevos = datos.model_dump()
     if _hubo_cambio_rastreable(formato, nuevos, _CAMPOS_RASTREABLES):
@@ -1527,6 +1650,10 @@ def corregir_formato_accidente_soat(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Esta atención no tiene formato de accidente SOAT, no hay nada que corregir",
         )
+
+    _aplicar_cambios_de_tripulacion(
+        atencion, datos.ambulancia_id, datos.conductor_id, datos.responsable_id, db
+    )
 
     nuevos = datos.model_dump()
     if _hubo_cambio_rastreable(formato, nuevos, _CAMPOS_RASTREABLES_SOAT):

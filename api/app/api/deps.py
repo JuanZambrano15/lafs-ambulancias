@@ -99,5 +99,10 @@ require_personal_clinico = require_roles("auxiliar_enfermeria", "medico")
 # ej. para el panel administrativo del issue #15). El conductor queda
 # afuera, igual que en `require_personal_clinico`.
 require_personal_clinico_o_admin = require_roles("auxiliar_enfermeria", "medico", "administrador")
+# Elegir conductor de una atención: quienes la inician (`require_personal_operativo`)
+# y el administrador, que al corregir un formato cerrado puede cambiarlo.
+require_personal_operativo_o_admin = require_roles(
+    "auxiliar_enfermeria", "medico", "conductor", "administrador"
+)
  
 AdminUser = Annotated[Usuario, Depends(require_admin)]

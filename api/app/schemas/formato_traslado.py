@@ -207,10 +207,20 @@ class FormatoTrasladoCorreccion(FormatoTrasladoEncabezado, FormatoTrasladoClinic
     historial y pidiendo su propio `motivo`; ver
     `app.api.routes.atenciones.corregir_formato_traslado`.
 
-    Sin campos propios: `FormatoTrasladoEncabezado` y
-    `FormatoTrasladoClinico` no comparten ningún nombre de campo, así
-    que la unión por herencia múltiple alcanza.
+    `FormatoTrasladoEncabezado` y `FormatoTrasladoClinico` no comparten
+    ningún nombre de campo, así que la unión por herencia múltiple
+    alcanza.
+
+    Además se puede cambiar la ambulancia, el conductor y el
+    responsable (auxiliar o médico) de la atención, que viven en
+    `Atencion` y no en el formato. Son opcionales (`None` = no cambia) y
+    `exclude=True`: no entran al `model_dump()` que se copia al formato
+    ni al historial de versiones.
     """
+
+    ambulancia_id: int | None = Field(default=None, exclude=True)
+    conductor_id: int | None = Field(default=None, exclude=True)
+    responsable_id: int | None = Field(default=None, exclude=True)
 
 
 class FormatoTrasladoOut(FormatoTrasladoEncabezado, FormatoTrasladoClinico):

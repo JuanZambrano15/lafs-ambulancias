@@ -123,7 +123,15 @@ class FormatoAccidenteSoatCorreccion(FormatoAccidenteSoatEncabezado, FormatoAcci
     """Igual que `FormatoTrasladoCorreccion` (ver esa clase para el
     porqué), para el formato de accidente SOAT -- usada por
     `app.api.routes.atenciones.corregir_formato_accidente_soat`.
+
+    También permite cambiar la ambulancia, el conductor y el
+    responsable de la atención (opcionales, `None` = no cambia; fuera
+    del `model_dump()` para que no pasen por el historial).
     """
+
+    ambulancia_id: int | None = Field(default=None, exclude=True)
+    conductor_id: int | None = Field(default=None, exclude=True)
+    responsable_id: int | None = Field(default=None, exclude=True)
 
 
 class FormatoAccidenteSoatOut(FormatoAccidenteSoatEncabezado, FormatoAccidenteSoatClinico):
