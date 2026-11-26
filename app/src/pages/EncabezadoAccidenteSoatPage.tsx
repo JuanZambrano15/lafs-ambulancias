@@ -35,6 +35,8 @@ import type { FormEvent, JSX } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
  
 import { ApiError } from '../lib/api'
+import { EDAD_VACIA, datosDeEdad, valorDesdeEdad } from '../lib/edad'
+import type { EdadONacimientoValor } from '../lib/edad'
 import {
   guardarEncabezadoAccidenteSoatConRespaldo,
   obtenerFormatoAccidenteSoatConRespaldo,
@@ -47,6 +49,7 @@ import type {
 } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
 import { BotonTema } from '../components/BotonTema'
+import { EdadONacimiento } from '../components/EdadONacimiento'
  
 /** Mismos campos que `FormatoAccidenteSoatEncabezado`, pero los que
  * son número o texto opcional se manejan como string de formulario. */
@@ -59,7 +62,7 @@ interface CamposTexto {
   paciente_aseguradora: string
   paciente_nombres: string
   paciente_apellidos: string
-  paciente_edad: string
+  paciente_edad: EdadONacimientoValor
   paciente_sexo: SexoPaciente
   lugar_ocurrencia: string
   ciudad: string
@@ -82,7 +85,7 @@ const CAMPOS_VACIOS: CamposTexto = {
   paciente_aseguradora: '',
   paciente_nombres: '',
   paciente_apellidos: '',
-  paciente_edad: '',
+  paciente_edad: EDAD_VACIA,
   paciente_sexo: 'm',
   lugar_ocurrencia: '',
   ciudad: '',
@@ -169,7 +172,7 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
           paciente_aseguradora: existente.paciente_aseguradora ?? '',
           paciente_nombres: existente.paciente_nombres ?? '',
           paciente_apellidos: existente.paciente_apellidos ?? '',
-          paciente_edad: existente.paciente_edad === null ? '' : String(existente.paciente_edad),
+          paciente_edad: valorDesdeEdad(existente.paciente_edad),
           paciente_sexo: existente.paciente_sexo ?? 'm',
           lugar_ocurrencia: existente.lugar_ocurrencia,
           ciudad: existente.ciudad,
@@ -222,7 +225,7 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
         paciente_aseguradora: campos.identificado ? campos.paciente_aseguradora || null : null,
         paciente_nombres: campos.identificado ? campos.paciente_nombres || null : null,
         paciente_apellidos: campos.identificado ? campos.paciente_apellidos || null : null,
-        paciente_edad: campos.identificado ? aNumeroONulo(campos.paciente_edad) : null,
+        ...(campos.identificado ? datosDeEdad(campos.paciente_edad) : { paciente_edad: null }),
         paciente_sexo: campos.identificado ? campos.paciente_sexo : null,
         lugar_ocurrencia: campos.lugar_ocurrencia,
         ciudad: campos.ciudad,
@@ -352,12 +355,12 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
                 value: campos.paciente_apellidos,
                 onChange: (e) => actualizar('paciente_apellidos', e.target.value),
               })}
-              {campoRequerido('Edad', 'edad', {
-                type: 'number',
-                min: 0,
-                value: campos.paciente_edad,
-                onChange: (e) => actualizar('paciente_edad', e.target.value),
-              })}
+              <EdadONacimiento
+                valor={campos.paciente_edad}
+                onChange={(valor) => actualizar('paciente_edad', valor)}
+                referencia={campos.fecha_atencion}
+                requerido={false}
+              />
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="sexo">
                   Sexo
@@ -469,8 +472,4 @@ export function EncabezadoAccidenteSoatPage(): JSX.Element {
       </div>
     </div>
   )
-}
- 
-function aNumeroONulo(valor: string): number | null {
-  return valor === '' ? null : Number(valor)
 }

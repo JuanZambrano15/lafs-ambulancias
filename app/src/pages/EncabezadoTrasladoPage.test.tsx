@@ -155,6 +155,40 @@ describe('EncabezadoTrasladoPage', () => {
     expect(await screen.findByText('clinico')).toBeInTheDocument()
   })
 
+  it('permite dar la fecha de nacimiento en vez de la edad y manda solo esa', async () => {
+    const usuario = userEvent.setup()
+    vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(null)
+    vi.mocked(api.guardarEncabezadoTraslado).mockResolvedValue(ENCABEZADO)
+
+    renderPagina()
+
+    await screen.findByLabelText('Nombres')
+    await usuario.type(screen.getByLabelText('Número de documento'), '123456789')
+    await usuario.type(screen.getByLabelText('EPS'), 'Sanitas')
+    await usuario.type(screen.getByLabelText('Nombres'), 'Pepito')
+    await usuario.type(screen.getByLabelText('Apellidos'), 'Pérez')
+    await usuario.type(screen.getByLabelText('Fecha', { selector: '#recepcion-fecha' }), '2027-01-01')
+    await usuario.click(screen.getByRole('radio', { name: 'Ingresar fecha de nacimiento' }))
+    await usuario.type(screen.getByLabelText('Fecha de nacimiento'), '1980-01-02')
+    expect(screen.getByTestId('edad-calculada')).toHaveTextContent('Edad: 46 años')
+    await usuario.type(screen.getByLabelText('Dirección residencial'), 'Calle 1 # 2-3')
+    await usuario.type(screen.getByLabelText('Ciudad', { selector: '#ciudad-paciente' }), 'Cúcuta')
+    await usuario.type(screen.getByLabelText('Hora', { selector: '#recepcion-hora' }), '08:00')
+    await usuario.type(screen.getByLabelText('Ciudad', { selector: '#recepcion-ciudad' }), 'Cúcuta')
+    await usuario.type(screen.getByLabelText('IPS', { selector: '#recepcion-ips' }), 'Clínica Norte')
+    await usuario.type(
+      screen.getByLabelText('Servicio', { selector: '#recepcion-servicio' }),
+      'Urgencias',
+    )
+
+    await usuario.click(screen.getByRole('button', { name: 'Guardar encabezado' }))
+
+    await waitFor(() => expect(api.guardarEncabezadoTraslado).toHaveBeenCalledTimes(1))
+    const [, datos] = vi.mocked(api.guardarEncabezadoTraslado).mock.calls[0]
+    expect(datos.paciente_edad).toBeNull()
+    expect(datos.paciente_fecha_nacimiento).toBe('1980-01-02')
+  })
+
   it('no pide ni muestra los campos de entrega del paciente', async () => {
     vi.mocked(api.obtenerEncabezadoTraslado).mockResolvedValue(ENCABEZADO)
 

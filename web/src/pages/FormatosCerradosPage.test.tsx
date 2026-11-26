@@ -1,4 +1,3 @@
-
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -55,6 +54,7 @@ function atencionCerrada(overrides: Partial<AtencionCerrada> = {}): AtencionCerr
     paciente_nombres: 'Pepito',
     paciente_apellidos: 'Pérez',
     paciente_numero_documento: '123456789',
+    paciente_eps: 'Sanitas',
     tiene_pdf: true,
     ...overrides,
   }

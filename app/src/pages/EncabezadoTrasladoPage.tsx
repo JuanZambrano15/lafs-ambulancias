@@ -24,6 +24,8 @@ import type { FormEvent, JSX } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { ApiError } from '../lib/api'
+import { EDAD_VACIA, datosDeEdad, valorDesdeEdad } from '../lib/edad'
+import type { EdadONacimientoValor } from '../lib/edad'
 import { guardarEncabezadoTrasladoConRespaldo, obtenerFormatoTrasladoConRespaldo } from '../lib/trasladoOffline'
 import type {
   CategoriaPaciente,
@@ -36,6 +38,7 @@ import type {
 } from '../lib/types'
 import logoLafs from '../assets/logo-lafs.png'
 import { BotonTema } from '../components/BotonTema'
+import { EdadONacimiento } from '../components/EdadONacimiento'
 
 /** Mismos campos que `FormatoTrasladoEncabezado`, pero los que son
  * número o texto opcional se manejan como string de formulario (los
@@ -47,7 +50,7 @@ interface CamposTexto {
   paciente_eps: string
   paciente_nombres: string
   paciente_apellidos: string
-  paciente_edad: string
+  paciente_edad: EdadONacimientoValor
   paciente_sexo: SexoPaciente
   paciente_direccion_residencial: string
   paciente_ciudad: string
@@ -82,7 +85,7 @@ const CAMPOS_VACIOS: CamposTexto = {
   paciente_eps: '',
   paciente_nombres: '',
   paciente_apellidos: '',
-  paciente_edad: '',
+  paciente_edad: EDAD_VACIA,
   paciente_sexo: 'm',
   paciente_direccion_residencial: '',
   paciente_ciudad: '',
@@ -164,7 +167,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
           paciente_eps: existente.paciente_eps,
           paciente_nombres: existente.paciente_nombres,
           paciente_apellidos: existente.paciente_apellidos,
-          paciente_edad: String(existente.paciente_edad),
+          paciente_edad: valorDesdeEdad(existente.paciente_edad),
           paciente_sexo: existente.paciente_sexo,
           paciente_direccion_residencial: existente.paciente_direccion_residencial,
           paciente_ciudad: existente.paciente_ciudad,
@@ -200,7 +203,7 @@ export function EncabezadoTrasladoPage(): JSX.Element {
     try {
       const datos: FormatoTrasladoEncabezado = {
         ...campos,
-        paciente_edad: Number(campos.paciente_edad),
+        ...datosDeEdad(campos.paciente_edad),
         paciente_telefono: campos.paciente_telefono || null,
         acompanante_nombres_apellidos: campos.acompanante_nombres_apellidos || null,
         acompanante_parentesco: campos.acompanante_parentesco || null,
@@ -300,13 +303,11 @@ export function EncabezadoTrasladoPage(): JSX.Element {
               value: campos.paciente_apellidos,
               onChange: (e) => actualizar('paciente_apellidos', e.target.value),
             })}
-            {campoRequerido('Edad', 'edad', {
-              required: true,
-              type: 'number',
-              min: 0,
-              value: campos.paciente_edad,
-              onChange: (e) => actualizar('paciente_edad', e.target.value),
-            })}
+            <EdadONacimiento
+              valor={campos.paciente_edad}
+              onChange={(valor) => actualizar('paciente_edad', valor)}
+              referencia={campos.recepcion_fecha}
+            />
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="sexo">
                 Sexo

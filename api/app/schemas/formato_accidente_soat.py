@@ -28,8 +28,9 @@ from __future__ import annotations
 
 from datetime import date, time
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
+from app.core.edad import calcular_edad
 from app.models.formato_accidente_soat import RolVictima, TriageNivel
 from app.models.formato_traslado import (
     ReflejoPupilar,
@@ -51,7 +52,10 @@ class FormatoAccidenteSoatEncabezado(BaseModel):
     paciente_aseguradora: str | None = None
     paciente_nombres: str | None = None
     paciente_apellidos: str | None = None
-    paciente_edad: int | None = None
+    # edad o fecha de nacimiento (una u otra), como en el
+    # traslado; solo se guarda la edad. En un NN puede no venir ninguna.
+    paciente_edad: int | None = Field(default=None, ge=0, le=130)
+    paciente_fecha_nacimiento: date | None = Field(default=None, exclude=True)
     paciente_sexo: SexoPaciente | None = None
 
     lugar_ocurrencia: str
@@ -66,6 +70,14 @@ class FormatoAccidenteSoatEncabezado(BaseModel):
     vehiculo_placa: str | None = None
     vehiculo_tipo: str | None = None
     vehiculo_marca: str | None = None
+
+    @model_validator(mode="after")
+    def _edad_desde_fecha_de_nacimiento(self) -> FormatoAccidenteSoatEncabezado:
+        """Si viene la fecha de nacimiento, la edad sale de ella (a la
+        fecha de la atención)."""
+        if self.paciente_fecha_nacimiento is not None:
+            self.paciente_edad = calcular_edad(self.paciente_fecha_nacimiento, self.fecha_atencion)
+        return self
 
 
 class FormatoAccidenteSoatClinico(BaseModel):
@@ -111,7 +123,15 @@ class FormatoAccidenteSoatCorreccion(FormatoAccidenteSoatEncabezado, FormatoAcci
     """Igual que `FormatoTrasladoCorreccion` (ver esa clase para el
     porqué), para el formato de accidente SOAT -- usada por
     `app.api.routes.atenciones.corregir_formato_accidente_soat`.
+
+    También permite cambiar la ambulancia, el conductor y el
+    responsable de la atención (opcionales, `None` = no cambia; fuera
+    del `model_dump()` para que no pasen por el historial).
     """
+
+    ambulancia_id: int | None = Field(default=None, exclude=True)
+    conductor_id: int | None = Field(default=None, exclude=True)
+    responsable_id: int | None = Field(default=None, exclude=True)
 
 
 class FormatoAccidenteSoatOut(FormatoAccidenteSoatEncabezado, FormatoAccidenteSoatClinico):

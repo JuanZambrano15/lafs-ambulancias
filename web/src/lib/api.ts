@@ -14,6 +14,9 @@ import { borrarTokens, guardarAccessToken, leerTokens } from './storage'
 import type {
   AccessTokenResponse,
   Ambulancia,
+  AmbulanciaCreate,
+  AmbulanciaUpdate,
+  CambiosTripulacion,
   AsignarRolesRequest,
   Atencion,
   AtencionCerrada,
@@ -319,12 +322,48 @@ export async function listarAmbulancias(soloActivas = false): Promise<Ambulancia
   const query = soloActivas ? '?solo_activas=true' : ''
   return apiFetch<Ambulancia[]>(`/ambulancias${query}`)
 }
+
+export async function crearAmbulancia(datos: AmbulanciaCreate): Promise<Ambulancia> {
+  return apiFetch<Ambulancia>('/ambulancias', { method: 'POST', body: datos })
+}
+
+export async function actualizarAmbulancia(
+  id: number,
+  datos: AmbulanciaUpdate,
+): Promise<Ambulancia> {
+  return apiFetch<Ambulancia>(`/ambulancias/${id}`, { method: 'PATCH', body: datos })
+}
+
+/** Dar de baja: la ambulancia queda inactiva pero conserva su historial
+ * (`DELETE /ambulancias/{id}`). Se reactiva con `actualizarAmbulancia`. */
+export async function desactivarAmbulancia(id: number): Promise<void> {
+  await apiFetch<void>(`/ambulancias/${id}`, { method: 'DELETE' })
+}
+
+/** Eliminar del todo: solo si nunca se usó (sin servicios ni chequeos);
+ * si no, el backend responde 409 y hay que dejarla dada de baja. */
+export async function eliminarAmbulanciaDefinitivo(id: number): Promise<void> {
+  await apiFetch<void>(`/ambulancias/${id}/definitivo`, { method: 'DELETE' })
+}
  
 /** Issue #80 -- selector de médico de planta en los formularios de
  * corrección clínica (mismo endpoint que ya usa `app/`, ver
  * `listarMedicosDisponibles` en `app/src/lib/api.ts`). */
 export async function listarMedicosDisponibles(): Promise<Empleado[]> {
   return apiFetch<Empleado[]>('/atenciones/medicos-disponibles')
+}
+
+/** Conductores que se pueden asignar al corregir un formato (el
+ * administrador no queda excluido de la lista, a diferencia de quien
+ * inicia una atención). */
+export async function listarConductoresDisponibles(): Promise<Empleado[]> {
+  return apiFetch<Empleado[]>('/atenciones/conductores-disponibles')
+}
+
+/** Auxiliares de enfermería y médicos que se pueden dejar como
+ * responsables de un servicio al corregir su formato. */
+export async function listarResponsablesDisponibles(): Promise<Empleado[]> {
+  return apiFetch<Empleado[]>('/atenciones/responsables-disponibles')
 }
  
 // --- Atenciones de traslado (issue #15: pendientes/cerradas del panel) ---
@@ -376,7 +415,7 @@ export async function obtenerFormatoTraslado(atencionId: number): Promise<Format
  * corrección lógica. */
 export async function corregirFormatoTraslado(
   atencionId: number,
-  datos: FormatoTrasladoEncabezado & FormatoTrasladoClinico,
+  datos: FormatoTrasladoEncabezado & FormatoTrasladoClinico & CambiosTripulacion,
   motivo: string,
 ): Promise<FormatoTraslado> {
   return apiFetch<FormatoTraslado>(
@@ -395,7 +434,7 @@ export async function obtenerFormatoAccidenteSoat(
  * SOAT (issue #80, ajuste). */
 export async function corregirFormatoAccidenteSoat(
   atencionId: number,
-  datos: FormatoAccidenteSoatEncabezado & FormatoAccidenteSoatClinico,
+  datos: FormatoAccidenteSoatEncabezado & FormatoAccidenteSoatClinico & CambiosTripulacion,
   motivo: string,
 ): Promise<FormatoAccidenteSoat> {
   return apiFetch<FormatoAccidenteSoat>(

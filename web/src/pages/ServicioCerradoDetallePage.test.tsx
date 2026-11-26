@@ -47,6 +47,7 @@ function atencionCerrada(overrides: Partial<AtencionCerrada> = {}): AtencionCerr
     paciente_nombres: 'Juan',
     paciente_apellidos: 'Pérez',
     paciente_numero_documento: '123456',
+    paciente_eps: 'Sanitas',
     tiene_pdf: true,
     ...overrides,
   }

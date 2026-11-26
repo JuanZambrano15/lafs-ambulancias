@@ -19,6 +19,7 @@ from datetime import date, time
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
+from app.core.edad import calcular_edad
 from app.models.formato_traslado import (
     CategoriaPaciente,
     ComplejidadTraslado,
@@ -48,7 +49,11 @@ class FormatoTrasladoEncabezado(BaseModel):
     paciente_eps: str
     paciente_nombres: str
     paciente_apellidos: str
-    paciente_edad: int
+    # la edad se puede escribir directo o salir de la fecha
+    # de nacimiento (una u otra). Solo se guarda la edad; la fecha de
+    # nacimiento no se persiste ni se devuelve (`exclude=True`).
+    paciente_edad: int | None = Field(default=None, ge=0, le=130)
+    paciente_fecha_nacimiento: date | None = Field(default=None, exclude=True)
     paciente_sexo: SexoPaciente
     paciente_direccion_residencial: str
     paciente_ciudad: str
@@ -80,6 +85,16 @@ class FormatoTrasladoEncabezado(BaseModel):
     categoria_paciente: CategoriaPaciente
     nivel_servicio: NivelServicioTraslado
     modalidad: ModalidadTraslado
+
+    @model_validator(mode="after")
+    def _edad_o_fecha_de_nacimiento(self) -> FormatoTrasladoEncabezado:
+        """Si viene la fecha de nacimiento, la edad sale de ella (a la
+        fecha de recepción del paciente); si no, debe venir la edad."""
+        if self.paciente_fecha_nacimiento is not None:
+            self.paciente_edad = calcular_edad(self.paciente_fecha_nacimiento, self.recepcion_fecha)
+        elif self.paciente_edad is None:
+            raise ValueError("Indica la edad o la fecha de nacimiento del paciente")
+        return self
 
 
 class SignoVitalItem(BaseModel):
@@ -192,10 +207,20 @@ class FormatoTrasladoCorreccion(FormatoTrasladoEncabezado, FormatoTrasladoClinic
     historial y pidiendo su propio `motivo`; ver
     `app.api.routes.atenciones.corregir_formato_traslado`.
 
-    Sin campos propios: `FormatoTrasladoEncabezado` y
-    `FormatoTrasladoClinico` no comparten ningún nombre de campo, así
-    que la unión por herencia múltiple alcanza.
+    `FormatoTrasladoEncabezado` y `FormatoTrasladoClinico` no comparten
+    ningún nombre de campo, así que la unión por herencia múltiple
+    alcanza.
+
+    Además se puede cambiar la ambulancia, el conductor y el
+    responsable (auxiliar o médico) de la atención, que viven en
+    `Atencion` y no en el formato. Son opcionales (`None` = no cambia) y
+    `exclude=True`: no entran al `model_dump()` que se copia al formato
+    ni al historial de versiones.
     """
+
+    ambulancia_id: int | None = Field(default=None, exclude=True)
+    conductor_id: int | None = Field(default=None, exclude=True)
+    responsable_id: int | None = Field(default=None, exclude=True)
 
 
 class FormatoTrasladoOut(FormatoTrasladoEncabezado, FormatoTrasladoClinico):

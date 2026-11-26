@@ -27,6 +27,8 @@ class AmbulanciaUpdate(BaseModel):
     tipo: TipoAmbulancia | None = None
     vencimiento_soat: date | None = None
     vencimiento_tecnomecanica: date | None = None
+    # Para reactivar una ambulancia dada de baja (la baja es `DELETE`).
+    activa: bool | None = None
  
  
 class AmbulanciaOut(BaseModel):

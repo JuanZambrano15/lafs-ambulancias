@@ -83,4 +83,6 @@ class AtencionCerradaOut(BaseModel):
     paciente_nombres: str | None
     paciente_apellidos: str | None
     paciente_numero_documento: str | None
+    # EPS del paciente (traslado) o su aseguradora (accidente SOAT).
+    paciente_eps: str | None = None
     tiene_pdf: bool

@@ -16,14 +16,22 @@ import type { FormEvent, JSX, RefObject } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
  
 import { DiagramaCorporal } from '../components/DiagramaCorporal'
+import { EdadONacimiento } from '../components/EdadONacimiento'
 import { FirmaCanvas, type FirmaCanvasHandle } from '../components/FirmaCanvas'
+import { TripulacionCorreccion } from '../components/TripulacionCorreccion'
 import {
   ApiError,
   corregirFormatoAccidenteSoat,
   listarMedicosDisponibles,
+  obtenerAtencionCerrada,
   obtenerFormatoAccidenteSoat,
 } from '../lib/api'
+import { EDAD_VACIA, datosDeEdad, valorDesdeEdad } from '../lib/edad'
+import type { EdadONacimientoValor } from '../lib/edad'
+import { cambiosDeTripulacion, tripulacionInicial } from '../lib/tripulacion'
+import type { TripulacionElegida } from '../lib/tripulacion'
 import type {
+  AtencionCerrada,
   Empleado,
   FormatoAccidenteSoatClinico,
   FormatoAccidenteSoatEncabezado,
@@ -46,7 +54,7 @@ interface CamposEncabezado {
   paciente_aseguradora: string
   paciente_nombres: string
   paciente_apellidos: string
-  paciente_edad: string
+  paciente_edad: EdadONacimientoValor
   paciente_sexo: SexoPaciente
   lugar_ocurrencia: string
   ciudad: string
@@ -70,7 +78,7 @@ const ENCABEZADO_VACIO: CamposEncabezado = {
   paciente_aseguradora: '',
   paciente_nombres: '',
   paciente_apellidos: '',
-  paciente_edad: '',
+  paciente_edad: EDAD_VACIA,
   paciente_sexo: 'm',
   lugar_ocurrencia: '',
   ciudad: '',
@@ -304,6 +312,11 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
  
+  // Ambulancia, conductor y responsable actuales del servicio (viven en
+  // la atención, no en el formato) y lo elegido en los selectores.
+  const [atencion, setAtencion] = useState<AtencionCerrada | null>(null)
+  const [tripulacion, setTripulacion] = useState<TripulacionElegida | null>(null)
+
   const [medicos, setMedicos] = useState<Empleado[] | null>(null)
   const [medicoId, setMedicoId] = useState('')
  
@@ -313,6 +326,17 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
       .catch(() => setMedicos([]))
   }, [])
  
+  useEffect(() => {
+    obtenerAtencionCerrada(id)
+      .then((datos) => {
+        setAtencion(datos)
+        setTripulacion(tripulacionInicial(datos))
+      })
+      .catch((err: unknown) => {
+        setErrorCarga(err instanceof ApiError ? err.message : 'No se pudo cargar la atención')
+      })
+  }, [id])
+
   useEffect(() => {
     obtenerFormatoAccidenteSoat(id)
       .then((existente) => {
@@ -326,7 +350,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
           paciente_aseguradora: existente.paciente_aseguradora ?? '',
           paciente_nombres: existente.paciente_nombres ?? '',
           paciente_apellidos: existente.paciente_apellidos ?? '',
-          paciente_edad: existente.paciente_edad === null ? '' : String(existente.paciente_edad),
+          paciente_edad: valorDesdeEdad(existente.paciente_edad),
           paciente_sexo: existente.paciente_sexo ?? 'm',
           lugar_ocurrencia: existente.lugar_ocurrencia,
           ciudad: existente.ciudad,
@@ -434,7 +458,7 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
         paciente_aseguradora: encabezado.identificado ? encabezado.paciente_aseguradora || null : null,
         paciente_nombres: encabezado.identificado ? encabezado.paciente_nombres || null : null,
         paciente_apellidos: encabezado.identificado ? encabezado.paciente_apellidos || null : null,
-        paciente_edad: encabezado.identificado ? aNumeroONulo(encabezado.paciente_edad) : null,
+        ...(encabezado.identificado ? datosDeEdad(encabezado.paciente_edad) : { paciente_edad: null }),
         paciente_sexo: encabezado.identificado ? encabezado.paciente_sexo : null,
         lugar_ocurrencia: encabezado.lugar_ocurrencia,
         ciudad: encabezado.ciudad,
@@ -479,7 +503,13 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
         firma_profesional_recibe:
           firmaProfesionalRecibeRef.current?.exportar() ?? clinico.firmaProfesionalRecibeExistente,
       }
-      await corregirFormatoAccidenteSoat(id, { ...datosEncabezado, ...datosClinico }, motivo.trim())
+      const cambios =
+        atencion !== null && tripulacion !== null ? cambiosDeTripulacion(atencion, tripulacion) : {}
+      await corregirFormatoAccidenteSoat(
+        id,
+        { ...datosEncabezado, ...datosClinico, ...cambios },
+        motivo.trim(),
+      )
       navigate(`/atenciones/${id}/detalle`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar la corrección')
@@ -512,6 +542,10 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
           </p>
         )}
  
+        {atencion !== null && tripulacion !== null && (
+          <TripulacionCorreccion actual={atencion} valor={tripulacion} onChange={setTripulacion} />
+        )}
+
         {/* Issue #__ISSUE__: en escritorio, encabezado a la izquierda y parte
             clínica a la derecha, en vez de una sola columna angosta de más de
             cien campos. El motivo y el botón quedan abajo, a todo el ancho. */}
@@ -585,12 +619,12 @@ export function CorregirFormatoAccidenteSoatPage(): JSX.Element {
                   value: encabezado.paciente_apellidos,
                   onChange: (e) => actualizarEncabezado('paciente_apellidos', e.target.value),
                 })}
-                {campoRequerido('Edad', 'edad', {
-                  type: 'number',
-                  min: 0,
-                  value: encabezado.paciente_edad,
-                  onChange: (e) => actualizarEncabezado('paciente_edad', e.target.value),
-                })}
+                <EdadONacimiento
+                  valor={encabezado.paciente_edad}
+                  onChange={(valor) => actualizarEncabezado('paciente_edad', valor)}
+                  referencia={encabezado.fecha_atencion}
+                  requerido={false}
+                />
                 <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="sexo">
                   Sexo
                 </label>
